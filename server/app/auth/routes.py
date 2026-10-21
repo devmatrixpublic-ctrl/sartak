@@ -68,7 +68,7 @@ def refresh(body: RefreshIn, request: Request, svc: AuthService = Depends(get_au
                     expires_in=tokens.expires_in, device_id=record.device_id)
 
 
-class DevTokenIn(StrictInput):                                  # SATARK_STUB
+class DevTokenIn(StrictInput):                                  # support for the dev-token stub below
     device_id: str = Field(min_length=1, max_length=36)
     role: str = "device"
 

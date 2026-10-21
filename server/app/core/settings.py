@@ -36,7 +36,7 @@ class Settings(BaseSettings):
     auth_expected_signing_sha256: str = ""      # comma-separated lowercase hex SHA-256 digests
     auth_attestation_roots: str = ""       # PEM bundle of the pinned Google attestation roots
     auth_require_hardware: bool = True
-    auth_enable_dev_token: bool = False         # SATARK_STUB: dev only, refused elsewhere
+    auth_enable_dev_token: bool = False         # dev only, refused elsewhere (see the dev-token stub in auth/routes.py)
 
     @property
     def effective_migration_url(self) -> str:
