@@ -43,13 +43,9 @@ class EventDispatcher(
     private var lastTrace: PaymentTrace? = null
     private val detector = Detector.create(ageBand, baseline, model).also { it.traceSink = { t -> lastTrace = t } }
 
-    private var unknownCallActive = false
-    private var callOpen = false
-    private var videoOpenSince: Long? = null
+    private val policy = SessionPolicy()
+    private val unknownCallActive get() = policy.unknownCallActive
     private val startedAt = now()
-    private var restoredUpTo: Long? = null // time of the last event replayed after a restart
-    private val videoOrigin = VideoOrigin()
-    private var lastEventT = 0L
     private var ready = false
 
     private val _alarms = MutableSharedFlow<Alarm>(extraBufferCapacity = 16)
@@ -118,7 +114,7 @@ class EventDispatcher(
                 worst = d
             } else if (e.type == EventType.PAYMENT_ATTEMPT && worst.level == Level.NONE) worst = d
         }
-        if (flushAll) detector.onTick(maxOf(lastEventT, now()))
+        if (flushAll) detector.onTick(maxOf(policy.lastEventTMs, now()))
             .takeIf { it.level != Level.NONE && worst.level == Level.NONE }?.let {
                 _alarms.tryEmit(Alarm(it, null, unknownCallActive)); worst = it
             }
@@ -128,27 +124,10 @@ class EventDispatcher(
 
     /** One event into the detector, with the app's session policy. Null when the event is ignored. Call under [lock]. */
     private fun feed(raw: Event): Decision? {
-        val e = videoOrigin.classify(raw)
-        // A CALL_START with no caller info while a call is already open (e.g. the app restarted mid-call and only saw
-        // the current call state) carries nothing new and must not erase that the open call is from an unknown number.
-        if (e.type == EventType.CALL_START && e.callerKnown == null && callOpen) return null
-        // Sources report the current state when they start (call idle, no video app in front). Those closing events
-        // only matter if a restored session left a call or video open; otherwise they are noise.
-        if (e.type == EventType.CALL_END && !callOpen) return null
-        if (e.type == EventType.VIDEO_SESSION_START && videoOpenSince != null) return null // keep the original start
-        var ev = e
-        if (e.type == EventType.VIDEO_SESSION_END) {
-            val since = videoOpenSince ?: return null
-            // A start-up "no video now" end (no package) is dated at the last thing we actually saw, never "now",
-            // so a restart cannot stretch a session into a false long-session alarm.
-            if (e.appPackage == null) ev = e.copy(tMs = maxOf(since, minOf(e.tMs, restoredUpTo ?: e.tMs)))
-        }
-        // A new unknown-contact episode after a long gap is a new session (session policy lives here, not in the detector).
-        if (lastEventT != 0L && e.tMs - lastEventT > (model.constants.contactWindowS * 1000).toLong() && !unknownCallActive) detector.reset()
-        lastEventT = ev.tMs
-        trackCall(ev)
+        val step = policy.prepare(raw) ?: return null
+        if (step.resetFirst) detector.reset()
         lastTrace = null
-        return detector.onEvent(ev)
+        return detector.onEvent(step.event)
     }
 
     /**
@@ -159,18 +138,8 @@ class EventDispatcher(
         val since = now() - RESTORE_WINDOW_MS
         runCatching {
             // Only what happened before this process started; newer rows are already queued in the sequencer.
-            for (row in dao.eventsSince(since)) if (row.tMs < startedAt) EventMapper.fromSchemaJson(row.json)?.let { feed(it); restoredUpTo = it.tMs }
+            for (row in dao.eventsSince(since)) if (row.tMs < startedAt) EventMapper.fromSchemaJson(row.json)?.let { feed(it); policy.restoredUpTo = it.tMs }
         }.onFailure { android.util.Log.w("Satark.dispatch", "session restore failed", it) }
-    }
-
-    private fun trackCall(e: Event) {
-        when (e.type) {
-            EventType.CALL_START -> { unknownCallActive = e.callerKnown == false; callOpen = true }
-            EventType.CALL_END -> { unknownCallActive = false; callOpen = false }
-            EventType.VIDEO_SESSION_START -> videoOpenSince = e.tMs
-            EventType.VIDEO_SESSION_END -> videoOpenSince = null
-            else -> Unit
-        }
     }
 
     /** Call only when a payment actually completed (never for held attempts). */

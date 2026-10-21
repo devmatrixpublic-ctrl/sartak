@@ -52,6 +52,21 @@ Server: `SATARK_ENV=dev SATARK_AUTH_ENABLE_DEV_TOKEN=1`, port 8001; app built wi
 | 14 | Run 6 again (app killed mid-scam, ₹25,000) | HARD → HOLD, no UPI app opened | Pass |
 | 15 | Clean ₹1 hand-off | ALLOW → fake UPI app → reported success | Pass |
 
+### Detector in the app: M2's 36 test vectors
+
+Run with `./gradlew :app:assembleDebug :app:assembleDebugAndroidTest`, install both APKs, then
+`adb shell am instrument -w com.satark.app.test/androidx.test.runner.AndroidJUnitRunner`
+(or `./gradlew :app:connectedDebugAndroidTest`, which uninstalls the app afterwards). JVM version: `VectorsJvmTest`.
+
+| # | Where | Path | Result |
+|---|---|---|---|
+| 16 | JVM | Detector only | 36/36 |
+| 17 | JVM | App pipeline (stored as schema JSON and read back, app dedup, `SessionPolicy`) | 36/36, after fix M (was 33/36) |
+| 18 | Emulator, API 35 | Detector only, `model.json` from the APK | 36/36 |
+| 19 | Emulator, API 35 | App pipeline | 36/36 |
+
+Still needed: the same run on both physical phones (plan 2.7), then M2 sets `detector-freeze`.
+
 ## Defects found and fixed (all on `role_1`)
 
 | | Defect | Fix | Commit |
@@ -67,6 +82,7 @@ Server: `SATARK_ENV=dev SATARK_AUTH_ENABLE_DEV_TOKEN=1`, port 8001; app built wi
 | I | Video always sent with an unknown-or-missing caller, so the long-session rule could never fire | `VideoOrigin`: video during/≤15 min after an unknown call is unknown | `1b82773` |
 | K | App could not authenticate against M4's server (it only knew "bearer = device id"); Android 8 crashed in key generation (`setIsStrongBoxBacked` is API 28+) | Debug builds fall back to M4's `/auth/dev-token`; StrongBox call guarded | see git log |
 | L | Session restore kept a call/video open whose end was missed while the app was dead → false `F_UNK_VIDEO_ACTIVE` | Sources report current state at start; restored video end is dated at the last event seen | see git log |
+| M | The app reset the detector after any 2 h gap, even during an open unknown video call: lost the long-session alarm (vectors S050008, S050139) and changed a decision M2 measured (S052021) | Reset only after 96 h of silence (longest SatarkSim session) and never while a call or video is open | see git log |
 | J | Alarm only visible inside Satark, which the user is usually not looking at | High-priority notification on every alarm | `1b82773` |
 
 ## Not covered here (needs others or a physical phone)

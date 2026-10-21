@@ -18,6 +18,7 @@ android {
         targetSdk = 35
         versionCode = 1
         versionName = "0.1.0"
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         // Overridable: ./gradlew -PsatarkBaseUrl=https://...
         buildConfigField("String", "BASE_URL", "\"${providers.gradleProperty("satarkBaseUrl").getOrElse("http://10.0.2.2:8000/")}\"")
         buildConfigField("String", "RAZORPAY_KEY_ID", "\"${providers.gradleProperty("satarkRazorpayKey").getOrElse("rzp_test_REPLACE_ME")}\"") // test-mode key id (public)
@@ -54,6 +55,10 @@ android {
     buildFeatures { compose = true; buildConfig = true }
     testOptions { unitTests.isReturnDefaultValues = true }
     sourceSets["main"].assets.srcDir("../contracts") // watchlist.json is read at runtime (WatchlistSource)
+    // M2's 36 test vectors, shared by the JVM test and the on-device test.
+    sourceSets["test"].kotlin.srcDir("src/sharedTest/kotlin")
+    sourceSets["androidTest"].kotlin.srcDir("src/sharedTest/kotlin")
+    sourceSets["androidTest"].assets.srcDir(layout.buildDirectory.dir("generated/vectorAssets"))
 }
 
 dependencies {
@@ -86,7 +91,16 @@ dependencies {
     implementation("com.razorpay:checkout:1.6.40")
 
     testImplementation(kotlin("test"))
+    androidTestImplementation("androidx.test.ext:junit:1.2.1")
+    androidTestImplementation("androidx.test:runner:1.6.2")
     testImplementation("org.yaml:snakeyaml:2.3") // ApiContractTest reads contracts/api.yaml
     testImplementation("org.json:json:20240303") // real org.json for JVM tests (android.jar has stubs)
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.9.0")
 }
+
+// Only the three small vector files go into the test APK (not the 124k-row SatarkSim data).
+val copyVectorAssets by tasks.registering(Sync::class) {
+    from("../data/satarksim") { include("detector_test_vectors_*.csv") }
+    into(layout.buildDirectory.dir("generated/vectorAssets/vectors"))
+}
+tasks.matching { it.name.startsWith("merge") && it.name.endsWith("AndroidTestAssets") }.configureEach { dependsOn(copyVectorAssets) }
