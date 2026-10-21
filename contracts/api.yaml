@@ -1,0 +1,479 @@
+openapi: 3.0.3
+info:
+  title: Satark Backend API
+  version: 0.1.0
+  description: >
+    Backend contract for Satark (Member 3). Owned by Member 3; every change
+    needs approval from Member 1 and Member 4 as consumers.
+
+servers:
+  - url: /
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    Error:
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          type: string
+        message:
+          type: string
+
+    HealthResponse:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [ok]
+
+    AuthChallengeRequest:
+      type: object
+      properties: {}
+
+    AuthChallengeResponse:
+      type: object
+      required: [challenge, expires_at]
+      properties:
+        challenge:
+          type: string
+          description: Base64url-encoded random nonce, one-time use.
+        expires_at:
+          type: string
+          format: date-time
+
+    AuthDeviceRequest:
+      type: object
+      required: [challenge, public_key, attestation_chain]
+      properties:
+        challenge:
+          type: string
+        public_key:
+          type: string
+          description: Base64-encoded DER public key.
+        attestation_chain:
+          type: array
+          items:
+            type: string
+          description: Base64-encoded DER certificates, leaf first.
+        role:
+          type: string
+          enum: [device]
+          default: device
+
+    AuthTokenResponse:
+      type: object
+      required: [access_token, refresh_token, token_type, expires_in, device_id]
+      properties:
+        access_token:
+          type: string
+        refresh_token:
+          type: string
+        token_type:
+          type: string
+          enum: [bearer]
+        expires_in:
+          type: integer
+        device_id:
+          type: string
+          format: uuid
+
+    AuthRefreshRequest:
+      type: object
+      required: [refresh_token]
+      properties:
+        refresh_token:
+          type: string
+
+    TrustedContactRequest:
+      type: object
+      required: [trusted_device_id, fcm_token]
+      properties:
+        trusted_device_id:
+          type: string
+          format: uuid
+        fcm_token:
+          type: string
+
+    TrustedContactResponse:
+      type: object
+      required: [linked]
+      properties:
+        linked:
+          type: boolean
+
+    Decision:
+      type: object
+      required: [level, score, reasons]
+      properties:
+        level:
+          type: string
+          enum: [NONE, NUDGE, HARD, TRUSTED_CONTACT]
+        score:
+          type: number
+          format: float
+        reasons:
+          type: array
+          items:
+            type: string
+          maxItems: 3
+
+    RiskCheckRequest:
+      type: object
+      required: [decision, method, amount, payee_hash]
+      properties:
+        decision:
+          $ref: '#/components/schemas/Decision'
+        method:
+          type: string
+          enum: [upi_intent, checkout]
+        amount:
+          type: number
+          format: float
+        payee_hash:
+          type: string
+        is_p2p:
+          type: boolean
+
+    RiskCheckResponse:
+      type: object
+      required: [decision, payment_id]
+      properties:
+        decision:
+          type: string
+          enum: [HOLD, ALLOW]
+        payment_id:
+          type: string
+          format: uuid
+        order_id:
+          type: string
+          description: Present only when method is checkout and decision is ALLOW.
+
+    PaymentResponse:
+      type: object
+      required: [id, method, state, amount, payee_hash]
+      properties:
+        id:
+          type: string
+          format: uuid
+        method:
+          type: string
+          enum: [upi_intent, checkout]
+        state:
+          type: string
+          enum:
+            - created
+            - held
+            - allowed
+            - paid
+            - failed
+            - handed_off
+            - reported_success
+            - reported_failure
+            - no_result
+        amount:
+          type: number
+          format: float
+        payee_hash:
+          type: string
+        razorpay_order_id:
+          type: string
+        reported_status:
+          type: string
+        reported_txn_ref:
+          type: string
+
+    PaymentResultRequest:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [success, failure]
+        txn_ref:
+          type: string
+
+    AlertRequest:
+      type: object
+      required: [device_id, type]
+      properties:
+        device_id:
+          type: string
+          format: uuid
+        type:
+          type: string
+          enum: [alarm, long_session]
+        reasons:
+          type: array
+          items:
+            type: string
+
+    AlertResponse:
+      type: object
+      required: [accepted]
+      properties:
+        accepted:
+          type: boolean
+
+    SignatureRequest:
+      type: object
+      required: [pattern_id, features]
+      properties:
+        pattern_id:
+          type: string
+        features:
+          type: object
+          additionalProperties:
+            type: number
+
+    SignatureResponse:
+      type: object
+      required: [accepted]
+      properties:
+        accepted:
+          type: boolean
+
+paths:
+  /health:
+    get:
+      summary: Liveness check
+      operationId: getHealth
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+
+  /auth/challenge:
+    post:
+      summary: Issue a one-time auth challenge
+      operationId: postAuthChallenge
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AuthChallengeRequest'
+      responses:
+        '200':
+          description: Challenge issued
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthChallengeResponse'
+
+  /auth/device:
+    post:
+      summary: Register a device via Android Key Attestation
+      operationId: postAuthDevice
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AuthDeviceRequest'
+      responses:
+        '200':
+          description: Device registered, tokens issued
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthTokenResponse'
+        '400':
+          description: Attestation invalid
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /auth/refresh:
+    post:
+      summary: Refresh an access token
+      operationId: postAuthRefresh
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AuthRefreshRequest'
+      responses:
+        '200':
+          description: New tokens issued
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthTokenResponse'
+        '401':
+          description: Refresh token invalid or expired
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /trusted-contact:
+    post:
+      summary: Link a trusted contact's device
+      operationId: postTrustedContact
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TrustedContactRequest'
+      responses:
+        '200':
+          description: Linked
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TrustedContactResponse'
+
+  /risk-check:
+    post:
+      summary: Evaluate a payment decision before money moves
+      operationId: postRiskCheck
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RiskCheckRequest'
+      responses:
+        '200':
+          description: Risk decision
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RiskCheckResponse'
+
+  /payments/{id}:
+    get:
+      summary: Fetch a payment's current state
+      operationId: getPayment
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Payment state
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentResponse'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /payments/{id}/result:
+    post:
+      summary: Report the app-observed result of a UPI hand-off
+      operationId: postPaymentResult
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PaymentResultRequest'
+      responses:
+        '200':
+          description: Result recorded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentResponse'
+        '409':
+          description: Invalid transition (e.g. payment is held)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /webhooks/razorpay:
+    post:
+      summary: Razorpay webhook receiver
+      operationId: postRazorpayWebhook
+      responses:
+        '200':
+          description: Processed (or already processed)
+        '400':
+          description: Forged or malformed signature
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /alert:
+    post:
+      summary: Trigger a trusted-contact push notification
+      operationId: postAlert
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AlertRequest'
+      responses:
+        '200':
+          description: Alert accepted (always 2xx, even on a stale token)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AlertResponse'
+
+  /signature:
+    post:
+      summary: Ingest a pattern signature
+      operationId: postSignature
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SignatureRequest'
+      responses:
+        '200':
+          description: Accepted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SignatureResponse'
+        '400':
+          description: Malformed or rejected body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
