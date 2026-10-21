@@ -11,7 +11,10 @@ data class ReasonCodeFile(val version: Int, val codes: List<ReasonCode>, val max
 
 /**
  * Turns an alarm into 1-3 stable reason codes (contracts/reason_codes.json).
- * Payment alarms: the top positive per-feature contributions (weight x standardised value); ties break by feature order.
+ * Payment alarms: the top per-feature contributions (weight x standardised value; ties break by feature order), restricted
+ * to features that are actually PRESENT (value > 0) and whose weight points toward scam (> 0). Without that restriction a
+ * zero-valued feature with a negative weight (a statistical artefact of correlated features, e.g. unk_contact_recent)
+ * scores as positive "evidence" and the screen would state something that did not happen.
  * Rule alarms carry their own rule code only.
  */
 class Explainer(private val model: ModelConfig, private val scorer: Scorer, file: ReasonCodeFile = loadBundled()) {
@@ -27,7 +30,7 @@ class Explainer(private val model: ModelConfig, private val scorer: Scorer, file
     fun reasonsForPayment(x: DoubleArray): List<String> {
         val contrib = scorer.contributions(x)
         return model.features.indices
-            .filter { contrib[it] > 0.0 }
+            .filter { contrib[it] > 0.0 && x[it] > 0.0 && model.logistic.coef[it] > 0.0 }
             .sortedByDescending { contrib[it] } // stable sort: equal contributions keep feature order
             .take(maxReasons)
             .map { featureCode.getValue(model.features[it]) }
