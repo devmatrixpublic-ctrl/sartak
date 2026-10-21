@@ -5,6 +5,7 @@ from typing import Literal, Optional
 
 from app.auth.dependencies import require_device
 from app.core.errors import ApiError
+from app.core.schemas import StrictInput
 from app.db.models import Payment
 from app.db.session import get_db
 from app.payments.service import report_result, sweep_if_stale
@@ -36,7 +37,7 @@ class PaymentOut(BaseModel):
         )
 
 
-class PaymentResultIn(BaseModel):
+class PaymentResultIn(StrictInput):
     status: Literal["success", "failure"]
     txn_ref: Optional[str] = None
 

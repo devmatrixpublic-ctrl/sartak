@@ -3,13 +3,14 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.auth.dependencies import ensure_device_exists, require_device
+from app.core.schemas import StrictInput
 from app.db.models import TrustedLink
 from app.db.session import get_db
 
 router = APIRouter(tags=["trusted-contact"])
 
 
-class TrustedContactIn(BaseModel):
+class TrustedContactIn(StrictInput):
     trusted_device_id: str
     fcm_token: str
 

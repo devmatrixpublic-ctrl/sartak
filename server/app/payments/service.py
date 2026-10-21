@@ -4,7 +4,6 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.errors import ApiError
-from app.core.settings import Settings
 from app.db.models import Payment
 from app.payments.order_client import OrderClient
 from app.payments.state_machine import require_transition

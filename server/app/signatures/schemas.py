@@ -1,6 +1,8 @@
 import re
 
-from pydantic import BaseModel, ConfigDict, field_validator
+from pydantic import field_validator
+
+from app.core.schemas import StrictInput
 
 PATTERN_ID_RE = re.compile(r"^[a-zA-Z0-9_\-]{1,64}$")
 
@@ -26,11 +28,7 @@ DISALLOWED_KEY_SUBSTRINGS = (
 )
 
 
-class SignatureIn(BaseModel):
-    # extra="forbid": a mass-assignment guard. Any field beyond pattern_id
-    # and features is rejected rather than silently stored.
-    model_config = ConfigDict(extra="forbid")
-
+class SignatureIn(StrictInput):
     pattern_id: str
     features: dict[str, float]
 
