@@ -1,0 +1,11 @@
+{
+  "note": "Hashes of local-only benchmark inputs. null = the raw file was not available when this was written.",
+  "baf": {
+    "input": null,
+    "sha256": null
+  },
+  "ieee_cis": {
+    "input": null,
+    "sha256": null
+  }
+}
