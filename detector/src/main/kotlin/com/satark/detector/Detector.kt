@@ -29,14 +29,18 @@ class Detector(
     private val dedupeMs = (model.constants.dedupeWindowS * 1000).toLong()
 
     private var lastEventT: Long? = null
+    private var lastResult: Decision = Decision.none()
 
     fun reset() {
         state.reset()
         lastEventT = null
+        lastResult = Decision.none()
     }
 
     fun onEvent(e: Event): Decision {
-        if (state.isDuplicate(e, dedupeMs)) return Decision.none()
+        // A duplicate is dropped from the evidence, but a repeated PAYMENT_ATTEMPT (user taps pay again) must get the same
+        // decision as the original, never NONE: otherwise a held payment can be released by retrying within the window.
+        if (state.isDuplicate(e, dedupeMs)) return if (e.type == EventType.PAYMENT_ATTEMPT) lastResult else Decision.none()
         val t = e.tMs
         lastEventT = maxOf(lastEventT ?: t, t)
         var payment: Decision? = null
@@ -77,21 +81,26 @@ class Detector(
             }
         }
         // Same precedence as the reference: a rule alarm wins when its alarm time is <= the payment alarm time.
-        return when {
+        val result = when {
             ruleAlarm != null && (payment == null || payment.level != Level.HARD || ruleAlarm.alarmTMs!! <= t) -> ruleAlarm
             payment != null -> payment
             else -> Decision.none()
         }
+        lastResult = result
+        return result
     }
 
     /** Call once when a session ends: checks a video session still running at the last event (same as the reference). */
     fun finish(): Decision = lastEventT?.let { onTick(it) } ?: Decision.none()
 
-    /** Raises the long-session alarm when an unknown-origin video session has reached LONG_SESSION_H at [nowMs]. */
+    /** Raises the long-session alarm (once per video session) when an unknown-origin video session has reached LONG_SESSION_H at [nowMs]. */
     fun onTick(nowMs: Long): Decision = longSession(nowMs) ?: Decision.none()
 
+    /** Raised once per unknown video session, so a periodic [onTick] does not repeat the alarm (and the trusted-contact push). */
     private fun longSession(nowMs: Long): Decision? {
         val at = rules.longSessionAlarmT(state, nowMs) ?: return null
+        if (state.longSessionRaisedFor == state.videoUnkT) return null
+        state.longSessionRaisedFor = state.videoUnkT
         return ruleDecision(Mechanism.LONG_SESSION, at)
     }
 

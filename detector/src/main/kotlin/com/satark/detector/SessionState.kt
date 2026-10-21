@@ -16,6 +16,8 @@ class SessionState {
     var unkT: Long? = null
     var callActive = false
     var videoUnkT: Long? = null
+    /** videoUnkT of the unknown video session whose long-session alarm was already raised (once per session). */
+    var longSessionRaisedFor: Long? = null
     var videoActive = false
     val installs = ArrayList<Install>()
     var watchlistSeen = false
@@ -36,7 +38,7 @@ class SessionState {
     }
 
     fun reset() {
-        unkT = null; callActive = false; videoUnkT = null; videoActive = false
+        unkT = null; callActive = false; videoUnkT = null; videoActive = false; longSessionRaisedFor = null
         installs.clear(); watchlistSeen = false; payeeAddedT.clear(); paidTo.clear()
         lastKey = null; lastT = 0L
     }

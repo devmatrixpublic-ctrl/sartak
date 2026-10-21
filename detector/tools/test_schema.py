@@ -58,7 +58,8 @@ def test_every_simulated_event_is_schema_valid():
 @pytest.mark.parametrize("uri,is_p2p,amount", [
     ("upi://pay?pa=ramesh@okbank&pn=Ramesh%20K&am=1500.50&cu=INR&tn=rent", True, 1500.50),
     ("upi://pay?pa=shop@paytm&pn=Corner%20Shop&am=250&cu=INR&mc=5411", False, 250.0),
-    ("UPI://PAY?pa=a%40b&am=1&cu=INR", True, 1.0),                     # case-insensitive scheme, URL-encoded @
+    ("UPI://PAY?pa=ab%40bank&am=1&cu=INR", True, 1.0),                 # case-insensitive scheme, URL-encoded @
+    ("upi://pay?pa=shop@upi&am=10&mc=%20", True, 10.0),                # blank mc is not a merchant code
 ])
 def test_upi_uri_maps_to_valid_payment_attempt(uri, is_p2p, amount):
     e = parse_upi_uri(uri, SALT, 1_700_000_000_000, known_payee_hashes=set())
@@ -69,15 +70,16 @@ def test_upi_uri_maps_to_valid_payment_attempt(uri, is_p2p, amount):
 
 
 def test_known_payee_is_not_new_and_missing_amount_uses_typed_amount():
-    first = parse_upi_uri("upi://pay?pa=x@y&am=5", SALT, 1, set())
-    again = parse_upi_uri("upi://pay?pa=X@Y", SALT, 2, {first["payee_id"]}, typed_amount=75, source="manual")
+    first = parse_upi_uri("upi://pay?pa=xx@yy&am=5", SALT, 1, set())
+    again = parse_upi_uri("upi://pay?pa=XX@YY", SALT, 2, {first["payee_id"]}, typed_amount=75, source="manual")
     assert again["payee_id"] == first["payee_id"] and again["payee_is_new"] is False
     assert again["amount_inr"] == 75.0 and again["source"] == "manual" and errors(again) == []
 
 
 @pytest.mark.parametrize("uri", ["https://pay?pa=a@b&am=1", "upi://collect?pa=a@b&am=1", "upi://pay?am=1",
-                                 "upi://pay?pa=nodomain&am=1", "upi://pay?pa=a@b&am=abc", "upi://pay?pa=a@b",
-                                 "upi://pay?pa=a@b&am=1&cu=USD", "upi://pay?pa=a@b&am=-5", "", "garbage"])
+                                 "upi://pay?pa=nodomain&am=1", "upi://pay?pa=a@1bad&am=1", "upi://pay?pa=a@b&am=abc", "upi://pay?pa=a@b",
+                                 "upi://pay?pa=a@b&am=1&cu=USD", "upi://pay?pa=a@b&am=-5", "upi://pay?pa=a@b&am=0",
+                                 "upi://pay?pa=a@b&am=1.234", "", "garbage"])
 def test_malformed_or_non_upi_uris_are_rejected(uri):
     with pytest.raises(NotUpiUri):
         parse_upi_uri(uri, SALT, 1, set())
