@@ -8,6 +8,7 @@ from app.alerts.fcm_client import FcmClient, get_fcm_client
 from app.alerts.service import send_alert
 from app.auth.dependencies import require_device
 from app.core.errors import ApiError
+from app.core.schemas import StrictInput
 from app.core.settings import Settings, get_settings
 from app.db.session import get_db
 
@@ -18,7 +19,7 @@ def fcm_client_dependency(settings: Settings = Depends(get_settings)) -> FcmClie
     return get_fcm_client(settings.firebase_credentials_json)
 
 
-class AlertIn(BaseModel):
+class AlertIn(StrictInput):
     device_id: str
     type: Literal["alarm", "long_session"]
     reasons: Optional[list[str]] = None
