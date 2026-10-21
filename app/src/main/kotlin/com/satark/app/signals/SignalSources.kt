@@ -87,6 +87,9 @@ class CallSignalSource(private val ctx: Context, private val now: () -> Long = S
                 tm.registerTelephonyCallback(ContextCompat.getMainExecutor(ctx), cb)
                 callback = cb
             }
+            // Report "no call now" at start: closes a call restored from before a restart whose end was missed.
+            @Suppress("DEPRECATION")
+            if (tm.callState == TelephonyManager.CALL_STATE_IDLE) emit(RawSignal.CallEnded(now()))
         }.onFailure { Log.w(TAG, "call source failed to start", it) }
     }
 
@@ -161,6 +164,23 @@ class UsageSignalSource(
             val usm = ctx.getSystemService(UsageStatsManager::class.java)
             var cursor = now()
             val video = VideoSessionTracker(videoApps, graceMs, emit)
+            // Current state at start: if a video app is in front, track it; otherwise report "no video now"
+            // (package null) so a session restored from before a restart is closed.
+            runCatching {
+                val start = now()
+                val ev = usm.queryEvents(start - 10 * 60_000L, start)
+                val e = UsageEvents.Event()
+                var front: String? = null; var frontT = 0L
+                while (ev.hasNextEvent()) {
+                    ev.getNextEvent(e)
+                    when (e.eventType) {
+                        UsageEvents.Event.ACTIVITY_RESUMED -> { front = e.packageName; frontT = e.timeStamp }
+                        UsageEvents.Event.ACTIVITY_PAUSED -> if (e.packageName == front) front = null
+                    }
+                }
+                val f = front
+                if (f != null && f in videoApps) video.resumed(f, frontT) else emit(RawSignal.VideoEnded(start, null))
+            }
             while (running) {
                 runCatching {
                     val end = now()

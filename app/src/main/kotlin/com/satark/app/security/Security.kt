@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.pm.PackageManager
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
+import android.os.Build
 import android.util.Base64
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
@@ -58,7 +59,7 @@ object KeyAttestor {
     fun attest(ctx: Context, challenge: ByteArray): Attestation {
         val ks = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
         ks.deleteEntry(ALIAS) // a new challenge needs a new key: the challenge is bound at generation time
-        var strongBox = ctx.packageManager.hasSystemFeature(PackageManager.FEATURE_STRONGBOX_KEYSTORE)
+        var strongBox = Build.VERSION.SDK_INT >= Build.VERSION_CODES.P && ctx.packageManager.hasSystemFeature(PackageManager.FEATURE_STRONGBOX_KEYSTORE)
         try {
             generate(challenge, strongBox)
         } catch (e: Exception) {
@@ -76,7 +77,8 @@ object KeyAttestor {
             .setAlgorithmParameterSpec(ECGenParameterSpec("secp256r1"))
             .setDigests(KeyProperties.DIGEST_SHA256)
             .setAttestationChallenge(challenge)
-            .setIsStrongBoxBacked(strongBox)
+            // setIsStrongBoxBacked exists from Android 9; calling it on 8.x (minSdk 26) throws NoSuchMethodError.
+            .apply { if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) setIsStrongBoxBacked(strongBox) }
             .build()
         KeyPairGenerator.getInstance(KeyProperties.KEY_ALGORITHM_EC, "AndroidKeyStore").apply { initialize(spec) }.generateKeyPair()
     }

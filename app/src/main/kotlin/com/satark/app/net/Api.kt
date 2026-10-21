@@ -64,6 +64,8 @@ import retrofit2.http.Path
 @Serializable data class Accepted(val accepted: Boolean)
 @Serializable data class SignatureRequest(@SerialName("pattern_id") val patternId: String, val features: Map<String, Double>)
 @Serializable data class ApiError(val code: String, val message: String)
+/** M4's dev-token stub body (hidden from api.yaml; contracts/auth.md "Dev token stub"). */
+@Serializable data class DevTokenRequest(@SerialName("device_id") val deviceId: String)
 
 /** Header that marks a call as safe to retry (idempotent GETs, /alert, /signature). */
 const val RETRY_HEADER = "X-Satark-Retry"
@@ -72,6 +74,7 @@ interface SatarkApi {
     @POST("auth/challenge") suspend fun challenge(@Body b: Empty = Empty()): ChallengeResponse
     @POST("auth/device") suspend fun registerDevice(@Body b: DeviceAuthRequest): TokenResponse
     @POST("auth/refresh") suspend fun refresh(@Body b: RefreshRequest): TokenResponse
+    @POST("auth/dev-token") suspend fun devToken(@Body b: DevTokenRequest): TokenResponse
     @POST("trusted-contact") suspend fun trustedContact(@Body b: TrustedContactRequest): TrustedContactResponse
     @POST("risk-check") suspend fun riskCheck(@Body b: RiskCheckRequest): RiskCheckResponse
     @GET("payments/{id}") suspend fun payment(@Path("id") id: String, @Header(RETRY_HEADER) retry: String = "1"): PaymentResponse

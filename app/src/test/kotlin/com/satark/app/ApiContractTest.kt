@@ -85,8 +85,18 @@ class ApiContractTest {
                 (s["maxItems"] as? Int)?.let { if (v.size > it) out += "$at: ${v.size} items > maxItems $it" }
                 v.forEachIndexed { i, x -> out += validate(x, s["items"] as Map<String, Any?>, "$at[$i]") }
             }
-            "string" -> if (v !is JsonPrimitive || !v.isString) out += "$at: expected string"
-            "number" -> if (v !is JsonPrimitive || v.isString || v.doubleOrNull == null) out += "$at: expected number"
+            "string" -> if (v !is JsonPrimitive || !v.isString) out += "$at: expected string" else {
+                (s["maxLength"] as? Int)?.let { if (v.content.length > it) out += "$at: longer than $it" }
+                (s["minLength"] as? Int)?.let { if (v.content.length < it) out += "$at: shorter than $it" }
+            }
+            "number" -> if (v !is JsonPrimitive || v.isString || v.doubleOrNull == null) out += "$at: expected number" else {
+                val x = v.doubleOrNull!!
+                (s["maximum"] as? Number)?.let { if (x > it.toDouble()) out += "$at: $x > maximum $it" }
+                (s["minimum"] as? Number)?.let {
+                    if (s["exclusiveMinimum"] == true && x <= it.toDouble()) out += "$at: $x <= exclusive minimum $it"
+                    else if (x < it.toDouble()) out += "$at: $x < minimum $it"
+                }
+            }
             "integer" -> if (v !is JsonPrimitive || v.isString || v.content.toLongOrNull() == null) out += "$at: expected integer"
             "boolean" -> if (v !is JsonPrimitive || v.isString || v.booleanOrNull == null) out += "$at: expected boolean"
         }

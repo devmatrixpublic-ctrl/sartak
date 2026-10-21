@@ -6,6 +6,8 @@ plugins {
     id("com.google.devtools.ksp")
 }
 
+fun env(vararg names: String): String? = names.firstNotNullOfOrNull { System.getenv(it)?.takeIf(String::isNotBlank) }
+
 android {
     namespace = "com.satark.app"
     compileSdk = 36
@@ -27,12 +29,13 @@ android {
 
     signingConfigs {
         create("release") { // keystore comes from CI secrets (M4); absent locally -> unsigned release
-            val ks = System.getenv("SATARK_KEYSTORE")
+            // Accepts the SATARK_* names and the names M4's release.yml exports (KEYSTORE_PATH, KEYSTORE_PASSWORD, ...).
+            val ks = env("SATARK_KEYSTORE", "KEYSTORE_PATH")
             if (ks != null) {
                 storeFile = file(ks)
-                storePassword = System.getenv("SATARK_KEYSTORE_PASSWORD")
-                keyAlias = System.getenv("SATARK_KEY_ALIAS")
-                keyPassword = System.getenv("SATARK_KEY_PASSWORD")
+                storePassword = env("SATARK_KEYSTORE_PASSWORD", "KEYSTORE_PASSWORD")
+                keyAlias = env("SATARK_KEY_ALIAS", "KEY_ALIAS")
+                keyPassword = env("SATARK_KEY_PASSWORD", "KEY_PASSWORD")
             }
         }
     }
@@ -40,7 +43,7 @@ android {
         release {
             isMinifyEnabled = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-            if (System.getenv("SATARK_KEYSTORE") != null) signingConfig = signingConfigs.getByName("release")
+            if (env("SATARK_KEYSTORE", "KEYSTORE_PATH") != null) signingConfig = signingConfigs.getByName("release")
         }
     }
     compileOptions {

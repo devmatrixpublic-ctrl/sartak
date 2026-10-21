@@ -45,16 +45,26 @@ class DeviceSession(private val ctx: Context, private val store: TokenStore, pri
     }
 
     suspend fun register() = registering.withLock {
+        val api = bare()
+        val ch = try {
+            api.challenge()
+        } catch (e: retrofit2.HttpException) {
+            if (e.code() != 404) throw e
+            registerWithDevStub() // server without /auth/* at all (M3's main before M4's auth merged)
+            return@withLock
+        }
         try {
-            val api = bare()
-            val ch = api.challenge()
             val att = KeyAttestor.attest(ctx, Base64.decode(ch.challenge, Base64.URL_SAFE or Base64.NO_PADDING))
             Log.i("Satark.auth", "attestation level: ${att.level}")
             val t = api.registerDevice(DeviceAuthRequest(ch.challenge, att.publicKeyB64, att.chainB64))
             store.setSession(t.deviceId, t.accessToken, t.refreshToken)
-        } catch (e: retrofit2.HttpException) {
-            if (e.code() != 404) throw e
-            registerWithDevStub()
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            // An emulator's chain never roots at Google (400 chain_untrusted / software_only). Debug builds then use
+            // M4's /auth/dev-token, which the server only answers in dev with SATARK_AUTH_ENABLE_DEV_TOKEN=1.
+            Log.w("Satark.auth", "attestation registration failed: ${(e as? retrofit2.HttpException)?.code() ?: e}")
+            if (!com.satark.app.BuildConfig.DEBUG || !registerWithDevTokenRoute(api)) throw e
         }
     }
 
@@ -63,6 +73,12 @@ class DeviceSession(private val ctx: Context, private val store: TokenStore, pri
         val id = store.deviceId ?: UUID.randomUUID().toString()
         store.setSession(id, id, null)
     }
+
+    @SatarkStub("M4's /auth/dev-token: debug builds only, until attestation registers on a real phone")
+    private suspend fun registerWithDevTokenRoute(api: SatarkApi): Boolean = runCatching {
+        val t = api.devToken(DevTokenRequest(store.deviceId ?: UUID.randomUUID().toString()))
+        store.setSession(t.deviceId, t.accessToken, t.refreshToken)
+    }.isSuccess
 
     /** Dev-token mode (no refresh token): the bearer must equal the device id. Heals installs hit by the old race. */
     @SatarkStub("dev token repair; goes away with the dev token")

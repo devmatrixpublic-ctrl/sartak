@@ -45,6 +45,7 @@ class PaymentRepository(
      * If the server cannot be reached nothing is launched, and an alarmed payment is reported as held.
      */
     suspend fun start(req: UpiRequest, amountInr: BigDecimal, source: String, method: String): PayOutcome {
+        if (amountInr.signum() <= 0 || amountInr > MAX_AMOUNT_INR) return PayOutcome.Failed("Enter an amount between ₹0.01 and ₹1,00,00,000.")
         val hash = hasher.hash(req.payeeVpa)
         val isNew = dao.payeeCount(hash) == 0
         val t = now()
@@ -79,7 +80,8 @@ class PaymentRepository(
     /** Hand-off result: app-reported, never verified. A payment the server holds rejects this call (4xx), which is fine. */
     suspend fun reportUpiResult(paymentId: String, response: String?, req: UpiRequest, amountInr: BigDecimal): UpiResultParser.Result? {
         val r = UpiResultParser.parse(response) ?: return null
-        runCatching { api().paymentResult(paymentId, PaymentResultRequest(r.status, r.txnRef)) }
+        // api.yaml caps txn_ref at 128 chars; a longer value from a UPI app must not cost us the whole result.
+        runCatching { api().paymentResult(paymentId, PaymentResultRequest(r.status, r.txnRef?.take(128))) }
         if (r.status == "success") markCompleted(req.payeeVpa, amountInr.toDouble())
         return r
     }
@@ -97,6 +99,8 @@ class PaymentRepository(
         }
         return "pending"
     }
+
+    companion object { val MAX_AMOUNT_INR = BigDecimal("10000000") } // api.yaml RiskCheckRequest.amount maximum
 
     private suspend fun markCompleted(vpa: String, amountInr: Double) {
         dao.addPayee(KnownPayee(hasher.hash(vpa)))

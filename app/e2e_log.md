@@ -41,6 +41,17 @@ the commit that fixed them.
 | 10 | Checkout without a Razorpay key | Pay ₹1 via "Satark checkout (test)" | Razorpay errors → "Checkout did not complete. No payment was made." within seconds | Pass, after fix G |
 | 11 | Long session (test build, 2 min) | Unknown call → hang up → fake video app for 2.5 min | Session marked unknown; `RULE_LONG_SESSION`; `/alert type=long_session` 200; notification shown over the video app | Pass, after fixes H, I, J |
 
+### Against M4's server (PR #9, `origin/m4` at `01e039d`, run from a separate checkout, not merged)
+
+Server: `SATARK_ENV=dev SATARK_AUTH_ENABLE_DEV_TOKEN=1`, port 8001; app built with `-PsatarkBaseUrl=http://10.0.2.2:8001/`.
+
+| # | Path | Expected | Result |
+|---|---|---|---|
+| 12 | Upgrade from the old dev token | Old bearer rejected (401) → challenge → emulator attestation refused (503: no roots configured in dev) → `/auth/dev-token` → JWT + refresh token; `/risk-check`, `/alert`, `/signature` 200 | Pass, after fix K |
+| 13 | Restart after a video session ended while the app was dead | No stale "video still active" alarm | Pass, after fix L |
+| 14 | Run 6 again (app killed mid-scam, ₹25,000) | HARD → HOLD, no UPI app opened | Pass |
+| 15 | Clean ₹1 hand-off | ALLOW → fake UPI app → reported success | Pass |
+
 ## Defects found and fixed (all on `role_1`)
 
 | | Defect | Fix | Commit |
@@ -54,6 +65,8 @@ the commit that fixed them.
 | G | Razorpay error left the user waiting 60 s | Short check, then a plain "did not complete" message | `7c3eb5c` |
 | H | Video session closed after ~2 min without new usage events | `VideoSessionTracker` keeps it open while the app is in front | `1b82773` |
 | I | Video always sent with an unknown-or-missing caller, so the long-session rule could never fire | `VideoOrigin`: video during/≤15 min after an unknown call is unknown | `1b82773` |
+| K | App could not authenticate against M4's server (it only knew "bearer = device id"); Android 8 crashed in key generation (`setIsStrongBoxBacked` is API 28+) | Debug builds fall back to M4's `/auth/dev-token`; StrongBox call guarded | see git log |
+| L | Session restore kept a call/video open whose end was missed while the app was dead → false `F_UNK_VIDEO_ACTIVE` | Sources report current state at start; restored video end is dated at the last event seen | see git log |
 | J | Alarm only visible inside Satark, which the user is usually not looking at | High-priority notification on every alarm | `1b82773` |
 
 ## Not covered here (needs others or a physical phone)
