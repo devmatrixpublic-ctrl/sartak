@@ -1,0 +1,122 @@
+from datetime import datetime, timedelta, timezone
+
+from sqlalchemy import select
+from sqlalchemy.orm import Session
+
+from app.core.errors import ApiError
+from app.core.settings import Settings
+from app.db.models import Payment
+from app.payments.order_client import OrderClient
+from app.payments.state_machine import require_transition
+
+DEFAULT_HANDED_OFF_TIMEOUT_SECONDS = 15 * 60
+
+
+def create_payment(
+    db: Session,
+    *,
+    device_id: str,
+    method: str,
+    amount: float,
+    payee_hash: str,
+    risk_decision: str,
+    order_client: OrderClient,
+) -> Payment:
+    """Create a payment from a risk-check decision (HOLD or ALLOW)."""
+    state = "held" if risk_decision == "HOLD" else "allowed"
+    require_transition(method, "created", state)
+
+    payment = Payment(
+        device_id=device_id,
+        method=method,
+        amount=amount,
+        payee_hash=payee_hash,
+        state=state,
+    )
+
+    if state == "allowed" and method == "checkout":
+        payment.razorpay_order_id = order_client.create_order(
+            amount=amount, currency="INR", receipt=f"satark_{device_id[:8]}"
+        )
+    elif state == "allowed" and method == "upi_intent":
+        # ALLOW for upi_intent means the client launches the UPI chooser
+        # immediately — there is no separate "I launched it" callback, so
+        # the hand-off starts here, and the timeout clock starts now.
+        require_transition(method, "allowed", "handed_off")
+        payment.state = "handed_off"
+        payment.handed_off_at = datetime.now(timezone.utc)
+
+    db.add(payment)
+    db.commit()
+    db.refresh(payment)
+    return payment
+
+
+def mark_handed_off(db: Session, payment: Payment) -> Payment:
+    require_transition(payment.method, payment.state, "handed_off")
+    payment.state = "handed_off"
+    payment.handed_off_at = datetime.now(timezone.utc)
+    db.commit()
+    db.refresh(payment)
+    return payment
+
+
+def report_result(db: Session, payment: Payment, status: str, txn_ref: str | None) -> Payment:
+    if payment.method != "upi_intent":
+        raise ApiError(409, "invalid_method", "Only upi_intent payments accept a reported result.")
+
+    target = "reported_success" if status == "success" else "reported_failure"
+    require_transition(payment.method, payment.state, target)
+
+    payment.state = target
+    payment.reported_status = status
+    payment.reported_txn_ref = txn_ref
+    db.commit()
+    db.refresh(payment)
+    return payment
+
+
+def finalize_checkout(db: Session, payment: Payment, outcome: str) -> Payment:
+    """outcome is 'paid' or 'failed', driven only by a verified Razorpay webhook."""
+    require_transition(payment.method, payment.state, outcome)
+    payment.state = outcome
+    db.commit()
+    db.refresh(payment)
+    return payment
+
+
+def sweep_stale_handed_off(db: Session, *, ttl_seconds: int = DEFAULT_HANDED_OFF_TIMEOUT_SECONDS) -> int:
+    """Move stale upi_intent payments stuck in handed_off to no_result.
+
+    Called by a periodic background job, and opportunistically whenever a
+    payment is read, so state is correct even if the service was asleep
+    (Render free-tier cold start) while the timeout elapsed.
+    """
+    cutoff = datetime.now(timezone.utc) - timedelta(seconds=ttl_seconds)
+    stale = db.scalars(
+        select(Payment).where(
+            Payment.method == "upi_intent",
+            Payment.state == "handed_off",
+            Payment.handed_off_at.is_not(None),
+            Payment.handed_off_at < cutoff,
+        )
+    ).all()
+    for payment in stale:
+        payment.state = "no_result"
+    if stale:
+        db.commit()
+    return len(stale)
+
+
+def sweep_if_stale(db: Session, payment: Payment, *, ttl_seconds: int = DEFAULT_HANDED_OFF_TIMEOUT_SECONDS) -> Payment:
+    """Evaluate the timeout for a single payment being read, so GET /payments/{id} is correct on wake."""
+    if payment.method == "upi_intent" and payment.state == "handed_off" and payment.handed_off_at:
+        cutoff = datetime.now(timezone.utc) - timedelta(seconds=ttl_seconds)
+        handed_off_at = payment.handed_off_at
+        if handed_off_at.tzinfo is None:
+            handed_off_at = handed_off_at.replace(tzinfo=timezone.utc)
+        if handed_off_at < cutoff:
+            payment.state = "no_result"
+            db.commit()
+            db.refresh(payment)
+    return payment
