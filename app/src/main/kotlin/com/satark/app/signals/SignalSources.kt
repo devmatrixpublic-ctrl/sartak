@@ -1,0 +1,248 @@
+package com.satark.app.signals
+
+import android.Manifest
+import android.app.AppOpsManager
+import android.app.usage.UsageEvents
+import android.app.usage.UsageStatsManager
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
+import android.content.pm.PackageManager
+import android.os.Build
+import android.os.Process
+import android.provider.ContactsContract
+import android.net.Uri
+import android.telephony.TelephonyCallback
+import android.telephony.TelephonyManager
+import android.util.Log
+import androidx.core.content.ContextCompat
+import com.satark.detector.InstallSource
+import java.security.MessageDigest
+
+/** Every source reports availability and never throws into the caller. */
+interface SignalSource {
+    val name: SourceName
+    fun state(): SourceState
+    fun start(emit: (RawSignal) -> Unit)
+    fun stop()
+}
+
+private const val TAG = "Satark.signals"
+
+private fun Context.granted(p: String) = ContextCompat.checkSelfPermission(this, p) == PackageManager.PERMISSION_GRANTED
+
+/**
+ * Call start/end via TelephonyCallback (API 31+) or the phone-state broadcast.
+ * Whether the other party is in contacts needs the number: the phone-state broadcast carries it only with READ_CALL_LOG,
+ * and only for incoming calls. The number is looked up in contacts and discarded at once, so nothing but a boolean
+ * leaves this class. When the number or READ_CONTACTS is missing, callerKnown = null (detector: no unknown-contact evidence).
+ */
+class CallSignalSource(private val ctx: Context, private val now: () -> Long = System::currentTimeMillis) : SignalSource {
+    override val name = SourceName.CALL
+    private var receiver: BroadcastReceiver? = null
+    private var callback: TelephonyCallback? = null
+    private var lastState = TelephonyManager.CALL_STATE_IDLE
+    @Volatile private var pendingKnown: Boolean? = null
+
+    override fun state() = when {
+        !ctx.packageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY) -> SourceState.UNSUPPORTED
+        !ctx.granted(Manifest.permission.READ_PHONE_STATE) -> SourceState.DENIED
+        else -> SourceState.AVAILABLE
+    }
+
+    override fun start(emit: (RawSignal) -> Unit) {
+        if (state() != SourceState.AVAILABLE) return
+        runCatching {
+            // The broadcast gives the number (when READ_CALL_LOG is granted); the callback gives reliable state changes.
+            val r = object : BroadcastReceiver() {
+                override fun onReceive(c: Context, i: Intent) {
+                    @Suppress("DEPRECATION")
+                    val number = i.getStringExtra(TelephonyManager.EXTRA_INCOMING_NUMBER)
+                    if (number != null) pendingKnown = isInContacts(number)
+                }
+            }
+            ContextCompat.registerReceiver(ctx, r, IntentFilter(TelephonyManager.ACTION_PHONE_STATE_CHANGED), ContextCompat.RECEIVER_EXPORTED)
+            receiver = r
+
+            val tm = ctx.getSystemService(TelephonyManager::class.java)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                val cb = object : TelephonyCallback(), TelephonyCallback.CallStateListener {
+                    override fun onCallStateChanged(state: Int) = handle(state, emit)
+                }
+                tm.registerTelephonyCallback(ContextCompat.getMainExecutor(ctx), cb)
+                callback = cb
+            }
+        }.onFailure { Log.w(TAG, "call source failed to start", it) }
+    }
+
+    private fun handle(state: Int, emit: (RawSignal) -> Unit) {
+        if (state == lastState) return
+        val t = now()
+        if (lastState == TelephonyManager.CALL_STATE_IDLE && state != TelephonyManager.CALL_STATE_IDLE) {
+            emit(RawSignal.CallStarted(t, pendingKnown))
+        } else if (state == TelephonyManager.CALL_STATE_IDLE) {
+            emit(RawSignal.CallEnded(t))
+            pendingKnown = null
+        }
+        lastState = state
+    }
+
+    private fun isInContacts(number: String): Boolean? {
+        if (!ctx.granted(Manifest.permission.READ_CONTACTS)) return null
+        return runCatching {
+            val uri = Uri.withAppendedPath(ContactsContract.PhoneLookup.CONTENT_FILTER_URI, Uri.encode(number))
+            ctx.contentResolver.query(uri, arrayOf(ContactsContract.PhoneLookup._ID), null, null, null)?.use { it.count > 0 }
+        }.getOrNull()
+    }
+
+    override fun stop() {
+        runCatching { receiver?.let(ctx::unregisterReceiver) }
+        receiver = null
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            runCatching { callback?.let { ctx.getSystemService(TelephonyManager::class.java).unregisterTelephonyCallback(it) } }
+        }
+        callback = null
+    }
+
+    companion object {
+        /** One-way digest, for any place that must refer to a number without storing it. Not used for detector input. */
+        fun digest(number: String) = MessageDigest.getInstance("SHA-256").digest(number.toByteArray()).joinToString("") { "%02x".format(it) }
+    }
+}
+
+/**
+ * Foreground app and video-app sessions from UsageStatsManager (polled; there is no push API).
+ * Video apps are calling apps only; whether the other party is unknown cannot be read, so callerKnown = null and the
+ * long-session rule stays silent until a signal for it exists (documented limitation).
+ */
+class UsageSignalSource(
+    private val ctx: Context,
+    private val videoApps: Set<String> = DEFAULT_VIDEO_APPS,
+    private val pollMs: Long = 3000,
+    private val graceMs: Long = 30_000,
+    private val now: () -> Long = System::currentTimeMillis,
+) : SignalSource {
+    override val name = SourceName.USAGE
+    private var thread: Thread? = null
+    @Volatile private var running = false
+
+    override fun state(): SourceState {
+        val ops = ctx.getSystemService(AppOpsManager::class.java)
+        val mode = ops.unsafeCheckOpNoThrow(AppOpsManager.OPSTR_GET_USAGE_STATS, Process.myUid(), ctx.packageName)
+        return if (mode == AppOpsManager.MODE_ALLOWED) SourceState.AVAILABLE else SourceState.DENIED
+    }
+
+    override fun start(emit: (RawSignal) -> Unit) {
+        if (state() != SourceState.AVAILABLE || running) return
+        running = true
+        thread = Thread({
+            val usm = ctx.getSystemService(UsageStatsManager::class.java)
+            var cursor = now()
+            var videoPkg: String? = null
+            var videoLastSeen = 0L
+            while (running) {
+                runCatching {
+                    val end = now()
+                    val ev = usm.queryEvents(cursor, end)
+                    val e = UsageEvents.Event()
+                    while (ev.hasNextEvent()) {
+                        ev.getNextEvent(e)
+                        if (e.eventType != UsageEvents.Event.ACTIVITY_RESUMED) continue
+                        emit(RawSignal.AppForeground(e.timeStamp, e.packageName))
+                        if (e.packageName in videoApps) {
+                            if (videoPkg == null) emit(RawSignal.VideoStarted(e.timeStamp, e.packageName, null))
+                            videoPkg = e.packageName
+                            videoLastSeen = e.timeStamp
+                        } else if (videoPkg != null && e.timeStamp - videoLastSeen > graceMs) {
+                            emit(RawSignal.VideoEnded(videoLastSeen, videoPkg)); videoPkg = null
+                        }
+                    }
+                    if (videoPkg != null && end - videoLastSeen > graceMs * 4) {
+                        emit(RawSignal.VideoEnded(videoLastSeen, videoPkg)); videoPkg = null
+                    }
+                    cursor = end
+                }.onFailure { Log.w(TAG, "usage poll failed", it) }
+                runCatching { Thread.sleep(pollMs) }
+            }
+        }, "satark-usage").apply { isDaemon = true; start() }
+    }
+
+    override fun stop() { running = false; thread = null }
+
+    companion object {
+        val DEFAULT_VIDEO_APPS = setOf(
+            "com.whatsapp", "us.zoom.videomeetings", "com.google.android.apps.tachyon",
+            "com.skype.raider", "org.telegram.messenger", "org.thoughtcrime.securesms",
+        )
+    }
+}
+
+/** Package-added events with the install source: Play vs sideload. */
+class InstallSignalSource(private val ctx: Context, private val now: () -> Long = System::currentTimeMillis) : SignalSource {
+    override val name = SourceName.INSTALL
+    private var receiver: BroadcastReceiver? = null
+
+    // QUERY_ALL_PACKAGES is a manifest permission; if the OEM strips it the lookups fail and the source is reported as unsupported.
+    override fun state() = if (ctx.granted("android.permission.QUERY_ALL_PACKAGES") || Build.VERSION.SDK_INT < 30) SourceState.AVAILABLE
+    else SourceState.UNSUPPORTED
+
+    override fun start(emit: (RawSignal) -> Unit) {
+        if (receiver != null) return
+        val r = object : BroadcastReceiver() {
+            override fun onReceive(c: Context, i: Intent) {
+                if (i.getBooleanExtra(Intent.EXTRA_REPLACING, false)) return
+                val pkg = i.data?.schemeSpecificPart ?: return
+                emit(RawSignal.AppInstalled(now(), pkg, installSource(pkg)))
+            }
+        }
+        val f = IntentFilter(Intent.ACTION_PACKAGE_ADDED).apply { addDataScheme("package") }
+        runCatching { ContextCompat.registerReceiver(ctx, r, f, ContextCompat.RECEIVER_EXPORTED); receiver = r }
+            .onFailure { Log.w(TAG, "install source failed to start", it) }
+    }
+
+    /** play_store = installer is com.android.vending; any other installer or none = sideload; lookup failure = null. */
+    internal fun installSource(pkg: String): InstallSource? = runCatching {
+        val installer = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) ctx.packageManager.getInstallSourceInfo(pkg).installingPackageName
+        else @Suppress("DEPRECATION") ctx.packageManager.getInstallerPackageName(pkg)
+        if (installer == "com.android.vending") InstallSource.PLAY_STORE else InstallSource.SIDELOAD
+    }.getOrNull()
+
+    override fun stop() { runCatching { receiver?.let(ctx::unregisterReceiver) }; receiver = null }
+}
+
+/** Remote-access / screen-share packages from contracts/watchlist.json (bundled into assets). */
+class WatchlistSource(private val ctx: Context) : SignalSource {
+    override val name = SourceName.WATCHLIST
+    val packages: Set<String> by lazy {
+        runCatching {
+            val text = ctx.assets.open("watchlist.json").bufferedReader().use { it.readText() }
+            Regex("\"(com\\.[a-z0-9._]+)\"").findAll(text).map { it.groupValues[1] }.toSet()
+        }.getOrElse { Log.w(TAG, "watchlist.json missing", it); emptySet() }
+    }
+
+    override fun state() = if (packages.isEmpty()) SourceState.UNSUPPORTED else SourceState.AVAILABLE
+
+    /** Watch-listed packages installed right now (visible through the manifest <queries> entries). */
+    fun installed(): Set<String> = packages.filterTo(HashSet()) {
+        runCatching { ctx.packageManager.getPackageInfo(it, 0); true }.getOrDefault(false)
+    }
+
+    // The watch-list does not emit on its own: installs and foreground events carry the package, the detector matches it.
+    override fun start(emit: (RawSignal) -> Unit) = Unit
+    override fun stop() = Unit
+}
+
+/** Owns all sources and reports their combined status. */
+class SignalHub(ctx: Context) {
+    val watchlist = WatchlistSource(ctx)
+    val sources: List<SignalSource> = listOf(CallSignalSource(ctx), UsageSignalSource(ctx), InstallSignalSource(ctx), watchlist)
+
+    fun status() = SignalStatus(sources.associate { it.name to it.state() })
+
+    fun start(emit: (RawSignal) -> Unit) = sources.forEach { s ->
+        runCatching { s.start(emit) }.onFailure { Log.w(TAG, "${s.name} failed", it) }
+    }
+
+    fun stop() = sources.forEach { runCatching { it.stop() } }
+}
