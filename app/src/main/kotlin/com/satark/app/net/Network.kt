@@ -23,6 +23,7 @@ import retrofit2.Retrofit
 import java.io.IOException
 import java.util.UUID
 import java.util.concurrent.TimeUnit
+import kotlinx.coroutines.sync.withLock
 
 val NetJson = Json { ignoreUnknownKeys = true; explicitNulls = false; encodeDefaults = true }
 
@@ -32,20 +33,25 @@ val NetJson = Json { ignoreUnknownKeys = true; explicitNulls = false; encodeDefa
  * bearer value IS the device id, so we fall back to that.
  */
 class DeviceSession(private val ctx: Context, private val store: TokenStore, private val bare: () -> SatarkApi) {
+    // One registration at a time: startup and a 401 retry used to register concurrently, each with its own device id,
+    // leaving the token of one and the device id of the other (server then answers 403 on /alert).
+    private val registering = kotlinx.coroutines.sync.Mutex()
+
     /** Idempotent; call from a background coroutine (it may hit the network). */
     suspend fun ensureRegistered() {
-        if (store.accessToken != null || store.deviceId != null) return
+        repairDevStubSession()
+        if (store.accessToken != null && store.deviceId != null) return
         register()
     }
 
-    suspend fun register() {
+    suspend fun register() = registering.withLock {
         try {
             val api = bare()
             val ch = api.challenge()
             val att = KeyAttestor.attest(ctx, Base64.decode(ch.challenge, Base64.URL_SAFE or Base64.NO_PADDING))
             Log.i("Satark.auth", "attestation level: ${att.level}")
             val t = api.registerDevice(DeviceAuthRequest(ch.challenge, att.publicKeyB64, att.chainB64))
-            store.accessToken = t.accessToken; store.refreshToken = t.refreshToken; store.deviceId = t.deviceId
+            store.setSession(t.deviceId, t.accessToken, t.refreshToken)
         } catch (e: retrofit2.HttpException) {
             if (e.code() != 404) throw e
             registerWithDevStub()
@@ -55,7 +61,14 @@ class DeviceSession(private val ctx: Context, private val store: TokenStore, pri
     @SatarkStub("dev token: bearer value is the device id until M4's /auth/device is live")
     private fun registerWithDevStub() {
         val id = store.deviceId ?: UUID.randomUUID().toString()
-        store.deviceId = id; store.accessToken = id; store.refreshToken = null
+        store.setSession(id, id, null)
+    }
+
+    /** Dev-token mode (no refresh token): the bearer must equal the device id. Heals installs hit by the old race. */
+    @SatarkStub("dev token repair; goes away with the dev token")
+    private fun repairDevStubSession() {
+        val id = store.deviceId ?: return
+        if (store.refreshToken == null && store.accessToken != null && store.accessToken != id) store.setSession(id, id, null)
     }
 
     /** Called on 401: refresh, and if that fails register again. Returns the new access token or null. */
@@ -122,6 +135,11 @@ object NetworkModule {
             .connectTimeout(8, TimeUnit.SECONDS).readTimeout(15, TimeUnit.SECONDS).writeTimeout(15, TimeUnit.SECONDS)
             .addInterceptor(RetryInterceptor())
             .addInterceptor(AuthInterceptor(store))
+            .apply {
+                // Debug builds only: log method, path, status and bodies (hashed ids only, no raw numbers or VPAs).
+                if (com.satark.app.BuildConfig.DEBUG) addInterceptor(okhttp3.logging.HttpLoggingInterceptor { android.util.Log.d("Satark.http", it) }
+                    .apply { level = okhttp3.logging.HttpLoggingInterceptor.Level.BODY; redactHeader("Authorization") })
+            }
             .authenticator(object : Authenticator {
                 override fun authenticate(route: Route?, response: Response) = Reauth(session(), store).authenticate(route, response)
             })

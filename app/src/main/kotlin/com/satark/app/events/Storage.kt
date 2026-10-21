@@ -51,6 +51,7 @@ interface SatarkDao {
     @Insert suspend fun insertEvent(e: EventRow): Long
     @Query("UPDATE event_queue SET dispatched = 1 WHERE id = :id") suspend fun markDispatched(id: Long)
     @Query("DELETE FROM event_queue WHERE tMs < :before") suspend fun pruneEvents(before: Long)
+    @Query("SELECT * FROM event_queue WHERE tMs >= :since ORDER BY tMs, id") suspend fun eventsSince(since: Long): List<EventRow>
 
     @Insert suspend fun insertDecision(d: DecisionRow)
 

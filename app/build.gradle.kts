@@ -80,5 +80,6 @@ dependencies {
     implementation("com.razorpay:checkout:1.6.40")
 
     testImplementation(kotlin("test"))
+    testImplementation("org.json:json:20240303") // real org.json for JVM tests (android.jar has stubs)
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.9.0")
 }

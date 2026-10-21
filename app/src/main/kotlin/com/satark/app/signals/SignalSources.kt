@@ -44,6 +44,9 @@ class CallSignalSource(private val ctx: Context, private val now: () -> Long = S
     private var callback: TelephonyCallback? = null
     private var lastState = TelephonyManager.CALL_STATE_IDLE
     @Volatile private var pendingKnown: Boolean? = null
+    // CALL_START waits briefly for the number: the state callback usually fires before the broadcast that carries it.
+    private val main = android.os.Handler(android.os.Looper.getMainLooper())
+    private var pendingStart: Runnable? = null
 
     override fun state() = when {
         !ctx.packageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY) -> SourceState.UNSUPPORTED
@@ -59,7 +62,18 @@ class CallSignalSource(private val ctx: Context, private val now: () -> Long = S
                 override fun onReceive(c: Context, i: Intent) {
                     @Suppress("DEPRECATION")
                     val number = i.getStringExtra(TelephonyManager.EXTRA_INCOMING_NUMBER)
-                    if (number != null) pendingKnown = isInContacts(number)
+                    if (number != null) {
+                        pendingKnown = isInContacts(number)
+                        pendingStart?.let { main.removeCallbacks(it); it.run() }
+                    }
+                    // Below Android 12 there is no TelephonyCallback: drive call state from this broadcast.
+                    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) {
+                        when (i.getStringExtra(TelephonyManager.EXTRA_STATE)) {
+                            TelephonyManager.EXTRA_STATE_RINGING -> handle(TelephonyManager.CALL_STATE_RINGING, emit)
+                            TelephonyManager.EXTRA_STATE_OFFHOOK -> handle(TelephonyManager.CALL_STATE_OFFHOOK, emit)
+                            TelephonyManager.EXTRA_STATE_IDLE -> handle(TelephonyManager.CALL_STATE_IDLE, emit)
+                        }
+                    }
                 }
             }
             ContextCompat.registerReceiver(ctx, r, IntentFilter(TelephonyManager.ACTION_PHONE_STATE_CHANGED), ContextCompat.RECEIVER_EXPORTED)
@@ -80,8 +94,13 @@ class CallSignalSource(private val ctx: Context, private val now: () -> Long = S
         if (state == lastState) return
         val t = now()
         if (lastState == TelephonyManager.CALL_STATE_IDLE && state != TelephonyManager.CALL_STATE_IDLE) {
-            emit(RawSignal.CallStarted(t, pendingKnown))
+            val start = object : Runnable {
+                override fun run() { if (pendingStart === this) { pendingStart = null; emit(RawSignal.CallStarted(t, pendingKnown)) } }
+            }
+            if (pendingKnown != null) start.also { pendingStart = it }.run()
+            else { pendingStart = start; main.postDelayed(start, NUMBER_WAIT_MS) }
         } else if (state == TelephonyManager.CALL_STATE_IDLE) {
+            pendingStart?.let { main.removeCallbacks(it); it.run() } // keep START before END
             emit(RawSignal.CallEnded(t))
             pendingKnown = null
         }
@@ -97,6 +116,7 @@ class CallSignalSource(private val ctx: Context, private val now: () -> Long = S
     }
 
     override fun stop() {
+        pendingStart?.let(main::removeCallbacks); pendingStart = null
         runCatching { receiver?.let(ctx::unregisterReceiver) }
         receiver = null
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
@@ -106,6 +126,7 @@ class CallSignalSource(private val ctx: Context, private val now: () -> Long = S
     }
 
     companion object {
+        private const val NUMBER_WAIT_MS = 2000L
         /** One-way digest, for any place that must refer to a number without storing it. Not used for detector input. */
         fun digest(number: String) = MessageDigest.getInstance("SHA-256").digest(number.toByteArray()).joinToString("") { "%02x".format(it) }
     }

@@ -29,6 +29,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -60,15 +61,17 @@ import java.util.concurrent.Executors
  */
 @Composable
 fun PayHome(graph: AppGraph, status: String?, onOutcome: (PayOutcome, UpiRequest, BigDecimal) -> Unit) {
-    var scanning by remember { mutableStateOf(false) }
-    var vpa by remember { mutableStateOf("") }
-    var amount by remember { mutableStateOf("") }
-    var merchantCode by remember { mutableStateOf<String?>(null) }
-    var scanned by remember { mutableStateOf<UpiRequest?>(null) } // keeps pn/tn from the QR
-    var source by remember { mutableStateOf("manual") }
-    var method by remember { mutableStateOf("upi_intent") }
-    var error by remember { mutableStateOf<String?>(null) }
-    var held by remember { mutableStateOf<List<String>?>(null) }
+    // rememberSaveable: typed values survive the activity being recreated (rotation, call screen, process trim).
+    var scanning by rememberSaveable { mutableStateOf(false) }
+    var vpa by rememberSaveable { mutableStateOf("") }
+    var amount by rememberSaveable { mutableStateOf("") }
+    var merchantCode by rememberSaveable { mutableStateOf<String?>(null) }
+    var scannedName by rememberSaveable { mutableStateOf<String?>(null) } // pn/tn from the QR, kept for the hand-off
+    var scannedNote by rememberSaveable { mutableStateOf<String?>(null) }
+    var source by rememberSaveable { mutableStateOf("manual") }
+    var method by rememberSaveable { mutableStateOf("upi_intent") }
+    var error by rememberSaveable { mutableStateOf<String?>(null) }
+    var held by rememberSaveable { mutableStateOf<List<String>?>(null) }
     var busy by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val ctx = LocalContext.current
@@ -79,7 +82,7 @@ fun PayHome(graph: AppGraph, status: String?, onOutcome: (PayOutcome, UpiRequest
             when (val r = UpiUriParser.parse(text)) {
                 is UpiParseResult.Ok -> {
                     vpa = r.request.payeeVpa; amount = r.request.amountInr?.toPlainString() ?: ""
-                    merchantCode = r.request.merchantCode; scanned = r.request; source = "qr"; error = null
+                    merchantCode = r.request.merchantCode; scannedName = r.request.payeeName; scannedNote = r.request.note; source = "qr"; error = null
                 }
                 is UpiParseResult.Rejected -> error = "That QR code is not a UPI payment code."
             }
@@ -91,7 +94,7 @@ fun PayHome(graph: AppGraph, status: String?, onOutcome: (PayOutcome, UpiRequest
         Text("Pay via Satark", style = MaterialTheme.typography.headlineSmall)
         ProtectionBanners(graph.hub.status())
         OutlinedButton(onClick = { error = null; scanning = true }, Modifier.fillMaxWidth()) { Text("Scan UPI QR") }
-        OutlinedTextField(vpa, { vpa = it; source = "manual"; merchantCode = null; scanned = null }, label = { Text("Payee UPI ID") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+        OutlinedTextField(vpa, { vpa = it; source = "manual"; merchantCode = null; scannedName = null; scannedNote = null }, label = { Text("Payee UPI ID") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
         OutlinedTextField(amount, { amount = it }, label = { Text("Amount (₹)") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
         Column {
             Text("Pay with")
@@ -106,7 +109,7 @@ fun PayHome(graph: AppGraph, status: String?, onOutcome: (PayOutcome, UpiRequest
                 (merchantCode?.let { "&mc=" + java.net.URLEncoder.encode(it, "UTF-8") } ?: "")
             val typed = (UpiUriParser.parse(uri) as? UpiParseResult.Ok)?.request
             val amt = typed?.amountInr
-            val req = typed?.let { t -> scanned?.copy(amountInr = t.amountInr) ?: t }
+            val req = typed?.copy(payeeName = scannedName, note = scannedNote)
             if (req == null || amt == null) { error = "Enter a valid UPI ID and an amount."; return@Button }
             busy = true
             scope.launch {
@@ -118,7 +121,7 @@ fun PayHome(graph: AppGraph, status: String?, onOutcome: (PayOutcome, UpiRequest
                     PayOutcome.Failed("Something went wrong. No payment was made.")
                 } finally { busy = false }
                 when (o) {
-                    is PayOutcome.Held -> held = o.reasons
+                    is PayOutcome.Held -> held = ArrayList(o.reasons) // saveable type
                     is PayOutcome.Failed -> error = o.message
                     else -> onOutcome(o, req, amt)
                 }

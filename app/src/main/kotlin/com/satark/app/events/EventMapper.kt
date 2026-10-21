@@ -23,6 +23,24 @@ object EventMapper {
     }
 
     /** Map in the exact shape of contracts/schema.json (used for the queue, logs and the schema test). */
+    /** Inverse of [toSchemaMap] for rows read back from event_queue; null if the row is unreadable. */
+    fun fromSchemaJson(json: String): Event? = runCatching {
+        val o = org.json.JSONObject(json)
+        fun str(k: String) = if (o.has(k) && !o.isNull(k)) o.getString(k) else null
+        fun bool(k: String) = if (o.has(k) && !o.isNull(k)) o.getBoolean(k) else null
+        Event(
+            tMs = o.getLong("t_ms"),
+            type = EventType.valueOf(o.getString("event_type")),
+            callerKnown = bool("caller_known"),
+            appPackage = str("app_package"),
+            installSource = str("install_source")?.let { com.satark.detector.InstallSource.valueOf(it.uppercase()) },
+            payeeId = str("payee_id"),
+            payeeIsNew = bool("payee_is_new"),
+            amountInr = if (o.has("amount_inr") && !o.isNull("amount_inr")) o.getDouble("amount_inr") else null,
+            paymentType = str("payment_type")?.let { PaymentType.valueOf(it) },
+        )
+    }.getOrNull()
+
     fun toSchemaMap(e: Event, source: String? = null): Map<String, Any?> = buildMap {
         put("event_type", e.type.name)
         put("t_ms", e.tMs)

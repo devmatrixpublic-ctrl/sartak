@@ -38,6 +38,11 @@ class TokenStore(ctx: Context) {
         }
 
     fun clearSession() = prefs.edit().remove("access").remove("refresh").apply()
+
+    /** Device id and tokens are written together so a reader never sees a mix of two registrations. */
+    fun setSession(deviceId: String, access: String, refresh: String?) {
+        prefs.edit().putString("device_id", deviceId).putString("access", access).putString("refresh", refresh).commit()
+    }
 }
 
 /** Result of key attestation: the public key plus the certificate chain (leaf first), both base64 DER. */

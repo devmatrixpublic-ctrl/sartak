@@ -125,6 +125,20 @@ class EventPipelineTest {
         assertFalse(d.isDuplicate(p.copy(tMs = 1000))) // detector must see it to repeat the original decision
     }
 
+    @Test fun storedEventsReadBackIdentically() {
+        val events = listOf(
+            Event(1, EventType.CALL_START, callerKnown = false),
+            Event(2, EventType.APP_INSTALL, appPackage = "com.x", installSource = com.satark.detector.InstallSource.SIDELOAD),
+            Event(3, EventType.PAYMENT_ATTEMPT, payeeId = "h", payeeIsNew = true, amountInr = 25000.0, paymentType = com.satark.detector.PaymentType.P2P),
+            Event(4, EventType.CALL_START),
+        )
+        for (e in events) {
+            val json = org.json.JSONObject(EventMapper.toSchemaMap(e, "qr")).toString()
+            assertEquals(e, EventMapper.fromSchemaJson(json))
+        }
+        assertNull(EventMapper.fromSchemaJson("not json"))
+    }
+
     @Test fun outOfOrderEventsReleasedInTimestampOrder() {
         val s = EventSequencer()
         s.add(Event(300, EventType.CALL_END))

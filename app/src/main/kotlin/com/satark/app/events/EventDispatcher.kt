@@ -44,6 +44,7 @@ class EventDispatcher(
     private val detector = Detector.create(ageBand, baseline, model).also { it.traceSink = { t -> lastTrace = t } }
 
     private var unknownCallActive = false
+    private var callOpen = false
     private var lastEventT = 0L
     private var ready = false
 
@@ -57,6 +58,7 @@ class EventDispatcher(
         scope.launch {
             lock.withLock {
                 dao.lastAmounts(model.baseline.windowN).asReversed().forEach(baseline::observe)
+                restoreSession()
                 ready = true
             }
             while (true) {
@@ -74,6 +76,10 @@ class EventDispatcher(
                 dao.insertEvent(EventRow(tMs = e.tMs, json = JSONObject(EventMapper.toSchemaMap(e, source)).toString()))
                 sequencer.add(e)
             }
+            pump(flushAll = false)
+            // The sequencer holds new events briefly for reordering; release this one as soon as the hold ends,
+            // not at the next 30 s tick (an alarm must show while the scam call is still going).
+            delay(RELEASE_AFTER_MS)
             pump(flushAll = false)
         }
     }
@@ -96,12 +102,7 @@ class EventDispatcher(
         val batch = if (flushAll) sequencer.flush() else sequencer.drain(now())
         var worst = Decision.none()
         for (e in batch) {
-            // A new unknown-contact episode after a long gap is a new session (session policy lives here, not in the detector).
-            if (lastEventT != 0L && e.tMs - lastEventT > (model.constants.contactWindowS * 1000).toLong() &&!unknownCallActive) detector.reset()
-            lastEventT = e.tMs
-            trackCall(e)
-            lastTrace = null
-            val d = detector.onEvent(e)
+            val d = feed(e) ?: continue
             if (d.level != Level.NONE || e.type == EventType.PAYMENT_ATTEMPT) {
                 dao.insertDecision(DecisionRow(tMs = e.tMs, level = d.level.name, score = d.score, reasons = d.reasons.joinToString(","), mechanism = d.mechanism))
             }
@@ -121,10 +122,34 @@ class EventDispatcher(
         worst
     }
 
+    /** One event into the detector, with the app's session policy. Null when the event is ignored. Call under [lock]. */
+    private fun feed(e: Event): Decision? {
+        // A CALL_START with no caller info while a call is already open (e.g. the app restarted mid-call and only saw
+        // the current call state) carries nothing new and must not erase that the open call is from an unknown number.
+        if (e.type == EventType.CALL_START && e.callerKnown == null && callOpen) return null
+        // A new unknown-contact episode after a long gap is a new session (session policy lives here, not in the detector).
+        if (lastEventT != 0L && e.tMs - lastEventT > (model.constants.contactWindowS * 1000).toLong() && !unknownCallActive) detector.reset()
+        lastEventT = e.tMs
+        trackCall(e)
+        lastTrace = null
+        return detector.onEvent(e)
+    }
+
+    /**
+     * The detector's session lives in memory. If Android kills the app mid-scam, rebuild it from the stored events of the
+     * last few hours so the unknown call, the sideload, etc. still count. Alarms were already shown before: no re-emit.
+     */
+    private suspend fun restoreSession() {
+        val since = now() - RESTORE_WINDOW_MS
+        runCatching {
+            for (row in dao.eventsSince(since)) EventMapper.fromSchemaJson(row.json)?.let { feed(it) }
+        }.onFailure { android.util.Log.w("Satark.dispatch", "session restore failed", it) }
+    }
+
     private fun trackCall(e: Event) {
         when (e.type) {
-            EventType.CALL_START -> unknownCallActive = e.callerKnown == false
-            EventType.CALL_END -> unknownCallActive = false
+            EventType.CALL_START -> { unknownCallActive = e.callerKnown == false; callOpen = true }
+            EventType.CALL_END -> { unknownCallActive = false; callOpen = false }
             else -> Unit
         }
     }
@@ -135,5 +160,9 @@ class EventDispatcher(
         dao.addCompleted(CompletedPayment(amountInr = amountInr))
     }
 
-    companion object { const val TICK_MS = 30_000L }
+    companion object {
+        const val TICK_MS = 30_000L
+        const val RELEASE_AFTER_MS = 1_700L // EventSequencer hold (1.5 s) + margin
+        const val RESTORE_WINDOW_MS = 3 * 3600_000L // > long-session rule (2 h) and the contact window
+    }
 }
