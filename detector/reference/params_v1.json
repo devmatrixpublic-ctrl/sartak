@@ -1,0 +1,185 @@
+{
+  "_note": "Every value has a source or is explicitly marked as an assumption. Assumptions must be varied in sensitivity analysis, not tuned to the held-out cases.",
+  "seed": 20261020,
+  "n_users": 15000,
+  "n_legit_sessions": 50000,
+  "n_scam_sessions": 3000,
+  "hard_negative_fraction_of_legit": 0.12,
+  "npci": {
+    "_source": "Average ticket is overridden at build time by the official NPCI product-statistics workbook (--npci-xlsx). Values here are a fallback only.",
+    "monthly_volume_txns": 22720000000,
+    "monthly_value_inr": 28920000000000,
+    "p2m_share_of_volume": 0.63,
+    "p2m_share_below_500": 0.86,
+    "p2p_share_below_500": 0.59,
+    "_source_shares": "Vision IAS summary of NPCI data (UPI at 10)"
+  },
+  "amount_model": {
+    "_assumption": "Lognormal per payment type. P2M sigma fixed; P2P sigma solved so the overall mean matches NPCI average ticket (value/volume).",
+    "p2m_sigma": 1.2,
+    "upi_p2p_cap_inr": 100000
+  },
+  "hour_profile_assumption": [
+    1,
+    1,
+    1,
+    1,
+    1,
+    2,
+    4,
+    6,
+    7,
+    7,
+    7,
+    7,
+    8,
+    7,
+    6,
+    6,
+    6,
+    7,
+    8,
+    8,
+    7,
+    5,
+    3,
+    2
+  ],
+  "cohorts": {
+    "age_bands": [
+      "18-35",
+      "36-59",
+      "60+"
+    ],
+    "age_weights_legit": [
+      0.45,
+      0.4,
+      0.15
+    ],
+    "age_weights_scam": [
+      0.25,
+      0.35,
+      0.4
+    ],
+    "_assumption_scam_age": "Over-weights 60+, consistent with reported senior-citizen losses. Cohort is for Mondrian calibration only and MUST NOT be a scoring feature.",
+    "activity_tiers": [
+      "low",
+      "medium",
+      "high"
+    ],
+    "activity_payments_per_month": [
+      5,
+      25,
+      80
+    ]
+  },
+  "icfd_umbrellas": {
+    "_source": "ICFD-31k repository (IJCAI 2026), examples/source_conversations folder names. Taxonomy only; no transcript content used (licence prohibits scam-script generation).",
+    "banking": "malicious_apk",
+    "utility": "malicious_apk",
+    "healthcare": "malicious_apk",
+    "tech": "remote_access",
+    "ecommerce": "remote_access",
+    "lottery_travel": "remote_access",
+    "loan": "remote_access",
+    "jobs": "remote_access",
+    "emergency": "remote_access",
+    "government": "digital_arrest"
+  },
+  "playbook_mix": {
+    "_assumption": "Share of scam sessions per playbook.",
+    "remote_access": 0.4,
+    "malicious_apk": 0.35,
+    "digital_arrest": 0.25
+  },
+  "timing_seconds": {
+    "_assumption": "Uniform ranges [low, high]; deliberately wide. Not fitted to held-out cases.",
+    "remote_access": {
+      "call_to_install": [
+        60,
+        900
+      ],
+      "install_to_payee": [
+        60,
+        1200
+      ],
+      "payee_to_payment": [
+        20,
+        600
+      ],
+      "n_payments": [
+        1,
+        14
+      ]
+    },
+    "malicious_apk": {
+      "call_to_install": [
+        60,
+        1200
+      ],
+      "install_to_payee": [
+        120,
+        7200
+      ],
+      "payee_to_payment": [
+        10,
+        900
+      ],
+      "n_payments": [
+        1,
+        6
+      ]
+    },
+    "digital_arrest": {
+      "call_to_video": [
+        120,
+        3600
+      ],
+      "video_hours": [
+        2,
+        96
+      ],
+      "video_to_payee_hours": [
+        1,
+        72
+      ],
+      "n_payments": [
+        1,
+        6
+      ]
+    }
+  },
+  "scam_amounts_inr": {
+    "_assumption": "Lognormal medians; digital-arrest large transfers exceed UPI caps and are tagged channel=bank_transfer.",
+    "remote_access": {
+      "median": 25000,
+      "sigma": 1.0
+    },
+    "malicious_apk": {
+      "median": 60000,
+      "sigma": 1.0
+    },
+    "digital_arrest": {
+      "median": 1500000,
+      "sigma": 1.4
+    }
+  },
+  "watchlisted_remote_apps": [
+    "com.anydesk.anydeskandroid",
+    "com.teamviewer.quicksupport.market",
+    "com.google.chromeremotedesktop"
+  ],
+  "video_apps": [
+    "com.skype.raider",
+    "com.whatsapp",
+    "us.zoom.videomeetings"
+  ],
+  "splits": {
+    "train": 0.6,
+    "calibration": 0.2,
+    "validation": 0.2
+  },
+  "target_false_pause_alpha": 0.001,
+  "_note_size": "50k legit sessions so each age band has >= 1/alpha - 1 = 999 legit sessions in the calibration split (needed to certify alpha = 0.1% per cohort).",
+  "_note_scam_size": "3,000 scam sessions gives ~150-250 per playbook in validation, so per-playbook detection rates have usable confidence intervals."
+}
