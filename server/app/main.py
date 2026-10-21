@@ -8,7 +8,7 @@ from app.core.settings import get_settings
 from app.db.session import SessionLocal
 from app.payments.jobs import TimeoutSweeper
 from app.payments.service import DEFAULT_HANDED_OFF_TIMEOUT_SECONDS
-from app.routers import health, payments, risk, webhooks
+from app.routers import alerts, health, payments, risk, trusted_contact, webhooks
 
 
 @asynccontextmanager
@@ -31,6 +31,8 @@ def create_app() -> FastAPI:
     app.include_router(risk.router)
     app.include_router(payments.router)
     app.include_router(webhooks.router)
+    app.include_router(trusted_contact.router)
+    app.include_router(alerts.router)
 
     return app
 
