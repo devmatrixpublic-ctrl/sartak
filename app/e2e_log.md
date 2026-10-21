@@ -71,19 +71,19 @@ Still needed: the same run on both physical phones (plan 2.7), then M2 sets `det
 
 | | Defect | Fix | Commit |
 |---|---|---|---|
-| A | Debug build blocked plain HTTP, so it could never reach the local server | Debug-only network config for `10.0.2.2`/`localhost`; release stays HTTPS-only | `5b3b323` |
-| B | Call start sent before the number arrived → `caller_known` always missing → unknown-call rules never fired | Wait up to 2 s for the number; phone-state broadcast drives calls below Android 12 | `5b3b323` |
-| C | Two registrations at once mixed device id and token → `/alert` 403 | Registration serialized, session written in one commit, self-repair | `5b3b323` |
-| D | Alarm waited for the next 30 s tick | Events released right after the 1.5 s reorder hold | `5b3b323` |
-| E | App killed mid-scam lost the detector session → ₹25,000 payment ALLOWed | Session rebuilt from the last 3 h of stored events; blank call start ignored during an open call | `5b3b323` |
-| F | Offline queue only flushed at app start | Flush on network available; one flush at a time | `7c3eb5c` |
-| G | Razorpay error left the user waiting 60 s | Short check, then a plain "did not complete" message | `7c3eb5c` |
-| H | Video session closed after ~2 min without new usage events | `VideoSessionTracker` keeps it open while the app is in front | `1b82773` |
-| I | Video always sent with an unknown-or-missing caller, so the long-session rule could never fire | `VideoOrigin`: video during/≤15 min after an unknown call is unknown | `1b82773` |
-| K | App could not authenticate against M4's server (it only knew "bearer = device id"); Android 8 crashed in key generation (`setIsStrongBoxBacked` is API 28+) | Debug builds fall back to M4's `/auth/dev-token`; StrongBox call guarded | see git log |
-| L | Session restore kept a call/video open whose end was missed while the app was dead → false `F_UNK_VIDEO_ACTIVE` | Sources report current state at start; restored video end is dated at the last event seen | see git log |
-| M | The app reset the detector after any 2 h gap, even during an open unknown video call: lost the long-session alarm (vectors S050008, S050139) and changed a decision M2 measured (S052021) | Reset only after 96 h of silence (longest SatarkSim session) and never while a call or video is open | see git log |
-| J | Alarm only visible inside Satark, which the user is usually not looking at | High-priority notification on every alarm | `1b82773` |
+| A | Debug build blocked plain HTTP, so it could never reach the local server | Debug-only network config for `10.0.2.2`/`localhost`; release stays HTTPS-only | `d915f16` |
+| B | Call start sent before the number arrived → `caller_known` always missing → unknown-call rules never fired | Wait up to 2 s for the number; phone-state broadcast drives calls below Android 12 | `d915f16` |
+| C | Two registrations at once mixed device id and token → `/alert` 403 | Registration serialized, session written in one commit, self-repair | `d915f16` |
+| D | Alarm waited for the next 30 s tick | Events released right after the 1.5 s reorder hold | `d915f16` |
+| E | App killed mid-scam lost the detector session → ₹25,000 payment ALLOWed | Session rebuilt from the last 3 h of stored events; blank call start ignored during an open call | `d915f16` |
+| F | Offline queue only flushed at app start | Flush on network available; one flush at a time | `e676ac7` |
+| G | Razorpay error left the user waiting 60 s | Short check, then a plain "did not complete" message | `e676ac7` |
+| H | Video session closed after ~2 min without new usage events | `VideoSessionTracker` keeps it open while the app is in front | `64fa08a` |
+| I | Video always sent with an unknown-or-missing caller, so the long-session rule could never fire | `VideoOrigin`: video during/≤15 min after an unknown call is unknown | `64fa08a` |
+| K | App could not authenticate against M4's server (it only knew "bearer = device id"); Android 8 crashed in key generation (`setIsStrongBoxBacked` is API 28+) | Debug builds fall back to M4's `/auth/dev-token`; StrongBox call guarded | `a627b52` |
+| L | Session restore kept a call/video open whose end was missed while the app was dead → false `F_UNK_VIDEO_ACTIVE` | Sources report current state at start; restored video end is dated at the last event seen | `a627b52` |
+| M | The app reset the detector after any 2 h gap, even during an open unknown video call: lost the long-session alarm (vectors S050008, S050139) and changed a decision M2 measured (S052021) | Reset only after 96 h of silence (longest SatarkSim session) and never while a call or video is open | `4782b89` |
+| J | Alarm only visible inside Satark, which the user is usually not looking at | High-priority notification on every alarm | `64fa08a` |
 
 ## Not covered here (needs others or a physical phone)
 
