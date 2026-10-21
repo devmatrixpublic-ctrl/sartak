@@ -1,29 +1,40 @@
 # ops/: Member 4 workspace
 
 Source of truth: the module-wise implementation plan, "Member 4: Security, CI/CD, Evaluation, Explanations".
+Test status today: **161 server tests, 67 ops tests, all passing** (`cd server && pytest`; `pytest ops`).
+"Built" means implemented and tested here; the right-hand column says what is still owed.
 
-| Plan item | Where | Status |
-|---|---|---|
-| 4.1 Auth contract | `contracts/auth.md` | done |
-| 4.1 Auth logic (challenge, attestation checks, JWT, refresh rotation, rate limit, `require_device`/`require_role`, IDOR helper) | `server/app/auth/` | done; `cd server && pytest` (129 tests, 12 security mutations verified caught) |
-| 4.1 SQL store on M3's tables + migration | `server/app/auth/store.py`, `migrations/versions/a3c91d7e5b20_*` | done (adds `refresh_tokens`, `devices.revoked`: **M3 please review**) |
-| 4.1 Real Google roots | `server/certs/google_attestation_roots.pem` | **not committed**: copy from Google's docs, verify fingerprints by hand |
-| 4.1 Chains captured from both real phones | `server/tests/fixtures/` | **blocked on M1** producing attestation on a device |
-| 4.2 CI/CD | `.github/workflows/` | stub-marker gate done (`ops/ci/check_stubs.py`); workflows not written |
-| 4.3 Evaluation pipeline | `ops/eval/` | not started; inputs exist on `feat/m2-detector` (`detector/reference/satark_detector.py`, `sensitivity.py`, `data/satarksim/`), which is not merged to `main` yet |
-| 4.4 Explanation strings | `ops/strings/` | not started; `contracts/reason_codes.json` exists on `feat/m2-detector` (not merged to `main` yet) |
-| 4.5 Security checklist | `ops/security/checklist.md` | not started |
-| 4.6 Held-out runner | `ops/heldout/run_heldout.py` | blocked on `detector-freeze` tag and the held-out data |
-| `contracts/pins.txt` | | blocked on the Render domain |
+| Plan item | Where | Built | Still owed |
+|---|---|---|---|
+| 4.1 Auth | `server/app/auth/`, `contracts/auth.md` | challenge, 7 attestation checks, JWT, single-use refresh with reuse revocation, per-IP/device rate limits, `require_device`/`require_role`, SQL store + migration, startup validation | real Google roots in `server/certs/` (copy from Google's docs, verify fingerprints by hand); chains captured from both real phones (needs M1); run against real Postgres and Redis |
+| 4.1 least-privilege DB | `ops/security/db_roles.sql`, `SATARK_MIGRATION_DATABASE_URL` | SQL written, migration-URL split tested | run the SQL on Render Postgres and switch `SATARK_DATABASE_URL` to `satark_app` |
+| 4.2 CI/CD | `.github/workflows/`, `ops/ci/` | PR workflow, gated release workflow, stub rule (net additions) | nothing has run on GitHub; Kotlin detector, gitleaks, Docker and Android jobs unverified; secrets/variables to set (`ops/ci/README.md`) |
+| 4.3 Evaluation | `ops/eval/` | pipeline reproduces M2's numbers exactly and applies the plan's gate; input hashes; local-hash tool | **gate currently FAILS: false alarms 0.111% vs 0.1%** (decision needed); BAF/IEEE raw-file hashes (`input_hashes.json` holds nulls) |
+| 4.4 Strings | `ops/strings/`, `app/src/main/res/values/strings.xml` | 18 hand-written strings, generator, validator (fails on missing/leaking/stale) | Hindi `values-hi/` (optional, plan cut item 3); LLM generation (Sarvam access unavailable, `source` recorded as hand-written) |
+| 4.5 Security | `ops/security/checklist.md`, `server/tests/test_m4_security.py`, `tls_pins.py` | OWASP API checklist with every row linked to a test (a test enforces the links); found and fixed 4 real defects; `pip-audit` clean | run `tls_pins.py` on the real domain; no overall request-body size cap; phone-side privacy check (M1) |
+| 4.6 Held-out runner | `ops/heldout/run_heldout.py` | guards (freeze tag, sealed hash, run-once) tested; scoring adapter tested on real SatarkSim sessions | the real run: needs the `detector-freeze` tag and the sealed file; full sealed hash into `expected_sha256.txt`; M2 to confirm how per-case user baselines are supplied |
+| `contracts/pins.txt` | | generator built | needs the Render domain; deliberately not committed (an empty file silently disables pinning) |
 
-Open items that touch other members:
+## Defects found in other people's code while testing (all fixed on this branch, M3 please review)
 
-* **M3**: production boot now needs `SATARK_AUTH_ATTESTATION_ROOTS`, `SATARK_AUTH_EXPECTED_PACKAGE`, `SATARK_AUTH_EXPECTED_SIGNING_SHA256`
-  (wired in `render.yaml`); until set, the Render service will refuse to start. M3's `ensure_device_exists` stub is removed:
-  `/trusted-contact` now 404s for an unregistered contact instead of fabricating a device.
-* **M1**: read `contracts/auth.md` for encodings; use `/auth/dev-token` (dev only) until attestation works on a phone.
-* Client IP for rate limiting is the proxy address on Render until trusted `X-Forwarded-For` is added.
+* 422 responses echoed the client's input **and server file paths and source lines**.
+* `amount` was unbounded; NaN reached the database as NULL and returned a 500.
+* No string length limits (ids are `String(36)`, so Postgres would have returned 500s).
+* `/docs`, `/redoc`, `/openapi.json` were served in production.
+* M3's auth stub fabricated devices on first sight, including a "trusted contact" that never registered.
+
+## Cross-member items
+
+* **M3:** production boot now needs `SATARK_AUTH_ATTESTATION_ROOTS`, `SATARK_AUTH_EXPECTED_PACKAGE`, `SATARK_AUTH_EXPECTED_SIGNING_SHA256`
+  (wired in `render.yaml`); until set the service refuses to start. New migration `a3c91d7e5b20` adds `refresh_tokens` and `devices.revoked`.
+* **M1:** `contracts/auth.md` has the encodings. Use `/auth/dev-token` (dev only) until attestation works on a phone. `signingConfigs.release`
+  must read `KEYSTORE_PATH`, `KEYSTORE_PASSWORD`, `KEY_ALIAS`, `KEY_PASSWORD`. Request bounds are in `contracts/api.yaml`.
+* **M2:** the false-alarm number blocks the evaluation gate; the held-out adapter assumes a population baseline unless you supply `--users`.
+* Client IP for rate limiting is the proxy address on Render until trusted `X-Forwarded-For` handling is added.
 
 ```
-python ops/ci/check_stubs.py .    # lists stub markers; exit 1 until the dev-token stub is removed
+python ops/eval/run_eval.py          # evaluation + gate (about 80 s)
+python ops/strings/validate_strings.py
+python ops/heldout/run_heldout.py --check   # run every held-out guard; changes nothing
+python ops/ci/check_stubs.py .       # lists stub markers (expect the 2 dev-token ones)
 ```

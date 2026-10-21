@@ -22,7 +22,7 @@ it fits into that larger plan.
 | Android app (`app/`) | Member 1 | not in this repo yet |
 | On-device detector (`detector/`) | Member 2 | not in this repo yet |
 | **Backend (`server/`)** | **Member 3** | **implemented (P0–P7), see below** |
-| Security / CI / evaluation (`ops/`, `server/app/auth/`) | Member 4 | **auth done (4.1); stub gate done; CI workflows, evaluation, strings, held-out runner pending, see `ops/README.md`** |
+| Security / CI / evaluation (`ops/`, `server/app/auth/`) | Member 4 | **all six plan items built and tested here (4.1 auth, 4.2 CI, 4.3 evaluation, 4.4 strings, 4.5 security, 4.6 held-out runner); open items need real phones, the real domain or other members: see `ops/README.md`** |
 
 Backend build log, phase by phase, on branches `feat/m3-p0-contract` through
 `feat/m3-p7-hardening`:
@@ -38,7 +38,7 @@ Backend build log, phase by phase, on branches `feat/m3-p0-contract` through
 | P6 | Docker image + Render blueprint | structured JSON logs with request correlation, no payload bodies logged |
 | P7 | Security/contract hardening | mass-assignment guards, IDOR tests, contract-vs-implementation check |
 
-129 tests passing on branch `m4` (`cd server && pytest`): M3's 56 plus 1 negative case, and M4's auth suite.
+161 server tests (`cd server && pytest`) and 67 ops tests (`pytest ops`) pass on branch `m4`. The server suite is M3's original 56 plus M4's auth, security and rate-limit suites.
 
 ## Architecture
 
@@ -114,7 +114,8 @@ server/
   certs/                 pinned Google attestation roots (not yet committed, see its README)
 render.yaml              Render blueprint: web service, Postgres, Key Value (Redis)
 contracts/auth.md        M4's auth contract (encodings, checks, error codes, rate limits)
-ops/                     M4: CI gates and status (ops/README.md)
+ops/                     M4: eval pipeline, strings, security checklist/tools, held-out runner, CI gates (ops/README.md)
+.github/workflows/       M4: ci.yml (PR checks) and release.yml (gated deploy), see ops/ci/README.md
 ```
 
 ## API surface
@@ -172,6 +173,7 @@ misconfigured deploy fails closed rather than silently using a fake secret.
 | `SATARK_JWT_SECRET` | yes | signs device JWTs; ≥ 32 bytes and not the dev default, else the server refuses to boot outside dev |
 | `SATARK_AUTH_ATTESTATION_ROOTS` | yes | PEM bundle of pinned Google roots (`server/certs/`); server refuses to boot without it outside dev |
 | `SATARK_AUTH_EXPECTED_PACKAGE` / `_SIGNING_SHA256` | yes | identity of the release app, checked on every attestation |
+| `SATARK_MIGRATION_DATABASE_URL` | optional | owner connection used only by `alembic upgrade head`, so `SATARK_DATABASE_URL` can be the DML-only role in `ops/security/db_roles.sql` |
 | `SATARK_RAZORPAY_KEY_ID` / `_KEY_SECRET` | yes | without these, `/risk-check` falls back to a local stub order id — fine for dev, **not safe for production** |
 | `SATARK_RAZORPAY_WEBHOOK_SECRET` | yes | without this, `/webhooks/razorpay` rejects every request with `webhook_not_configured` (fails closed) |
 | `SATARK_FIREBASE_CREDENTIALS_JSON` | yes | without this, `/alert` uses a local stub FCM client — no real push is sent |
@@ -222,6 +224,13 @@ requirement, not hidden in a footnote):
   into the log stream by construction.
 
 ## Known limitations
+
+- **Release is gated and currently blocked, on purpose.** `release.yml` refuses to deploy while a stub marker remains (the dev-token
+  stub) or while the evaluation gate fails (false alarms 0.111% vs the 0.1% target, M2's own number). See `ops/ci/README.md`.
+- `/docs`, `/redoc` and `/openapi.json` are served only when `SATARK_ENV=dev`.
+- Request amounts must be positive, finite and at most 10,000,000; string fields have length limits (see `contracts/api.yaml`).
+- Not yet verified on real infrastructure: Postgres (tests use SQLite), Redis (the limiter is tested against a fake), the Docker
+  image, the GitHub workflows, and attestation chains from real phones.
 
 - Holds cover only payments started through this API (`/risk-check`); a
   payment started directly in another UPI app can't be intercepted here —
