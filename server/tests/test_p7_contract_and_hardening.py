@@ -4,11 +4,8 @@ from app.main import app
 
 AUTH = {"Authorization": "Bearer dev-device-1"}
 
-# /auth/* is M4's scope (Key Attestation + JWT issuance, section 4.1 of the
-# module plan). M3 only consumes the require_device dependency via the
-# dev-token stub (# SATARK_STUB) until M4's routes are live, so those paths
-# are excluded from this module's own contract check.
-AUTH_OWNED_BY_M4 = {"/auth/challenge", "/auth/device", "/auth/refresh"}
+# /auth/* is owned by M4 but mounted on this app, so the contract check covers it too.
+AUTH_OWNED_BY_M4: set[str] = set()
 
 
 def _load_contract():

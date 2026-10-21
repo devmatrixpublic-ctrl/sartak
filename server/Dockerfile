@@ -14,6 +14,7 @@ COPY pyproject.toml ./
 COPY app ./app
 COPY migrations ./migrations
 COPY alembic.ini ./alembic.ini
+COPY certs ./certs
 
 RUN pip install --no-cache-dir .
 

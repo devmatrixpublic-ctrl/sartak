@@ -7,9 +7,10 @@ amounts, abnormally long sessions — scores them on-device with a
 conformal-calibrated detector, and can hold a payment, nudge the user, or
 alert a trusted contact before money moves.
 
-This repository currently contains **Member 3's scope**: the backend
-(`server/`) — payments, alerts, deployment — built against the shared
-contract in `contracts/api.yaml`. The full system (Android app, on-device
+This repository currently contains **Member 3's scope** (the backend in
+`server/`: payments, alerts, deployment, built against `contracts/api.yaml`)
+and the first slice of **Member 4's scope** (device authentication in
+`server/app/auth/`, specified in `contracts/auth.md`). The full system (Android app, on-device
 detector, CI/security pipeline) is specified in the module-wise
 implementation plan; this README documents what's implemented here and how
 it fits into that larger plan.
@@ -21,7 +22,7 @@ it fits into that larger plan.
 | Android app (`app/`) | Member 1 | not in this repo yet |
 | On-device detector (`detector/`) | Member 2 | not in this repo yet |
 | **Backend (`server/`)** | **Member 3** | **implemented (P0–P7), see below** |
-| Security / CI / evaluation (`ops/`) | Member 4 | not in this repo yet |
+| Security / CI / evaluation (`ops/`, `server/app/auth/`) | Member 4 | **auth done (4.1); stub gate done; CI workflows, evaluation, strings, held-out runner pending, see `ops/README.md`** |
 
 Backend build log, phase by phase, on branches `feat/m3-p0-contract` through
 `feat/m3-p7-hardening`:
@@ -37,7 +38,7 @@ Backend build log, phase by phase, on branches `feat/m3-p0-contract` through
 | P6 | Docker image + Render blueprint | structured JSON logs with request correlation, no payload bodies logged |
 | P7 | Security/contract hardening | mass-assignment guards, IDOR tests, contract-vs-implementation check |
 
-56 tests passing as of P7 (`cd server && pytest`).
+129 tests passing on branch `m4` (`cd server && pytest`): M3's 56 plus 1 negative case, and M4's auth suite.
 
 ## Architecture
 
@@ -97,8 +98,8 @@ contracts/
   api.yaml              OpenAPI 3.0 contract — owned by M3, consumed by M1/M4
 server/
   app/
-    auth/                dev-token stub for require_device() — replaced when M4's
-                          /auth/device (Key Attestation) ships; tagged # SATARK_STUB
+    auth/                M4: Key Attestation, JWT, refresh rotation, rate limits,
+                          require_device / require_role (see contracts/auth.md)
     core/                settings, error model, structured logging, strict-input schema
     db/                  SQLAlchemy models, session, Alembic env
     payments/            state machines, Razorpay order client, webhook handling,
@@ -110,7 +111,10 @@ server/
   tests/                 pytest suite, one file per build phase
   Dockerfile
   pyproject.toml
+  certs/                 pinned Google attestation roots (not yet committed, see its README)
 render.yaml              Render blueprint: web service, Postgres, Key Value (Redis)
+contracts/auth.md        M4's auth contract (encodings, checks, error codes, rate limits)
+ops/                     M4: CI gates and status (ops/README.md)
 ```
 
 ## API surface
@@ -120,7 +124,7 @@ Full contract: [`contracts/api.yaml`](contracts/api.yaml). Summary:
 | Endpoint | Auth | Purpose |
 | --- | --- | --- |
 | `GET /health` | none | liveness check |
-| `POST /auth/challenge`, `/auth/device`, `/auth/refresh` | — | **M4-owned**; routes not yet mounted in this repo |
+| `POST /auth/challenge`, `/auth/device`, `/auth/refresh` | none | **M4-owned**, mounted; Key Attestation → JWT, see `contracts/auth.md` |
 | `POST /trusted-contact` | bearer | link a trusted contact's device + FCM token |
 | `POST /risk-check` | bearer | evaluate a `Decision` from the on-device detector, create a payment as `held` or `allowed` |
 | `GET /payments/{id}` | bearer | read a payment's current state (owner-scoped) |
@@ -165,7 +169,9 @@ misconfigured deploy fails closed rather than silently using a fake secret.
 | `SATARK_ENV` | yes | `production` enables the background timeout sweeper |
 | `SATARK_DATABASE_URL` | yes | Postgres connection string |
 | `SATARK_REDIS_URL` | yes | rate-limit counters only — never payment/session state |
-| `SATARK_JWT_SECRET` | yes | signs device JWTs (M4) |
+| `SATARK_JWT_SECRET` | yes | signs device JWTs; ≥ 32 bytes and not the dev default, else the server refuses to boot outside dev |
+| `SATARK_AUTH_ATTESTATION_ROOTS` | yes | PEM bundle of pinned Google roots (`server/certs/`); server refuses to boot without it outside dev |
+| `SATARK_AUTH_EXPECTED_PACKAGE` / `_SIGNING_SHA256` | yes | identity of the release app, checked on every attestation |
 | `SATARK_RAZORPAY_KEY_ID` / `_KEY_SECRET` | yes | without these, `/risk-check` falls back to a local stub order id — fine for dev, **not safe for production** |
 | `SATARK_RAZORPAY_WEBHOOK_SECRET` | yes | without this, `/webhooks/razorpay` rejects every request with `webhook_not_configured` (fails closed) |
 | `SATARK_FIREBASE_CREDENTIALS_JSON` | yes | without this, `/alert` uses a local stub FCM client — no real push is sent |
@@ -222,13 +228,16 @@ requirement, not hidden in a footnote):
   that's an app-side (Member 1) concern.
 - `upi_intent` outcomes are app-reported, not verified — see the state
   machine section above.
-- `/auth/*` is specified in the contract but not implemented in this repo;
-  it's Member 4's scope (Android Key Attestation → JWT). Until then, every
-  protected route accepts a bearer token whose value *is* the device id
-  (`app/auth/dependencies.py`, tagged `# SATARK_STUB`). **This stub must
-  not reach production** — the release build is expected to fail while the
-  tag remains in the tree (per the module plan's stub-marker CI gate, owned
-  by Member 4).
+- Device auth is implemented and tested against **synthetic** attestation
+  chains only. It has not yet been run against chains from the two physical
+  phones, and the real Google roots are not committed, so production boot
+  is blocked until they are (fail closed, by design).
+- A `/auth/dev-token` stub (tagged `# SATARK_STUB`) exists for dev only; it
+  404s unless `SATARK_ENV=dev` and the flag is set, and boot refuses the flag
+  elsewhere. `ops/ci/check_stubs.py` fails the release build while the tag
+  remains.
+- The per-device/IP rate limiter uses Redis in production and fails open if
+  Redis is down (rate limiting is abuse control, not authentication).
 - Razorpay/Firebase/Render integrations fall back to local stubs without
   real credentials; they have not been exercised against the live services
   in this environment.

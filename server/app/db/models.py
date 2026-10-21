@@ -1,6 +1,7 @@
 import uuid
 from datetime import datetime, timezone
 
+import sqlalchemy as sa
 from sqlalchemy import Boolean, DateTime, Float, ForeignKey, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -24,9 +25,23 @@ class Device(Base):
     verified_boot_state: Mapped[str] = mapped_column(String(32), nullable=False)
     fcm_token: Mapped[str | None] = mapped_column(String, nullable=True)
     role: Mapped[str] = mapped_column(String(16), nullable=False, default="device")
+    # Set when a refresh token is replayed; cleared only by a fresh hardware attestation (M4).
+    revoked: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default=sa.false())
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
     payments: Mapped[list["Payment"]] = relationship(back_populates="device")
+
+
+class RefreshToken(Base):
+    """Single-use refresh tokens, stored only as a SHA-256 hash (M4, contracts/auth.md)."""
+
+    __tablename__ = "refresh_tokens"
+
+    token_hash: Mapped[str] = mapped_column(String(64), primary_key=True)
+    device_id: Mapped[str] = mapped_column(ForeignKey("devices.id"), nullable=False, index=True)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    used: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default=sa.false())
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
 
 class AuthChallenge(Base):
