@@ -118,6 +118,13 @@ class EventPipelineTest {
         assertTrue(d.isDuplicate(e.copy(tMs = 4000))) // 2000 apart from the previous raw event, which was itself dropped
     }
 
+    @Test fun retriedPaymentIsNeverDroppedByAppDedup() {
+        val d = Deduplicator()
+        val p = Event(0, EventType.PAYMENT_ATTEMPT, payeeId = "h", amountInr = 500.0)
+        assertFalse(d.isDuplicate(p))
+        assertFalse(d.isDuplicate(p.copy(tMs = 1000))) // detector must see it to repeat the original decision
+    }
+
     @Test fun outOfOrderEventsReleasedInTimestampOrder() {
         val s = EventSequencer()
         s.add(Event(300, EventType.CALL_END))

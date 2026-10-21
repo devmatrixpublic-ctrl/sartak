@@ -56,7 +56,8 @@ class AlertController(
         queue.alert(AlertRequest(id, type, d.reasons))
         // Only the detector's 16 feature values leave the phone; no numbers, names or raw amounts.
         val f = features?.let { v -> model.features.zip(v.toList()).toMap() } ?: emptyMap()
-        queue.signature(SignatureRequest(d.mechanism ?: "payment_score", f))
+        // Rule alarms carry no features; the server rejects an empty map with 400, so skip it.
+        if (f.isNotEmpty()) queue.signature(SignatureRequest(d.mechanism ?: "payment_score", f))
     }
 
     fun escalateToTrustedContact() {
