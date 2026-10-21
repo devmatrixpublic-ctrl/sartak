@@ -38,7 +38,8 @@ class SignalService : Service() {
         private const val CHANNEL = "satark_protection"
         fun start(ctx: Context) {
             val i = Intent(ctx, SignalService::class.java)
-            if (Build.VERSION.SDK_INT >= 26) ctx.startForegroundService(i) else ctx.startService(i)
+            // Never crash if the OS refuses (e.g. background-start limits); protection resumes next app open.
+            runCatching { if (Build.VERSION.SDK_INT >= 26) ctx.startForegroundService(i) else ctx.startService(i) }
         }
     }
 }

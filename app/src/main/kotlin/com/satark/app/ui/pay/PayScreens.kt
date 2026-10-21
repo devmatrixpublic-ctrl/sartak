@@ -64,6 +64,7 @@ fun PayHome(graph: AppGraph, status: String?, onOutcome: (PayOutcome, UpiRequest
     var vpa by remember { mutableStateOf("") }
     var amount by remember { mutableStateOf("") }
     var merchantCode by remember { mutableStateOf<String?>(null) }
+    var scanned by remember { mutableStateOf<UpiRequest?>(null) } // keeps pn/tn from the QR
     var source by remember { mutableStateOf("manual") }
     var method by remember { mutableStateOf("upi_intent") }
     var error by remember { mutableStateOf<String?>(null) }
@@ -78,7 +79,7 @@ fun PayHome(graph: AppGraph, status: String?, onOutcome: (PayOutcome, UpiRequest
             when (val r = UpiUriParser.parse(text)) {
                 is UpiParseResult.Ok -> {
                     vpa = r.request.payeeVpa; amount = r.request.amountInr?.toPlainString() ?: ""
-                    merchantCode = r.request.merchantCode; source = "qr"; error = null
+                    merchantCode = r.request.merchantCode; scanned = r.request; source = "qr"; error = null
                 }
                 is UpiParseResult.Rejected -> error = "That QR code is not a UPI payment code."
             }
@@ -90,7 +91,7 @@ fun PayHome(graph: AppGraph, status: String?, onOutcome: (PayOutcome, UpiRequest
         Text("Pay via Satark", style = MaterialTheme.typography.headlineSmall)
         ProtectionBanners(graph.hub.status())
         OutlinedButton(onClick = { error = null; scanning = true }, Modifier.fillMaxWidth()) { Text("Scan UPI QR") }
-        OutlinedTextField(vpa, { vpa = it; source = "manual"; merchantCode = null }, label = { Text("Payee UPI ID") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+        OutlinedTextField(vpa, { vpa = it; source = "manual"; merchantCode = null; scanned = null }, label = { Text("Payee UPI ID") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
         OutlinedTextField(amount, { amount = it }, label = { Text("Amount (₹)") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
         Column {
             Text("Pay with")
@@ -103,13 +104,19 @@ fun PayHome(graph: AppGraph, status: String?, onOutcome: (PayOutcome, UpiRequest
             error = null; held = null
             val uri = "upi://pay?pa=${java.net.URLEncoder.encode(vpa.trim(), "UTF-8")}&am=${amount.trim()}" +
                 (merchantCode?.let { "&mc=" + java.net.URLEncoder.encode(it, "UTF-8") } ?: "")
-            val req = (UpiUriParser.parse(uri) as? UpiParseResult.Ok)?.request
-            val amt = req?.amountInr
+            val typed = (UpiUriParser.parse(uri) as? UpiParseResult.Ok)?.request
+            val amt = typed?.amountInr
+            val req = typed?.let { t -> scanned?.copy(amountInr = t.amountInr) ?: t }
             if (req == null || amt == null) { error = "Enter a valid UPI ID and an amount."; return@Button }
             busy = true
             scope.launch {
-                val o = withContext(Dispatchers.IO) { graph.payments.start(req, amt, source, method) }
-                busy = false
+                val o = try {
+                    withContext(Dispatchers.IO) { graph.payments.start(req, amt, source, method) }
+                } catch (e: kotlinx.coroutines.CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    PayOutcome.Failed("Something went wrong. No payment was made.")
+                } finally { busy = false }
                 when (o) {
                     is PayOutcome.Held -> held = o.reasons
                     is PayOutcome.Failed -> error = o.message
@@ -156,8 +163,9 @@ fun QrScanScreen(onResult: (String) -> Unit, onCancel: () -> Unit) {
                 val executor = Executors.newSingleThreadExecutor()
                 val scanner = BarcodeScanning.getClient(BarcodeScannerOptions.Builder().setBarcodeFormats(Barcode.FORMAT_QR_CODE).build())
                 var done = false
-                ProcessCameraProvider.getInstance(c).addListener({
-                    val provider = ProcessCameraProvider.getInstance(c).get()
+                val future = ProcessCameraProvider.getInstance(c)
+                future.addListener({
+                    val provider = runCatching { future.get() }.getOrNull() ?: return@addListener
                     val preview = Preview.Builder().build().also { it.setSurfaceProvider(view.surfaceProvider) }
                     val analysis = ImageAnalysis.Builder().setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST).build()
                     analysis.setAnalyzer(executor) { proxy ->

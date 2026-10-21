@@ -61,6 +61,12 @@ class PaymentRepository(
             else PayOutcome.Failed("Can't reach Satark. Check your connection; no payment was made.")
         } catch (e: retrofit2.HttpException) {
             return PayOutcome.Failed("Satark could not check this payment (${e.code()}). No payment was made.")
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            // Bad response body, TLS/pinning failure, etc.: same safety rule as offline, never a crash.
+            return if (decision.level.name != "NONE") PayOutcome.Held(null, decision.reasons)
+            else PayOutcome.Failed("Satark could not check this payment. No payment was made.")
         }
         if (check.decision == "HOLD") return PayOutcome.Held(check.paymentId, decision.reasons)
         return when (method) {

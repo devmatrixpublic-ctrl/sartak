@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Satark</string>
-    <!-- Replaced by the generated file from M4 (ops/strings -> values/strings.xml). Until then the UI shows raw reason codes. -->
     <string name="notif_channel_name">Satark protection</string>
     <string name="notif_running">Satark is watching for scam patterns</string>
 </resources>
