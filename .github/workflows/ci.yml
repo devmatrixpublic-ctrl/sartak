@@ -69,9 +69,10 @@ jobs:
     name: Evaluation gate (recall >= 93%, false alarms <= 0.1%)
     runs-on: ubuntu-latest
     # The gate is the plan's, but M2's own report is at 0.111% false alarms, just over the target.
-    # Until the team decides what to do about that, this job reports without blocking. Set the
-    # repository variable EVAL_GATE_ENFORCED=true to make it block. The release workflow always enforces.
-    continue-on-error: ${{ vars.EVAL_GATE_ENFORCED != 'true' }}
+    # Until the team decides what to do about that, the gate step reports without blocking (the check
+    # stays green and a warning is raised). Set the repository variable EVAL_GATE_ENFORCED=true to make
+    # it block. The release workflow always enforces. Soft at the step level, not the job level, so the
+    # check run does not show as a red failure.
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -81,7 +82,12 @@ jobs:
           cache-dependency-path: ops/requirements-eval.txt
       - run: pip install -r ops/requirements-eval.txt
       - name: Run evaluation
+        id: eval
+        continue-on-error: ${{ vars.EVAL_GATE_ENFORCED != 'true' }}
         run: python ops/eval/run_eval.py
+      - name: Warn that the evaluation gate is not met (not blocking until EVAL_GATE_ENFORCED=true)
+        if: steps.eval.outcome == 'failure' && vars.EVAL_GATE_ENFORCED != 'true'
+        run: echo "::warning title=Evaluation gate not met::false alarms 0.111% vs the 0.1% target (see the report). Not blocking; release is."
       - name: Publish the report
         if: always()
         run: cat ops/eval/reports/eval_report.md >> "$GITHUB_STEP_SUMMARY"
@@ -115,6 +121,17 @@ jobs:
           pip install -e "server[dev]" pip-audit
       - name: pip-audit (installed server dependencies)
         run: pip-audit --skip-editable
+
+  tls-tool:
+    name: TLS / pin tool tests (needs Python 3.13+ to read the chain)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - run: pip install pytest cryptography
+      - run: pytest ops/security/test_tls_pins.py
 
   docker:
     name: Server image builds

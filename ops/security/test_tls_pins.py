@@ -74,6 +74,10 @@ def tls_server(tmp_path):
     return build
 
 
+needs_chain = pytest.mark.skipif(not tp.CHAIN_API, reason="reading the full chain needs Python 3.13+ (CI runs the tls-tool job on 3.13)")
+
+
+@needs_chain
 def test_good_server_passes_and_yields_a_leaf_plus_backup_pin(tls_server):
     port, ca, (leaf, inter, _) = tls_server()
     rep = tp.fetch("localhost", port, cafile=ca)
@@ -107,6 +111,13 @@ def test_missing_hsts_is_only_a_warning(tls_server, capsys):
     assert "WARN" in capsys.readouterr().out
 
 
+def test_leaf_only_view_is_reported_honestly_when_the_chain_api_is_missing(tls_server, monkeypatch):
+    monkeypatch.setattr(tp, "CHAIN_API", False)
+    port, ca, _ = tls_server()
+    rep = tp.fetch("localhost", port, cafile=ca)
+    assert any("full chain unavailable" in p and "warning" in p for p in rep.problems)
+
+
 def test_pin_file_needs_two_distinct_pins():
     with pytest.raises(ValueError, match="at least two"):
         tp.render_pins("h", ["sha256/a"])
@@ -114,6 +125,7 @@ def test_pin_file_needs_two_distinct_pins():
     assert "sha256/a  # primary" in text and "sha256/b  # backup" in text
 
 
+@needs_chain
 def test_cli_writes_a_pin_file(tls_server, tmp_path):
     port, ca, _ = tls_server()
     out = tmp_path / "pins.txt"

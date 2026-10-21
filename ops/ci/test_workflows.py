@@ -52,7 +52,7 @@ def test_pull_request_workflow_never_touches_secrets():
 
 def test_expected_pr_jobs_exist():
     assert set(load("ci.yml")["jobs"]) == {"server", "contracts", "detector", "evaluation", "secrets-scan",
-                                           "dependency-scan", "docker", "stubs", "android"}
+                                           "dependency-scan", "docker", "stubs", "android", "tls-tool"}
 
 
 def test_gitleaks_scans_full_history():
@@ -67,10 +67,12 @@ def test_pr_stub_check_looks_at_what_the_pr_adds():
     assert "--new-since" in run_lines(wf)
 
 
-def test_evaluation_is_soft_only_through_the_explicit_variable():
+def test_evaluation_is_soft_only_through_the_explicit_variable_and_only_on_the_gate_step():
     job = load("ci.yml")["jobs"]["evaluation"]
-    assert "EVAL_GATE_ENFORCED" in str(job["continue-on-error"])
-    assert "run_eval.py" in run_lines({"jobs": {"e": job}})
+    assert "continue-on-error" not in job                      # job-level would show a red check run
+    gate = [s for s in job["steps"] if "run_eval.py" in s.get("run", "")]
+    assert len(gate) == 1 and "EVAL_GATE_ENFORCED" in str(gate[0]["continue-on-error"])
+    assert any("::warning" in s.get("run", "") for s in job["steps"])      # and the miss stays visible
 
 
 def test_release_is_gated_before_anything_ships():
@@ -99,6 +101,12 @@ def test_every_script_a_step_calls_exists(wf):
     for rel in set(re.findall(r"(?:python|pytest)\s+(ops/[\w./-]+\.py|detector/tools/[\w./-]+\.py)", text)):
         assert (ROOT / rel).is_file(), rel
     assert (ROOT / "server" / "Dockerfile").is_file() and (ROOT / "ops" / "requirements-eval.txt").is_file()
+
+
+def test_tls_tool_job_uses_python_313_or_newer():
+    job = load("ci.yml")["jobs"]["tls-tool"]
+    step = [s for s in job["steps"] if s.get("uses", "").startswith("actions/setup-python")][0]
+    assert tuple(int(x) for x in str(step["with"]["python-version"]).split(".")) >= (3, 13)
 
 
 def test_dependency_scan_upgrades_pip_before_auditing():

@@ -82,13 +82,13 @@ def test_every_request_body_model_forbids_unknown_fields():
 
 # --- A4: error handling never leaks ----------------------------------------------------
 def test_validation_errors_do_not_echo_what_the_client_sent(authed):
-    secret = "SENSITIVE-PAYEE-12345"
-    resp = authed.post("/risk-check", json={**RISK_OK, "amount": "not-a-number", "payee_hash": secret,
-                                            "surprise": secret},
+    canary = "canary-payee-value"
+    resp = authed.post("/risk-check", json={**RISK_OK, "amount": "not-a-number", "payee_hash": canary,
+                                            "surprise": canary},
                        headers={"Authorization": "Bearer dev-device-1"})
     assert resp.status_code == 422
     assert set(resp.json()) == {"code", "message"}
-    assert secret not in resp.text and "not-a-number" not in resp.text
+    assert canary not in resp.text and "not-a-number" not in resp.text
 
 
 def test_unhandled_exception_returns_a_generic_500_with_no_stack_trace(raw_client):
