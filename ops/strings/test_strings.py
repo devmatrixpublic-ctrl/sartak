@@ -1,0 +1,81 @@
+import sys
+import xml.etree.ElementTree as ET
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).parent))
+
+import generate_strings as gen  # noqa: E402
+import validate_strings as val  # noqa: E402
+
+
+def real():
+    return val.load_codes(), val.load_strings()
+
+
+def test_shipped_strings_validate_cleanly():
+    codes, strings = real()
+    assert val.validate(codes, strings) == []
+
+
+def test_shipped_xml_is_in_sync_and_well_formed():
+    _, strings = real()
+    assert val.check_xml(strings) == []
+    root = ET.parse(val.XML_OUT).getroot()
+    names = {s.get("name") for s in root.findall("string")}
+    assert names == {gen.resource_name(c) for c in val.load_codes()}
+
+
+def test_missing_string_fails_the_build():
+    codes, strings = real()
+    del strings["F_NEW_PAYEE"]
+    assert any("F_NEW_PAYEE: no English string" in p for p in val.validate(codes, strings))
+
+
+def test_orphan_string_for_unknown_code_fails():
+    codes, strings = real()
+    strings["F_INVENTED"] = "Something happened."
+    assert any("F_INVENTED" in p for p in val.validate(codes, strings))
+
+
+def test_new_code_without_a_concept_rule_fails():
+    codes, strings = real()
+    codes.append("F_FUTURE")
+    strings["F_FUTURE"] = "Something new."
+    assert any("no concept rule" in p for p in val.validate(codes, strings))
+
+
+def test_string_that_leaks_another_reason_fails():
+    codes, strings = real()
+    strings["F_NEW_PAYEE"] = "You're paying someone you have never paid before, on a call with someone who isn't in your contacts."
+    problems = val.validate(codes, strings)
+    assert any("F_NEW_PAYEE" in p and "also mentions" in p for p in problems)
+
+
+def test_string_that_omits_its_own_reason_fails():
+    codes, strings = real()
+    strings["F_REPEAT_TO_PAYEE"] = "Please be careful."
+    assert any("F_REPEAT_TO_PAYEE: does not mention" in p for p in val.validate(codes, strings))
+
+
+def test_raw_code_name_and_overlong_text_fail():
+    codes, strings = real()
+    strings["F_IS_P2P"] = "F_IS_P2P: this is a payment to a person."
+    strings["F_NEW_PAYEE"] = "You have never paid before. " * 10
+    problems = val.validate(codes, strings)
+    assert any("F_IS_P2P: shows a raw code name" in p for p in problems)
+    assert any("F_NEW_PAYEE: must be 1-" in p for p in problems)
+
+
+def test_stale_xml_is_detected(tmp_path):
+    _, strings = real()
+    stale = tmp_path / "strings.xml"
+    stale.write_text(gen.render_xml(dict(strings, F_IS_P2P="Edited by hand.")), encoding="utf-8")
+    assert any("out of date" in p for p in val.check_xml(strings, stale))
+    assert any("missing" in p for p in val.check_xml(strings, tmp_path / "nope.xml"))
+
+
+def test_android_escaping_of_apostrophes_and_ampersands():
+    assert gen.android_escape("You're a & b") == "You\\'re a &amp; b"
+    xml = gen.render_xml({"F_NEW_PAYEE": "You're paying <x>"}, codes=["F_NEW_PAYEE"])
+    root = ET.fromstring(xml)
+    assert root.find("string").text == "You\\'re paying <x>"
