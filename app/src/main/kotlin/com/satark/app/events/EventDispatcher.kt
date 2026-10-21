@@ -61,9 +61,12 @@ class EventDispatcher(
                 restoreSession()
                 ready = true
             }
+            prune()
+            var ticks = 0
             while (true) {
                 delay(TICK_MS)
                 pump(flushAll = false)
+                if (++ticks % PRUNE_EVERY_TICKS == 0) prune()
             }
         }
     }
@@ -142,6 +145,15 @@ class EventDispatcher(
         }.onFailure { android.util.Log.w("Satark.dispatch", "session restore failed", it) }
     }
 
+    /**
+     * Privacy: event_queue holds which apps were opened and when. Keep it only as long as session restore needs it
+     * (plus margin), never as a usage history. Decisions (levels and reason codes only) are kept a little longer.
+     */
+    private suspend fun prune() = runCatching {
+        dao.pruneEvents(now() - EVENT_RETENTION_MS)
+        dao.pruneDecisions(now() - DECISION_RETENTION_MS)
+    }.onFailure { android.util.Log.w("Satark.dispatch", "prune failed", it) }
+
     /** Call only when a payment actually completed (never for held attempts). */
     suspend fun onPaymentCompleted(amountInr: Double) = lock.withLock {
         baseline.observe(amountInr)
@@ -152,5 +164,8 @@ class EventDispatcher(
         const val TICK_MS = 30_000L
         const val RELEASE_AFTER_MS = 1_700L // EventSequencer hold (1.5 s) + margin
         const val RESTORE_WINDOW_MS = 3 * 3600_000L // > long-session rule (2 h) and the contact window
+        const val EVENT_RETENTION_MS = 24 * 3600_000L // must stay >= RESTORE_WINDOW_MS
+        const val DECISION_RETENTION_MS = 30L * 24 * 3600_000L
+        const val PRUNE_EVERY_TICKS = 120 // ~1 h
     }
 }
