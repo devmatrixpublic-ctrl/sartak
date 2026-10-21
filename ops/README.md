@@ -10,8 +10,8 @@ Source of truth: the module-wise implementation plan, "Member 4: Security, CI/CD
 | 4.1 Real Google roots | `server/certs/google_attestation_roots.pem` | **not committed**: copy from Google's docs, verify fingerprints by hand |
 | 4.1 Chains captured from both real phones | `server/tests/fixtures/` | **blocked on M1** producing attestation on a device |
 | 4.2 CI/CD | `.github/workflows/` | stub-marker gate done (`ops/ci/check_stubs.py`); workflows not written |
-| 4.3 Evaluation pipeline | `ops/eval/` | blocked: M2's detector is on `feat/m2-detector`, not merged |
-| 4.4 Explanation strings | `ops/strings/` | blocked on M2's `contracts/reason_codes.json` |
+| 4.3 Evaluation pipeline | `ops/eval/` | not started; inputs exist on `feat/m2-detector` (`detector/reference/satark_detector.py`, `sensitivity.py`, `data/satarksim/`), which is not merged to `main` yet |
+| 4.4 Explanation strings | `ops/strings/` | not started; `contracts/reason_codes.json` exists on `feat/m2-detector` (not merged to `main` yet) |
 | 4.5 Security checklist | `ops/security/checklist.md` | not started |
 | 4.6 Held-out runner | `ops/heldout/run_heldout.py` | blocked on `detector-freeze` tag and the held-out data |
 | `contracts/pins.txt` | | blocked on the Render domain |
