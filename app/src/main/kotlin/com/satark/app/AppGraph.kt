@@ -35,7 +35,11 @@ class SatarkApp : Application() {
 class AppGraph(private val app: Application) {
     val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     val store = TokenStore(app)
-    val model: ModelConfig = ModelConfig.loadBundled()
+    val model: ModelConfig = ModelConfig.loadBundled().let { m ->
+        if (BuildConfig.DEBUG && BuildConfig.LONG_SESSION_TEST_MIN > 0)
+            m.copy(constants = m.constants.copy(longSessionH = BuildConfig.LONG_SESSION_TEST_MIN / 60.0))
+        else m
+    }
     private val dao = SatarkDb.create(app).dao()
 
     private val host = URI(BuildConfig.BASE_URL).host ?: "localhost"
@@ -54,6 +58,8 @@ class AppGraph(private val app: Application) {
     fun start() {
         dispatcher.start()
         alerts.start()
+        val notifier = com.satark.app.ui.alerts.AlarmNotifier(app)
+        scope.launch { dispatcher.alarms.collect { notifier.show(it.decision.mechanism) } }
         scope.launch { runCatching { session.ensureRegistered(); queue.flush() } }
         flushWhenOnline()
     }

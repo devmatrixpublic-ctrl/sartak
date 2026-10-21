@@ -139,6 +139,36 @@ class EventPipelineTest {
         assertNull(EventMapper.fromSchemaJson("not json"))
     }
 
+    @Test fun videoAfterUnknownCallIsUnknown() {
+        val v = com.satark.app.events.VideoOrigin(linkWindowMs = 600_000)
+        val video = { t: Long -> Event(t, EventType.VIDEO_SESSION_START, appPackage = "com.whatsapp") }
+        assertEquals(null, v.classify(video(0)).callerKnown) // no call yet: unchanged
+        v.classify(Event(10, EventType.CALL_START, callerKnown = false))
+        assertEquals(false, v.classify(video(20)).callerKnown) // during the unknown call
+        v.classify(Event(30, EventType.CALL_END))
+        assertEquals(false, v.classify(video(30 + 599_000)).callerKnown) // inside the window
+        assertEquals(null, v.classify(video(30 + 601_000)).callerKnown) // too late
+        v.classify(Event(700_000, EventType.CALL_START, callerKnown = true))
+        assertEquals(null, v.classify(video(700_010)).callerKnown) // known caller: unchanged
+        assertEquals(true, v.classify(video(700_020).copy(callerKnown = true)).callerKnown) // supplied value kept
+    }
+
+    @Test fun longVideoCallStaysOneSession() {
+        val out = mutableListOf<com.satark.app.signals.RawSignal>()
+        val v = com.satark.app.signals.VideoSessionTracker(setOf("com.whatsapp"), graceMs = 30_000) { out += it }
+        v.resumed("com.whatsapp", 0)
+        for (t in 3_000L..3 * 3600_000L step 3_000L) v.poll(t) // 3 h in the call, no new events
+        assertEquals(1, out.size) // started, never ended
+        v.resumed("com.bank", 3 * 3600_000L + 1_000)
+        v.poll(3 * 3600_000L + 20_000); assertEquals(1, out.size) // short switch away: still the same session
+        v.resumed("com.whatsapp", 3 * 3600_000L + 25_000)
+        v.paused("com.whatsapp", 3 * 3600_000L + 40_000)
+        v.poll(3 * 3600_000L + 80_000)
+        assertEquals(2, out.size)
+        assertTrue(out.last() is com.satark.app.signals.RawSignal.VideoEnded)
+        assertEquals(3 * 3600_000L + 40_000, out.last().tMs)
+    }
+
     @Test fun outOfOrderEventsReleasedInTimestampOrder() {
         val s = EventSequencer()
         s.add(Event(300, EventType.CALL_END))

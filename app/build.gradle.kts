@@ -19,6 +19,9 @@ android {
         // Overridable: ./gradlew -PsatarkBaseUrl=https://...
         buildConfigField("String", "BASE_URL", "\"${providers.gradleProperty("satarkBaseUrl").getOrElse("http://10.0.2.2:8000/")}\"")
         buildConfigField("String", "RAZORPAY_KEY_ID", "\"${providers.gradleProperty("satarkRazorpayKey").getOrElse("rzp_test_REPLACE_ME")}\"") // test-mode key id (public)
+        // Labelled demo build only: ./gradlew assembleDebug -PsatarkLongSessionTestMin=2 shortens the 2 h long-session
+        // rule so it can be shown live. Ignored in release builds (see AppGraph).
+        buildConfigField("int", "LONG_SESSION_TEST_MIN", providers.gradleProperty("satarkLongSessionTestMin").getOrElse("0"))
         buildConfigField("String", "CERT_PINS", "\"${providers.gradleProperty("satarkPins").getOrElse("")}\"") // M4: contracts/pins.txt
     }
 
@@ -80,6 +83,7 @@ dependencies {
     implementation("com.razorpay:checkout:1.6.40")
 
     testImplementation(kotlin("test"))
+    testImplementation("org.yaml:snakeyaml:2.3") // ApiContractTest reads contracts/api.yaml
     testImplementation("org.json:json:20240303") // real org.json for JVM tests (android.jar has stubs)
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.9.0")
 }

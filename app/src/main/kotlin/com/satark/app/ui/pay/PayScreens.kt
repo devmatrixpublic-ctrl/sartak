@@ -92,6 +92,10 @@ fun PayHome(graph: AppGraph, status: String?, onOutcome: (PayOutcome, UpiRequest
 
     Column(Modifier.verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Text("Pay via Satark", style = MaterialTheme.typography.headlineSmall)
+        if (com.satark.app.BuildConfig.DEBUG && com.satark.app.BuildConfig.LONG_SESSION_TEST_MIN > 0) Text(
+            "TEST BUILD: long-session alarm after ${com.satark.app.BuildConfig.LONG_SESSION_TEST_MIN} min (real rule: 2 h)",
+            color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.labelLarge,
+        )
         ProtectionBanners(graph.hub.status())
         OutlinedButton(onClick = { error = null; scanning = true }, Modifier.fillMaxWidth()) { Text("Scan UPI QR") }
         OutlinedTextField(vpa, { vpa = it; source = "manual"; merchantCode = null; scannedName = null; scannedNote = null }, label = { Text("Payee UPI ID") }, modifier = Modifier.fillMaxWidth(), singleLine = true)

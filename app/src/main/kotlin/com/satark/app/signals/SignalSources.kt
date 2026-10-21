@@ -134,8 +134,8 @@ class CallSignalSource(private val ctx: Context, private val now: () -> Long = S
 
 /**
  * Foreground app and video-app sessions from UsageStatsManager (polled; there is no push API).
- * Video apps are calling apps only; whether the other party is unknown cannot be read, so callerKnown = null and the
- * long-session rule stays silent until a signal for it exists (documented limitation).
+ * Video apps are calling apps only; whether the other party is unknown cannot be read, so callerKnown = null here.
+ * The dispatcher marks a session unknown when it follows an unknown call (events/VideoOrigin.kt).
  */
 class UsageSignalSource(
     private val ctx: Context,
@@ -160,8 +160,7 @@ class UsageSignalSource(
         thread = Thread({
             val usm = ctx.getSystemService(UsageStatsManager::class.java)
             var cursor = now()
-            var videoPkg: String? = null
-            var videoLastSeen = 0L
+            val video = VideoSessionTracker(videoApps, graceMs, emit)
             while (running) {
                 runCatching {
                     val end = now()
@@ -169,19 +168,15 @@ class UsageSignalSource(
                     val e = UsageEvents.Event()
                     while (ev.hasNextEvent()) {
                         ev.getNextEvent(e)
-                        if (e.eventType != UsageEvents.Event.ACTIVITY_RESUMED) continue
-                        emit(RawSignal.AppForeground(e.timeStamp, e.packageName))
-                        if (e.packageName in videoApps) {
-                            if (videoPkg == null) emit(RawSignal.VideoStarted(e.timeStamp, e.packageName, null))
-                            videoPkg = e.packageName
-                            videoLastSeen = e.timeStamp
-                        } else if (videoPkg != null && e.timeStamp - videoLastSeen > graceMs) {
-                            emit(RawSignal.VideoEnded(videoLastSeen, videoPkg)); videoPkg = null
+                        when (e.eventType) {
+                            UsageEvents.Event.ACTIVITY_RESUMED -> {
+                                emit(RawSignal.AppForeground(e.timeStamp, e.packageName))
+                                video.resumed(e.packageName, e.timeStamp)
+                            }
+                            UsageEvents.Event.ACTIVITY_PAUSED -> video.paused(e.packageName, e.timeStamp)
                         }
                     }
-                    if (videoPkg != null && end - videoLastSeen > graceMs * 4) {
-                        emit(RawSignal.VideoEnded(videoLastSeen, videoPkg)); videoPkg = null
-                    }
+                    video.poll(end)
                     cursor = end
                 }.onFailure { Log.w(TAG, "usage poll failed", it) }
                 runCatching { Thread.sleep(pollMs) }
@@ -196,6 +191,47 @@ class UsageSignalSource(
             "com.whatsapp", "us.zoom.videomeetings", "com.google.android.apps.tachyon",
             "com.skype.raider", "org.telegram.messenger", "org.thoughtcrime.securesms",
         )
+    }
+}
+
+/**
+ * Video session = from the first time a video app comes to the front until it has been off-screen for [graceMs].
+ * Staying in the call (no new events) keeps the session open; before, it was closed after ~2 min of silence, so the
+ * 2 h long-session rule could never be reached.
+ */
+class VideoSessionTracker(
+    private val videoApps: Set<String>,
+    private val graceMs: Long,
+    private val emit: (RawSignal) -> Unit,
+) {
+    private var sessionPkg: String? = null
+    private var foreground: String? = null
+    private var lastSeen = 0L
+
+    fun resumed(pkg: String, t: Long) {
+        if (pkg in videoApps) {
+            if (sessionPkg == null) emit(RawSignal.VideoStarted(t, pkg, null))
+            sessionPkg = sessionPkg ?: pkg
+            foreground = pkg
+            lastSeen = t
+        } else {
+            if (foreground != null) lastSeen = t
+            foreground = null
+            endIfIdle(t)
+        }
+    }
+
+    fun paused(pkg: String, t: Long) {
+        if (pkg == foreground) { foreground = null; lastSeen = t }
+    }
+
+    fun poll(now: Long) {
+        if (foreground != null) lastSeen = now else endIfIdle(now)
+    }
+
+    private fun endIfIdle(now: Long) {
+        val pkg = sessionPkg ?: return
+        if (foreground == null && now - lastSeen > graceMs) { emit(RawSignal.VideoEnded(lastSeen, pkg)); sessionPkg = null }
     }
 }
 

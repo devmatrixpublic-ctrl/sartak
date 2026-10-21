@@ -45,6 +45,7 @@ class EventDispatcher(
 
     private var unknownCallActive = false
     private var callOpen = false
+    private val videoOrigin = VideoOrigin()
     private var lastEventT = 0L
     private var ready = false
 
@@ -123,7 +124,8 @@ class EventDispatcher(
     }
 
     /** One event into the detector, with the app's session policy. Null when the event is ignored. Call under [lock]. */
-    private fun feed(e: Event): Decision? {
+    private fun feed(raw: Event): Decision? {
+        val e = videoOrigin.classify(raw)
         // A CALL_START with no caller info while a call is already open (e.g. the app restarted mid-call and only saw
         // the current call state) carries nothing new and must not erase that the open call is from an unknown number.
         if (e.type == EventType.CALL_START && e.callerKnown == null && callOpen) return null
