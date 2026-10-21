@@ -99,3 +99,9 @@ def test_every_script_a_step_calls_exists(wf):
     for rel in set(re.findall(r"(?:python|pytest)\s+(ops/[\w./-]+\.py|detector/tools/[\w./-]+\.py)", text)):
         assert (ROOT / rel).is_file(), rel
     assert (ROOT / "server" / "Dockerfile").is_file() and (ROOT / "ops" / "requirements-eval.txt").is_file()
+
+
+def test_dependency_scan_upgrades_pip_before_auditing():
+    job = load("ci.yml")["jobs"]["dependency-scan"]
+    text = run_lines({"jobs": {"d": job}})
+    assert text.index("install --upgrade pip") < text.index("pip-audit --skip-editable")
