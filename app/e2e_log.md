@@ -67,6 +67,22 @@ Run with `./gradlew :app:assembleDebug :app:assembleDebugAndroidTest`, install b
 
 Still needed: the same run on both physical phones (plan 2.7), then M2 sets `detector-freeze`.
 
+### Attestation chain export (for M4)
+
+Debug builds show **"Export attestation chain for M4"** at the bottom of the pay screen. It fetches a challenge from
+`/auth/challenge` (or makes a local one if the server has no auth routes), creates a key under its own Keystore alias
+(the app's registration key is never touched), and opens the share sheet with a JSON file. It also saves the file to
+`/sdcard/Android/data/com.satark.app/files/` (`adb pull` works). Format `satark-attestation-export/1`: device, package,
+build type, **signing-certificate SHA-256** (what `SATARK_AUTH_EXPECTED_SIGNING_SHA256` needs), key security level,
+challenge, public key, chain (leaf first).
+
+| # | Where | Result |
+|---|---|---|
+| 20 | Emulator, API 35 | Pass: key level `software`; 3-certificate chain; challenge embedded in the attestation extension and leaf key = exported public key (checked with Python `cryptography`); root "Google Test LLC" as expected for an emulator. Share sheet opens. |
+
+**For each physical phone:** install the debug build, tap the button, send the JSON to M4. Expect `TEE` or `StrongBox`
+and a chain ending at Google's hardware attestation root.
+
 ## Defects found and fixed (all on `role_1`)
 
 | | Defect | Fix | Commit |

@@ -143,6 +143,7 @@ fun PayHome(graph: AppGraph, status: String?, onOutcome: (PayOutcome, UpiRequest
             "Satark can hold payments started here. Payments started directly in other UPI apps can only be warned about.",
             style = MaterialTheme.typography.bodySmall,
         )
+        if (com.satark.app.BuildConfig.DEBUG) AttestationExportButton(graph)
     }
 }
 
@@ -195,5 +196,29 @@ fun QrScanScreen(onResult: (String) -> Unit, onCancel: () -> Unit) {
             },
         )
         OutlinedButton(onClick = onCancel, Modifier.padding(16.dp)) { Text("Cancel") }
+    }
+}
+
+/** Debug builds only: capture this phone's attestation chain for M4 (see ui/debug/AttestationExport.kt). */
+@Composable
+private fun AttestationExportButton(graph: AppGraph) {
+    val ctx = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var msg by remember { mutableStateOf<String?>(null) }
+    var busy by remember { mutableStateOf(false) }
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text("Developer (debug build only)", style = MaterialTheme.typography.labelLarge)
+        OutlinedButton(enabled = !busy, onClick = {
+            busy = true; msg = null
+            scope.launch {
+                val r = runCatching { withContext(Dispatchers.IO) { com.satark.app.ui.debug.AttestationExport.capture(ctx, graph.api) } }
+                busy = false
+                r.onSuccess {
+                    msg = "Key level: ${it.level}. Saved to ${it.file?.absolutePath ?: "(not saved)"}"
+                    runCatching { ctx.startActivity(com.satark.app.ui.debug.AttestationExport.shareIntent(it)) }
+                }.onFailure { msg = "Could not capture the attestation chain: ${it.message}" }
+            }
+        }) { Text(if (busy) "Capturing…" else "Export attestation chain for M4") }
+        msg?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
     }
 }

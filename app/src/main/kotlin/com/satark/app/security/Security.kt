@@ -54,26 +54,45 @@ class Attestation(val publicKeyB64: String, val chainB64: List<String>, val leve
  * and TEE is the fallback. The attestation level is logged by the caller. Play Integrity is NOT used (stated limitation).
  */
 object KeyAttestor {
-    private const val ALIAS = "satark_device_key"
+    const val ALIAS = "satark_device_key"
 
-    fun attest(ctx: Context, challenge: ByteArray): Attestation {
+    /** [alias]: the registration key by default; the debug export uses its own alias so it never replaces that key. */
+    fun attest(ctx: Context, challenge: ByteArray, alias: String = ALIAS): Attestation {
         val ks = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
-        ks.deleteEntry(ALIAS) // a new challenge needs a new key: the challenge is bound at generation time
+        ks.deleteEntry(alias) // a new challenge needs a new key: the challenge is bound at generation time
         var strongBox = Build.VERSION.SDK_INT >= Build.VERSION_CODES.P && ctx.packageManager.hasSystemFeature(PackageManager.FEATURE_STRONGBOX_KEYSTORE)
         try {
-            generate(challenge, strongBox)
+            generate(alias, challenge, strongBox)
         } catch (e: Exception) {
             if (!strongBox) throw e
             strongBox = false
-            generate(challenge, false)
+            generate(alias, challenge, false)
         }
-        val chain = ks.getCertificateChain(ALIAS).map { Base64.encodeToString(it.encoded, Base64.NO_WRAP) }
-        val pub = Base64.encodeToString((ks.getCertificate(ALIAS) as X509Certificate).publicKey.encoded, Base64.NO_WRAP)
-        return Attestation(pub, chain, if (strongBox) "StrongBox" else "TEE-or-software")
+        val chain = ks.getCertificateChain(alias).map { Base64.encodeToString(it.encoded, Base64.NO_WRAP) }
+        val pub = Base64.encodeToString((ks.getCertificate(alias) as X509Certificate).publicKey.encoded, Base64.NO_WRAP)
+        return Attestation(pub, chain, levelOf(ks, alias, strongBox))
     }
 
-    private fun generate(challenge: ByteArray, strongBox: Boolean) {
-        val spec = KeyGenParameterSpec.Builder(ALIAS, KeyProperties.PURPOSE_SIGN or KeyProperties.PURPOSE_VERIFY)
+    fun delete(alias: String) = runCatching { KeyStore.getInstance("AndroidKeyStore").apply { load(null) }.deleteEntry(alias) }
+
+    /** Where the key actually lives: "StrongBox", "TEE", "software" or "unknown" (plan 1.7: log the level). */
+    private fun levelOf(ks: KeyStore, alias: String, strongBox: Boolean): String = runCatching {
+        val key = ks.getKey(alias, null) as java.security.PrivateKey
+        val info = java.security.KeyFactory.getInstance(key.algorithm, "AndroidKeyStore")
+            .getKeySpec(key, android.security.keystore.KeyInfo::class.java)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) when (info.securityLevel) {
+            KeyProperties.SECURITY_LEVEL_STRONGBOX -> "StrongBox"
+            KeyProperties.SECURITY_LEVEL_TRUSTED_ENVIRONMENT -> "TEE"
+            KeyProperties.SECURITY_LEVEL_SOFTWARE -> "software"
+            else -> "unknown"
+        } else {
+            @Suppress("DEPRECATION")
+            if (!info.isInsideSecureHardware) "software" else if (strongBox) "StrongBox" else "TEE"
+        }
+    }.getOrDefault("unknown")
+
+    private fun generate(alias: String, challenge: ByteArray, strongBox: Boolean) {
+        val spec = KeyGenParameterSpec.Builder(alias, KeyProperties.PURPOSE_SIGN or KeyProperties.PURPOSE_VERIFY)
             .setAlgorithmParameterSpec(ECGenParameterSpec("secp256r1"))
             .setDigests(KeyProperties.DIGEST_SHA256)
             .setAttestationChallenge(challenge)

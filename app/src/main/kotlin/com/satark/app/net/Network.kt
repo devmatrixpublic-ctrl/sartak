@@ -55,7 +55,7 @@ class DeviceSession(private val ctx: Context, private val store: TokenStore, pri
         }
         try {
             val att = KeyAttestor.attest(ctx, Base64.decode(ch.challenge, Base64.URL_SAFE or Base64.NO_PADDING))
-            Log.i("Satark.auth", "attestation level: ${att.level}")
+            Log.i("Satark.auth", "attestation level: ${att.level}") // StrongBox / TEE / software (plan 1.7)
             val t = api.registerDevice(DeviceAuthRequest(ch.challenge, att.publicKeyB64, att.chainB64))
             store.setSession(t.deviceId, t.accessToken, t.refreshToken)
         } catch (e: kotlinx.coroutines.CancellationException) {
