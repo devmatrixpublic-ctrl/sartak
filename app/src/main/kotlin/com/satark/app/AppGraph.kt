@@ -42,7 +42,7 @@ class AppGraph(private val app: Application) {
     val session: DeviceSession by lazy { DeviceSession(app, store) { bareApi } }
     private val client: OkHttpClient by lazy { NetworkModule.client(store, { session }, host, BuildConfig.CERT_PINS) }
     val api: SatarkApi by lazy { NetworkModule.api(client, BuildConfig.BASE_URL) }
-    // No auth interceptor: used for /auth/* so a 401 loop is impossible.
+    // No auth interceptor: used for /auth/{challenge,device,refresh} so a 401 loop is impossible.
     private val bareApi: SatarkApi by lazy { NetworkModule.api(OkHttpClient.Builder().build(), BuildConfig.BASE_URL) }
 
     val dispatcher = EventDispatcher(dao, model, store.ageBand, scope)

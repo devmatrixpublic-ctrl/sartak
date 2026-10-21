@@ -28,7 +28,7 @@ val NetJson = Json { ignoreUnknownKeys = true; explicitNulls = false; encodeDefa
 
 /**
  * Registers the device (Key Attestation via /auth/challenge + /auth/device) and refreshes tokens.
- * M4's /auth/* is not live yet: when those routes answer 404 the backend is still on the dev-token stub, where the
+ * M4's /auth/{challenge,device,refresh} is not live yet: when those routes answer 404 the backend is still on the dev-token stub, where the
  * bearer value IS the device id, so we fall back to that.
  */
 class DeviceSession(private val ctx: Context, private val store: TokenStore, private val bare: () -> SatarkApi) {
