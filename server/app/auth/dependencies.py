@@ -31,10 +31,10 @@ def reset_auth_caches() -> None:
 def get_attestation_policy(settings: Settings) -> AttestationPolicy | None:
     """Built once from the pinned roots file; None (-> 503 on /auth/device) if not configured."""
     global _policy, _revocation
-    if _policy is None and settings.auth_attestation_roots_path:
+    if _policy is None and settings.auth_attestation_roots:
         _revocation = _revocation or GoogleRevocationList()
         _policy = AttestationPolicy(
-            roots=load_roots_pem(Path(settings.auth_attestation_roots_path).read_bytes()),
+            roots=load_roots_pem(Path(settings.auth_attestation_roots).read_bytes()),
             expected_package=settings.auth_expected_package,
             expected_signing_sha256=expected_signing_digests(settings),
             revoked=_revocation,

@@ -31,7 +31,7 @@ class Settings(BaseSettings):
     # Device auth (Member 4, contracts/auth.md). Identity of the release app for attestation check 6.
     auth_expected_package: str = ""
     auth_expected_signing_sha256: str = ""      # comma-separated lowercase hex SHA-256 digests
-    auth_attestation_roots_path: str = ""       # PEM bundle of the pinned Google attestation roots
+    auth_attestation_roots: str = ""       # PEM bundle of the pinned Google attestation roots
     auth_require_hardware: bool = True
     auth_enable_dev_token: bool = False         # SATARK_STUB: dev only, refused elsewhere
 

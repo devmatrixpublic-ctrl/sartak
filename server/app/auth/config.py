@@ -24,5 +24,5 @@ def validate_auth_settings(settings: Settings) -> None:
         raise RuntimeError("non-dev environments must require hardware-backed attestation")
     if not settings.auth_expected_package or not expected_signing_digests(settings):
         raise RuntimeError("non-dev environments need SATARK_AUTH_EXPECTED_PACKAGE and _SIGNING_SHA256")
-    if not settings.auth_attestation_roots_path or not Path(settings.auth_attestation_roots_path).is_file():
+    if not settings.auth_attestation_roots or not Path(settings.auth_attestation_roots).is_file():
         raise RuntimeError("non-dev environments need SATARK_AUTH_ATTESTATION_ROOTS pointing at the pinned Google roots")
