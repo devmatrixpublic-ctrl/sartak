@@ -9,11 +9,6 @@ from app.payments.state_machine import InvalidTransition, require_transition
 HEADERS = {"Authorization": "Bearer dev-device-1"}
 
 
-@pytest.fixture
-def db(db_session):
-    return db_session
-
-
 # --- Pure state machine ---
 
 def test_checkout_valid_transitions():

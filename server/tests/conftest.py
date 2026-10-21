@@ -36,6 +36,11 @@ def session_factory(db_engine):
 
 
 @pytest.fixture
+def db(db_session):
+    return db_session
+
+
+@pytest.fixture
 def client(session_factory):
     def _override():
         s = session_factory()
