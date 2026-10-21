@@ -4,6 +4,7 @@ from fastapi import FastAPI
 from fastapi.exceptions import RequestValidationError
 
 from app.core.errors import ApiError, api_error_handler, unhandled_error_handler, validation_error_handler
+from app.core.logging import RequestCorrelationMiddleware, configure_logging
 from app.core.settings import get_settings
 from app.db.session import SessionLocal
 from app.payments.jobs import TimeoutSweeper
@@ -21,7 +22,10 @@ async def lifespan(_app: FastAPI):
 
 
 def create_app() -> FastAPI:
+    configure_logging()
+
     app = FastAPI(title="Satark Backend", version="0.1.0", lifespan=lifespan)
+    app.add_middleware(RequestCorrelationMiddleware)
 
     app.add_exception_handler(ApiError, api_error_handler)
     app.add_exception_handler(RequestValidationError, validation_error_handler)
