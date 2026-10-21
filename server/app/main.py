@@ -28,7 +28,10 @@ def create_app() -> FastAPI:
     configure_logging()
     validate_auth_settings(get_settings())    # refuse to boot with an unsafe auth config
 
-    app = FastAPI(title="Satark Backend", version="0.1.0", lifespan=lifespan)
+    settings = get_settings()
+    # Interactive docs and the schema are for dev only; the contract lives in contracts/api.yaml.
+    docs = {} if settings.is_dev else {"docs_url": None, "redoc_url": None, "openapi_url": None}
+    app = FastAPI(title="Satark Backend", version="0.1.0", lifespan=lifespan, **docs)
     app.add_middleware(RequestCorrelationMiddleware)
 
     app.add_exception_handler(ApiError, api_error_handler)

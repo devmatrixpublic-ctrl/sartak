@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from app.auth.dependencies import require_device
@@ -12,8 +12,8 @@ router = APIRouter(tags=["trusted-contact"])
 
 
 class TrustedContactIn(StrictInput):
-    trusted_device_id: str
-    fcm_token: str
+    trusted_device_id: str = Field(min_length=1, max_length=36)
+    fcm_token: str = Field(min_length=1, max_length=4096)
 
 
 class TrustedContactOut(BaseModel):

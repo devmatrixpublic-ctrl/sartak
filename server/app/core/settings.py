@@ -12,6 +12,9 @@ class Settings(BaseSettings):
     env: str = "dev"
     database_url: str = "sqlite:///./satark_dev.db"
     redis_url: str = "redis://localhost:6379/0"
+    # Optional second connection for `alembic upgrade head` only. When the runtime URL is a DML-only role
+    # (ops/security/db_roles.sql) migrations still need DDL rights. Empty = use database_url.
+    migration_database_url: str = ""
 
     # Refused at boot outside dev (app/auth/config.py); the default exists only for local runs.
     jwt_secret: str = DEV_JWT_SECRET
@@ -34,6 +37,10 @@ class Settings(BaseSettings):
     auth_attestation_roots: str = ""       # PEM bundle of the pinned Google attestation roots
     auth_require_hardware: bool = True
     auth_enable_dev_token: bool = False         # SATARK_STUB: dev only, refused elsewhere
+
+    @property
+    def effective_migration_url(self) -> str:
+        return self.migration_database_url or self.database_url
 
     @property
     def is_dev(self) -> bool:

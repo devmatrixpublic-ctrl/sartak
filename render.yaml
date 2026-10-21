@@ -28,6 +28,12 @@ services:
         fromDatabase:
           name: satark-db
           property: connectionString
+      # Migrations use this owner connection; once ops/security/db_roles.sql has been run, point
+      # SATARK_DATABASE_URL at the DML-only `satark_app` role in the Render dashboard.
+      - key: SATARK_MIGRATION_DATABASE_URL
+        fromDatabase:
+          name: satark-db
+          property: connectionString
       - key: SATARK_REDIS_URL
         fromService:
           type: keyvalue

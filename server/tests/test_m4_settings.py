@@ -79,3 +79,23 @@ def test_every_documented_auth_env_var_exists_in_the_docs_and_render_blueprint()
     for var in ("SATARK_AUTH_ATTESTATION_ROOTS", "SATARK_AUTH_EXPECTED_PACKAGE", "SATARK_AUTH_EXPECTED_SIGNING_SHA256"):
         assert var in render
         assert var.removeprefix("SATARK_").lower() in Settings.model_fields
+
+
+def test_migrations_use_their_own_connection_when_one_is_set():
+    s = Settings(database_url="postgresql://satark_app@h/db")
+    assert s.effective_migration_url == "postgresql://satark_app@h/db"          # falls back
+    s = Settings(database_url="postgresql://satark_app@h/db", migration_database_url="postgresql://owner@h/db")
+    assert s.effective_migration_url == "postgresql://owner@h/db"
+    assert s.database_url == "postgresql://satark_app@h/db"                      # runtime stays least-privilege
+
+
+def test_alembic_env_reads_the_migration_url(monkeypatch, tmp_path):
+    import subprocess, sys
+    db = tmp_path / "mig.db"
+    env = dict(**__import__("os").environ, SATARK_DATABASE_URL="sqlite:///./should_not_be_used.db",
+               SATARK_MIGRATION_DATABASE_URL=f"sqlite:///{db.as_posix()}")
+    server_dir = __import__("pathlib").Path(__file__).resolve().parents[1]
+    out = subprocess.run([sys.executable, "-m", "alembic", "upgrade", "head"], cwd=server_dir, env=env,
+                         capture_output=True, text=True)
+    assert out.returncode == 0, out.stderr[-500:]
+    assert db.exists() and not (server_dir / "should_not_be_used.db").exists()

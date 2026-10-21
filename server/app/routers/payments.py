@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 from typing import Literal, Optional
 
@@ -39,7 +39,7 @@ class PaymentOut(BaseModel):
 
 class PaymentResultIn(StrictInput):
     status: Literal["success", "failure"]
-    txn_ref: Optional[str] = None
+    txn_ref: Optional[str] = Field(default=None, max_length=128)
 
 
 def _get_owned_payment(db: Session, payment_id: str, device_id: str) -> Payment:
