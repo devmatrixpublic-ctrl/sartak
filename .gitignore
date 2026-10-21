@@ -6,3 +6,10 @@ __pycache__/
 *.db
 .pytest_cache/
 .ruff_cache/
+
+# Android
+.gradle/
+build/
+local.properties
+*.keystore
+*.jks
