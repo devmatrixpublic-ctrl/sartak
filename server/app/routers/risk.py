@@ -1,17 +1,42 @@
-import uuid
+from fastapi import APIRouter, Depends
+from sqlalchemy.orm import Session
 
-from fastapi import APIRouter
-
+from app.auth.dependencies import ensure_device_exists, require_device
+from app.core.settings import get_settings
+from app.db.session import get_db
+from app.payments.order_client import get_order_client
+from app.payments.service import create_payment
 from app.schemas import RiskCheckRequest, RiskCheckResponse
 
 router = APIRouter(tags=["risk"])
 
 
-# SATARK_STUB: always ALLOW. Member 1 swaps this for the real risk engine
-# once P2 (payment state machines) lands. Release build fails while this tag
-# remains in the tree.
 @router.post("/risk-check", response_model=RiskCheckResponse)
-async def post_risk_check(body: RiskCheckRequest) -> RiskCheckResponse:
-    payment_id = str(uuid.uuid4())
-    order_id = f"order_stub_{payment_id[:8]}" if body.method == "checkout" else None
-    return RiskCheckResponse(decision="ALLOW", payment_id=payment_id, order_id=order_id)
+async def post_risk_check(
+    body: RiskCheckRequest,
+    device_id: str = Depends(require_device),
+    db: Session = Depends(get_db),
+) -> RiskCheckResponse:
+    ensure_device_exists(db, device_id)
+
+    # Baseline server-side policy: HARD and TRUSTED_CONTACT levels from the
+    # on-device detector hold the payment; NONE/NUDGE allow it. This is the
+    # authoritative decision point — the client cannot self-report ALLOW.
+    risk_decision = "HOLD" if body.decision.level in ("HARD", "TRUSTED_CONTACT") else "ALLOW"
+    order_client = get_order_client(get_settings())
+
+    payment = create_payment(
+        db,
+        device_id=device_id,
+        method=body.method,
+        amount=body.amount,
+        payee_hash=body.payee_hash,
+        risk_decision=risk_decision,
+        order_client=order_client,
+    )
+
+    return RiskCheckResponse(
+        decision=risk_decision,
+        payment_id=payment.id,
+        order_id=payment.razorpay_order_id,
+    )
