@@ -55,6 +55,17 @@ class AppGraph(private val app: Application) {
         dispatcher.start()
         alerts.start()
         scope.launch { runCatching { session.ensureRegistered(); queue.flush() } }
+        flushWhenOnline()
+    }
+
+    /** Queued /alert and /signature calls go out as soon as a network with internet comes back. */
+    private fun flushWhenOnline() = runCatching {
+        val cm = app.getSystemService(android.net.ConnectivityManager::class.java)
+        cm.registerDefaultNetworkCallback(object : android.net.ConnectivityManager.NetworkCallback() {
+            override fun onAvailable(network: android.net.Network) {
+                scope.launch { runCatching { session.ensureRegistered(); queue.flush() } }
+            }
+        })
     }
 
     /** Begin signal capture (called by SignalService once permissions allow). */

@@ -163,7 +163,12 @@ class OfflineQueue(private val dao: SatarkDao, private val api: () -> SatarkApi)
         try { call() } catch (e: Exception) { dao.enqueue(QueuedCall(kind = kind, body = body)) }
     }
 
-    suspend fun flush() {
+    private val flushing = kotlinx.coroutines.sync.Mutex()
+
+    /** One flush at a time (startup and reconnect can overlap); a queued call is never sent twice. */
+    suspend fun flush() { flushing.withLock { flushLocked() } }
+
+    private suspend fun flushLocked() {
         for (q in dao.queued()) {
             try {
                 when (q.kind) {
@@ -175,6 +180,10 @@ class OfflineQueue(private val dao: SatarkDao, private val api: () -> SatarkApi)
                 dao.bump(q.id); return // still offline: keep order, try again later
             } catch (e: retrofit2.HttpException) {
                 if (e.code() in 400..499 && e.code() != 401) dao.dequeue(q.id) else { dao.bump(q.id); return }
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                dao.dequeue(q.id) // unreadable row: drop it rather than block the queue forever
             }
         }
     }

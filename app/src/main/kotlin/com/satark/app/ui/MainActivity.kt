@@ -98,17 +98,20 @@ class MainActivity : ComponentActivity(), PaymentResultListener {
     }
 
     // Razorpay callbacks: the SDK result is only a hint; the verified state is the webhook, read from the server.
-    override fun onPaymentSuccess(razorpayPaymentId: String?) = settleCheckout()
-    override fun onPaymentError(code: Int, message: String?) = settleCheckout()
+    override fun onPaymentSuccess(razorpayPaymentId: String?) = settleCheckout(sdkFailed = false)
+    override fun onPaymentError(code: Int, message: String?) = settleCheckout(sdkFailed = true)
 
-    private fun settleCheckout() {
+    private fun settleCheckout(sdkFailed: Boolean) {
         val p = pending ?: return
         status = "Confirming with Satark…"
         lifecycleScope.launch(Dispatchers.IO) {
-            status = when (graph.payments.pollCheckout(p.paymentId, p.request, p.amountInr)) {
+            // SDK error (cancelled, declined, bad key): check briefly in case a payment did land, then say so plainly.
+            val timeout = if (sdkFailed) 6_000L else 60_000L
+            status = when (graph.payments.pollCheckout(p.paymentId, p.request, p.amountInr, timeout)) {
                 "paid" -> "Payment confirmed (test mode)."
-                "failed" -> "Payment failed."
-                else -> "Still waiting for confirmation. Check again in a moment."
+                "failed" -> "Payment failed. No money was taken."
+                else -> if (sdkFailed) "Checkout did not complete. No payment was made."
+                        else "Still waiting for confirmation. Check again in a moment."
             }
             pending = null
         }
