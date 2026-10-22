@@ -8,6 +8,10 @@ CREATE ROLE satark_app LOGIN PASSWORD 'REPLACE_WITH_A_GENERATED_PASSWORD'
     NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT;
 
 -- The app may not create anything in the schema.
+-- NOTE: on PostgreSQL 14 and older, PUBLIC (every role) can CREATE in the public schema by default, and revoking
+-- from satark_app alone does not remove that. On those versions also run, as the owner:
+--   REVOKE CREATE ON SCHEMA public FROM PUBLIC;
+-- PostgreSQL 15+ (the CI test uses 16) already denies it.
 REVOKE ALL ON SCHEMA public FROM satark_app;
 GRANT USAGE ON SCHEMA public TO satark_app;
 

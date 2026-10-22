@@ -53,7 +53,7 @@ def test_pull_request_workflow_never_touches_secrets():
 
 def test_expected_pr_jobs_exist():
     assert set(load("ci.yml")["jobs"]) == {"server", "contracts", "detector", "evaluation", "secrets-scan",
-                                           "dependency-scan", "docker", "stubs", "android", "tls-tool"}
+                                           "dependency-scan", "docker", "stubs", "android", "tls-tool", "integration"}
 
 
 def test_gitleaks_scans_full_history():
@@ -138,3 +138,15 @@ def test_the_gradle_wrapper_is_executable_in_git():
     if p.returncode != 0 or not p.stdout.strip():
         pytest.skip("not a git checkout or no gradlew in the repo")
     assert p.stdout.split()[0] == "100755", f"gradlew has git mode {p.stdout.split()[0]}; run: git update-index --chmod=+x gradlew"
+
+
+def test_integration_job_uses_real_postgres_and_redis_and_cannot_pass_by_skipping():
+    job = load("ci.yml")["jobs"]["integration"]
+    assert job["services"]["postgres"]["image"].startswith("postgres:") and job["services"]["redis"]["image"].startswith("redis:")
+    assert "test" in job["env"]["SATARK_TEST_POSTGRES_URL"].rsplit("/", 1)[1]        # the tests refuse to wipe other databases
+    assert job["env"]["SATARK_TEST_REDIS_URL"].startswith("redis://")
+    for service in job["services"].values():
+        assert "--health-cmd" in service["options"]                                  # wait until the service is ready
+    text = run_lines({"jobs": {"i": job}})
+    assert "tests/test_it_postgres.py" in text and "tests/test_it_redis.py" in text and "tests/test_it_stores.py" in text
+    assert "SATARK_TEST_" in text and "exit 1" in text                              # skip detection
