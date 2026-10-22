@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "owner": "M1",
+  "note": "Remote-access / screen-share packages. Consumed by M1 (<queries> + WatchlistSource) and mirrored in detector/src/main/resources/model.json `watchlist` (M2 feature watchlist_app). A test in app/ fails if the two lists differ.",
+  "packages": [
+    "com.anydesk.anydeskandroid",
+    "com.teamviewer.quicksupport.market",
+    "com.google.chromeremotedesktop"
+  ]
+}
