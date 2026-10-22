@@ -30,6 +30,9 @@ class Settings(BaseSettings):
     firebase_credentials_json: str = ""
 
     rate_limit_per_minute: int = 60
+    # Number of proxies (e.g. Render's load balancer) that append to X-Forwarded-For. 0 = ignore the header (safe default). Set it only
+    # after checking how many hops the platform adds; a value that is too high lets callers choose their own rate-limit bucket.
+    trusted_proxy_hops: int = 0
 
     # Request-body caps in bytes. The largest legitimate body is /auth/device (up to 6 attestation certificates, ~12 KB base64).
     max_body_bytes: int = 64 * 1024

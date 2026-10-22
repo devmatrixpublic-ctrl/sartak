@@ -186,6 +186,8 @@ misconfigured deploy fails closed rather than silently using a fake secret.
 | `SATARK_AUTH_ATTESTATION_ROOTS` | yes | PEM bundle of pinned Google roots (`server/certs/`); server refuses to boot without it outside dev |
 | `SATARK_AUTH_EXPECTED_PACKAGE` / `_SIGNING_SHA256` | yes | identity of the release app, checked on every attestation |
 | `SATARK_MIGRATION_DATABASE_URL` | optional | owner connection used only by `alembic upgrade head`, so `SATARK_DATABASE_URL` can be the DML-only role in `ops/security/db_roles.sql` |
+| `SATARK_TRUSTED_PROXY_HOPS` | optional | proxies that append to `X-Forwarded-For` (default 0 = ignore the header; usually 1 on Render once checked) |
+| `SATARK_MAX_BODY_BYTES`, `SATARK_WEBHOOK_MAX_BODY_BYTES` | optional | request-body caps (defaults 64 KB and 256 KB) |
 | `SATARK_RAZORPAY_KEY_ID` / `_KEY_SECRET` | yes | without these, `/risk-check` falls back to a local stub order id — fine for dev, **not safe for production** |
 | `SATARK_RAZORPAY_WEBHOOK_SECRET` | yes | without this, `/webhooks/razorpay` rejects every request with `webhook_not_configured` (fails closed) |
 | `SATARK_FIREBASE_CREDENTIALS_JSON` | yes | without this, `/alert` uses a local stub FCM client — no real push is sent |

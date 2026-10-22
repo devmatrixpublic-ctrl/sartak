@@ -7,6 +7,7 @@ from typing import Literal
 from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel, Field
 
+from app.core.clientip import client_ip
 from app.core.schemas import StrictInput
 
 from .dependencies import get_auth_service
@@ -40,21 +41,21 @@ class TokenOut(BaseModel):
     device_id: str
 
 
-def _ip(request: Request) -> str:
-    # Behind Render's proxy this is the proxy address unless trusted X-Forwarded-For is enabled.
-    return request.client.host if request.client else "unknown"
+def _ip(request: Request, svc: AuthService) -> str:
+    # The immediate peer unless SATARK_TRUSTED_PROXY_HOPS says how many proxies append to X-Forwarded-For (app/core/clientip.py).
+    return client_ip(request, svc.settings.trusted_proxy_hops)
 
 
 @router.post("/challenge", response_model=ChallengeOut)
 def challenge(request: Request, svc: AuthService = Depends(get_auth_service)) -> ChallengeOut:
-    svc.limit(f"rl:challenge:{_ip(request)}", CHALLENGE_LIMIT)
+    svc.limit(f"rl:challenge:{_ip(request, svc)}", CHALLENGE_LIMIT)
     value, expires_at = svc.issue_challenge()
     return ChallengeOut(challenge=value, expires_at=datetime.fromtimestamp(expires_at, timezone.utc))
 
 
 @router.post("/device", response_model=TokenOut)
 def device(body: DeviceIn, request: Request, svc: AuthService = Depends(get_auth_service)) -> TokenOut:
-    svc.limit(f"rl:register:{_ip(request)}", REGISTER_LIMIT)
+    svc.limit(f"rl:register:{_ip(request, svc)}", REGISTER_LIMIT)
     record, tokens = svc.register_device(body.challenge, body.public_key, body.attestation_chain)
     return TokenOut(access_token=tokens.access_token, refresh_token=tokens.refresh_token,
                     expires_in=tokens.expires_in, device_id=record.device_id)
@@ -62,7 +63,7 @@ def device(body: DeviceIn, request: Request, svc: AuthService = Depends(get_auth
 
 @router.post("/refresh", response_model=TokenOut)
 def refresh(body: RefreshIn, request: Request, svc: AuthService = Depends(get_auth_service)) -> TokenOut:
-    svc.limit(f"rl:register:{_ip(request)}", REGISTER_LIMIT)
+    svc.limit(f"rl:register:{_ip(request, svc)}", REGISTER_LIMIT)
     record, tokens = svc.refresh(body.refresh_token)
     return TokenOut(access_token=tokens.access_token, refresh_token=tokens.refresh_token,
                     expires_in=tokens.expires_in, device_id=record.device_id)
