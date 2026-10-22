@@ -158,7 +158,7 @@ def test_scoring_adapter_on_a_heldout_shaped_file(tmp_path):
 
     res, note = rh.score_cases(path, data, 0.001, None)
     assert len(res) == 10 and set(res.alarm.unique()) <= {True, False}
-    assert "NO per-user history supplied" in note
+    assert "NO per-user history supplied" in note and "pooled conformal threshold" in note and "brand-new user" in note
     text = rh.render_result(res, "a" * 40, "b" * 64, note, "now")
     assert "baseline assumption" in text and "cases raised an alarm" in text
     assert all(sid in text for sid in ids)

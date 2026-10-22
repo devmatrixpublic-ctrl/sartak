@@ -111,17 +111,27 @@ def score_cases(heldout: Path, data: Path, alpha: float, users_csv: Path | None)
     for c in ("caller_known", "payee_is_new"):
         if c in ev:
             ev[c] = ev[c].map({"True": True, "False": False, True: True, False: False})
+    # The shipped model (detector/src/main/resources/model.json) is what runs on the phone. The reference trained here must
+    # agree with it, or the held-out result would describe a different model from the one that ships.
+    model = json.loads((ROOT / "detector" / "src" / "main" / "resources" / "model.json").read_text())
+    for band, c in model["cohort_thresholds"].items():
+        if abs(det.thr[band] - c["threshold"]) > 1e-9:
+            raise Refusal(f"model.json is stale: cohort {band} threshold {c['threshold']} != retrained {det.thr[band]}; "
+                          "run detector/tools/export_model.py before the held-out run")
     if users_csv is not None:
         hu = pd.read_csv(users_csv)
         note = f"user baselines from {users_csv.name}"
     else:
-        # ASSUMPTION, printed in the result: no per-user history was supplied for the sealed cases.
+        # No per-user history exists for the sealed cases, so each is scored as a brand-new user, exactly as the phone does:
+        # the cold-start population prior from model.json, and an unknown age band, which uses the pooled conformal threshold.
         hu = pd.DataFrame({"user_id": ev.user_id.unique()})
-        hu["hist_median_inr"] = float(users.hist_median_inr.median())
-        hu["hist_mad_inr"] = float(users.hist_mad_inr.median())
-        hu["age_band"] = "36-59"
-        note = (f"NO per-user history supplied: every case scored against the population median "
-                f"({hu.hist_median_inr.iloc[0]:.2f}) / MAD ({hu.hist_mad_inr.iloc[0]:.2f}) and age band 36-59")
+        hu["hist_median_inr"] = float(model["baseline"]["prior_median_inr"])
+        hu["hist_mad_inr"] = float(model["baseline"]["prior_mad_inr"])
+        hu["age_band"] = "unknown"
+        det.thr["unknown"] = float(model["pooled_threshold"])
+        note = (f"NO per-user history supplied: every case scored as a brand-new user, as the phone does "
+                f"(cold-start prior median {hu.hist_median_inr.iloc[0]:.2f} / MAD {hu.hist_mad_inr.iloc[0]:.2f} from model.json; "
+                f"age band unknown, pooled conformal threshold {det.thr['unknown']:.3f})")
     pay, alerts, first_pay = sd.featurize(ev, hu, wl)
     per_session = ev.groupby("session_id").agg(user_id=("user_id", "first")).reset_index()
     per_session = per_session.merge(hu[["user_id", "age_band"]], on="user_id", how="left")
