@@ -6,6 +6,11 @@ plugins {
     id("com.google.devtools.ksp")
 }
 
+// Trusted-contact push (Firebase Cloud Messaging). The Google services plugin is applied only when the Firebase
+// config app/google-services.json is present (git-ignored; M3 owns the Firebase project). Without it the app still
+// builds and runs, and the trusted-contact screen says push is not set up.
+if (file("google-services.json").exists()) apply(plugin = "com.google.gms.google-services")
+
 fun env(vararg names: String): String? = names.firstNotNullOfOrNull { System.getenv(it)?.takeIf(String::isNotBlank) }
 
 android {
@@ -89,6 +94,9 @@ dependencies {
     implementation("androidx.camera:camera-view:1.4.1")
     implementation("com.google.mlkit:barcode-scanning:17.3.0")
     implementation("com.razorpay:checkout:1.6.40")
+    // 33.x on purpose: newer BoMs pull a Kotlin stdlib newer than this project's Kotlin 2.0.21 compiler can read.
+    implementation(platform("com.google.firebase:firebase-bom:33.7.0"))
+    implementation("com.google.firebase:firebase-messaging")
 
     testImplementation(kotlin("test"))
     androidTestImplementation("androidx.test.ext:junit:1.2.1")

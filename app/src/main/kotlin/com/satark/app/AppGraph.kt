@@ -58,6 +58,7 @@ class AppGraph(private val app: Application) {
     fun start() {
         dispatcher.start()
         alerts.start()
+        com.satark.app.push.ContactAlertNotifier.ensureChannel(app) // must exist before a background push arrives
         val notifier = com.satark.app.ui.alerts.AlarmNotifier(app)
         scope.launch { dispatcher.alarms.collect { notifier.show(it.decision.mechanism) } }
         scope.launch { runCatching { session.ensureRegistered(); queue.flush() } }

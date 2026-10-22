@@ -53,5 +53,24 @@
                 android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
                 android:value="Scam-pattern detection: call state, installs and foreground app" />
         </service>
+
+        <!-- Trusted-contact alerts (Firebase Cloud Messaging). Active only in builds that have app/google-services.json. -->
+        <service
+            android:name=".push.SatarkMessagingService"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.google.firebase.MESSAGING_EVENT" />
+            </intent-filter>
+        </service>
+        <!-- Privacy: no Firebase registration until the user taps "Show my pairing code"; no analytics. -->
+        <meta-data android:name="firebase_messaging_auto_init_enabled" android:value="false" />
+        <meta-data android:name="firebase_analytics_collection_deactivated" android:value="true" />
+        <!-- Pushes Android shows by itself (app in the background) use Satark's high-priority channel. -->
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_channel_id"
+            android:value="satark_contact_alert" />
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_icon"
+            android:resource="@android:drawable/stat_sys_warning" />
     </application>
 </manifest>

@@ -15,3 +15,8 @@ build/
 local.properties
 *.keystore
 *.jks
+
+# Firebase config for the app: per environment, never committed (see app/README.md, "Trusted-contact push")
+app/google-services.json
+# Kotlin compiler session files
+.kotlin/
