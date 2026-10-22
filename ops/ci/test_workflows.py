@@ -113,3 +113,18 @@ def test_dependency_scan_upgrades_pip_before_auditing():
     job = load("ci.yml")["jobs"]["dependency-scan"]
     text = run_lines({"jobs": {"d": job}})
     assert text.index("install --upgrade pip") < text.index("pip-audit --skip-editable")
+
+
+def test_every_java_setup_matches_the_toolchain_the_projects_require():
+    """The app (`JavaVersion.VERSION_21`, `jvmTarget = "21"`) and the detector (`jvmToolchain(21)`) need JDK 21. A runner with
+    an older JDK fails the first Android job with a toolchain error, so every setup-java step must provide the required one."""
+    pattern = re.compile(r"VERSION_(\d+)|jvmTarget\s*=\s*\"(\d+)\"|jvmToolchain\((\d+)\)")
+    required = [int(g) for f in ("app/build.gradle.kts", "detector/build.gradle.kts")
+                for m in pattern.findall((ROOT / f).read_text(encoding="utf-8")) for g in m if g]
+    assert required, "could not read the required JDK from the Gradle files"
+    need = max(required)
+    for name in ("ci.yml", "release.yml"):
+        for s in steps(load(name)):
+            if str(s.get("uses", "")).startswith("actions/setup-java"):
+                got = int(s["with"]["java-version"])
+                assert got >= need, f"{name}: setup-java provides JDK {got} but the projects need {need}"

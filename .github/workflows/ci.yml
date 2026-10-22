@@ -169,7 +169,7 @@ jobs:
         if: steps.has_app.outputs.present == 'true'
         with:
           distribution: temurin
-          java-version: "17"
+          java-version: "21"
       - uses: gradle/actions/setup-gradle@v4
         if: steps.has_app.outputs.present == 'true'
       - name: Debug build and unit tests
