@@ -103,6 +103,27 @@ Firebase or Razorpay credentials (the server uses its stub push and order client
 | 27 | Registration on a fresh install | Exactly one registration (challenge → `/auth/device` refused in dev → `/auth/dev-token`) | Pass, after fix O |
 | 28 | `python app/tools/phone_check.py --build --allow-emulator` | 36/36 both paths; attestation exported (challenge from the server); fresh install opens onboarding; permissions revoked → banners, no crash. The rows say "Emulator", so they do not count for the freeze | Pass |
 
+### Redesign: theme, icon and the friction ladder
+
+Same setup as above (`main`'s server in dev mode, Android 15 emulator, debug build). A fake UPI app is installed on this
+emulator, so an allowed payment ends with "The UPI app reported success".
+
+| # | Path | Expected | Result |
+|---|---|---|---|
+| 29 | Fresh install | Teal shield launch screen; "Set up Satark" below the status bar; "Satark never asks for your PIN or OTP" card; permission pills Off / On | Pass |
+| 30 | Allow all permissions, Start protection | Pay screen with "Protection is on" | Pass |
+| 31 | UPI ID `hello`, amount empty | "Enter a valid UPI ID and an amount." | Pass |
+| 32 | Clean payment `shop@okaxis` 50 | Allowed, handed to the UPI app | Pass |
+| 33 | Server stopped, payment `test2@upi` 10 | "Can't reach Satark. Check your connection; no payment was made." No crash | Pass |
+| 34 | Unknown call, new payee `friend@okicici` 200 | "Take a moment" banner; payment allowed | Pass |
+| 35 | Unknown call + sideloaded "AnyDesk" | Full-screen Stop with the reason, "Apps sent as a link or file are a trap", purpose question | Pass |
+| 36 | Purpose answer, Cancel | Reply for that scam; amber "Payments are paused" with a 15:00 countdown; Check and pay greyed out | Pass |
+| 37 | Held payment `refund@ybl` 25000 during the scam | Stop screen; "Payment on hold, nothing was paid" with 3 reasons and the playbook; pause restarts | Pass, after fix P |
+| 38 | Close and reopen during a pause | Pause continues (13:59 left) | Pass |
+| 39 | Clock moved 16 minutes on | "Type this sentence"; a wrong sentence is refused, the right one unlocks payments | Pass |
+| 40 | Contact's simulated alert; dark mode; rotation; crash log | Notification shown; readable dark theme; typed values kept; `logcat -b crash` empty | Pass |
+| 41 | `python app/tools/phone_check.py --allow-emulator` | 36/36 both paths; attestation exported; fresh install; permissions revoked. One run failed the fresh-install step because the launcher was still showing after the emulator booted; the same step passed when repeated | Pass |
+
 ## Defects found and fixed (all on `role_1`)
 
 | | Defect | Fix | Commit |
@@ -122,6 +143,7 @@ Firebase or Razorpay credentials (the server uses its stub push and order client
 | J | Alarm only visible inside Satark, which the user is usually not looking at | High-priority notification on every alarm | `64fa08a` |
 | N | The pairing-code parser took any text glued after the code as part of the push token; the server accepts any string, so every alert to that contact would have failed silently | The token must have the FCM shape; over-long input is refused, not cut | `64de9b9` |
 | O | Startup registered 2 to 3 times (MainActivity and AppGraph at once); with real attestation each registration is a new key, so the phone's device id would have changed | Re-check inside the registration lock | `997fb08` |
+| P | A payment result ("The UPI app reported success") stayed on screen under a later "Payment on hold, nothing was paid" | A new payment attempt clears the old message | this branch |
 
 ## Not covered here (needs others or a physical phone)
 

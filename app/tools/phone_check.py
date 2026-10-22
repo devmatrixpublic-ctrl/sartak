@@ -200,8 +200,16 @@ def check_permissions_revoked(adb: Adb) -> tuple[bool, str]:
     adb.shell("am", "force-stop", APP_ID)
     adb.out("logcat", "-b", "crash", "-c")
     launch(adb, 10)
-    texts = " | ".join(screen_texts(adb))
-    banners = "Call signal is off" in texts and "Usage signal is off" in texts
+    # The banner sits below the permission cards; on a small screen it is off the first page, so scroll and look again.
+    seen: list[str] = []
+    for _ in range(5):
+        seen += screen_texts(adb)
+        texts = " | ".join(seen)
+        banners = "Call signal is off" in texts and "Usage signal is off" in texts
+        if banners:
+            break
+        adb.shell("input", "swipe", "500", "1500", "500", "700", "300")
+        time.sleep(1)
     ok = banners and app_alive(adb) and not app_crashed(adb)
     return ok, ("banners for call and usage shown, app running" if ok
                 else f"banners={banners}, alive={app_alive(adb)}, crashed={app_crashed(adb)}; screen: {texts[:300]}")

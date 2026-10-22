@@ -30,6 +30,9 @@ class TokenStore(ctx: Context) {
     var onboarded: Boolean get() = prefs.getBoolean("onboarded", false); set(v) = prefs.edit().putBoolean("onboarded", v).apply()
     /** SHA-256 of the push token last shown as this phone's pairing code (to notice it changed). Not the token. */
     var sharedPushTokenHash: String? get() = prefs.getString("push_shown", null); set(v) = prefs.edit().putString("push_shown", v).apply()
+    /** Payment pause after a scam warning (ui/alerts/Friction.kt): when it ends, and whether the phrase is still owed. */
+    var pauseUntilMs: Long get() = prefs.getLong("pause_until", 0L); set(v) = prefs.edit().putLong("pause_until", v).apply()
+    var pausePhraseOwed: Boolean get() = prefs.getBoolean("pause_phrase", false); set(v) = prefs.edit().putBoolean("pause_phrase", v).apply()
 
     /** Per-install random salt for payee hashes (contracts/upi.md). Generated once. */
     val payeeSalt: ByteArray
