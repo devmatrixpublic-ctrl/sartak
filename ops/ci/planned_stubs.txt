@@ -7,6 +7,4 @@
 # format:  path | text that must appear on the marker line | side | removed when
 server/app/auth/service.py | def dev_token | M4, server side | a real phone registers through /auth/device
 server/app/auth/routes.py | /dev-token | M4, server side | a real phone registers through /auth/device
-app/src/main/kotlin/com/satark/app/net/Network.kt | bearer value is the device id | M1, client side | /auth/device is live
 app/src/main/kotlin/com/satark/app/net/Network.kt | /auth/dev-token: debug builds only | M1, client side | attestation registers on a real phone
-app/src/main/kotlin/com/satark/app/net/Network.kt | dev token repair | M1, client side | the dev token goes away
