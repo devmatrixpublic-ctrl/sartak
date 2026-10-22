@@ -50,7 +50,7 @@ def _get_owned_payment(db: Session, payment_id: str, device_id: str) -> Payment:
     return payment
 
 
-@router.get("/payments/{payment_id}", response_model=PaymentOut)
+@router.get("/payments/{payment_id}", response_model=PaymentOut, response_model_exclude_none=True)
 async def get_payment(
     payment_id: str,
     device_id: str = Depends(require_device),
@@ -61,7 +61,7 @@ async def get_payment(
     return PaymentOut.from_model(payment)
 
 
-@router.post("/payments/{payment_id}/result", response_model=PaymentOut)
+@router.post("/payments/{payment_id}/result", response_model=PaymentOut, response_model_exclude_none=True)
 async def post_payment_result(
     payment_id: str,
     body: PaymentResultIn,

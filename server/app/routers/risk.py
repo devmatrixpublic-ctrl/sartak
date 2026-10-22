@@ -11,7 +11,7 @@ from app.schemas import RiskCheckRequest, RiskCheckResponse
 router = APIRouter(tags=["risk"])
 
 
-@router.post("/risk-check", response_model=RiskCheckResponse)
+@router.post("/risk-check", response_model=RiskCheckResponse, response_model_exclude_none=True)
 async def post_risk_check(
     body: RiskCheckRequest,
     device_id: str = Depends(require_device),
