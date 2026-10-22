@@ -166,7 +166,7 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--users", type=Path, help="optional per-user history for the held-out cases")
     ap.add_argument("--data", type=Path, default=ROOT / "data" / "satarksim")
     ap.add_argument("--alpha", type=float, default=json.loads((ROOT / "detector" / "reference" / "params.json").read_text())["calibration_alpha"],
-                    help="calibration alpha (params.json); the 0.1% false-alarm TARGET is a separate constant")
+                    help="calibration alpha (params.json); the 0.1%% false-alarm TARGET is a separate constant")
     ap.add_argument("--check", action="store_true", help="run every guard and stop; writes nothing")
     a = ap.parse_args(argv)
     try:

@@ -141,7 +141,7 @@ def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--data", type=Path, default=ROOT / "data" / "satarksim")
     ap.add_argument("--alpha", type=float, default=json.loads((ROOT / "detector" / "reference" / "params.json").read_text())["calibration_alpha"],
-                    help="calibration alpha (params.json); the 0.1% false-alarm TARGET is a separate constant")
+                    help="calibration alpha (params.json); the 0.1%% false-alarm TARGET is a separate constant")
     ap.add_argument("--out", type=Path, default=ROOT / "ops" / "eval" / "reports")
     a = ap.parse_args(argv)
     h, failures, matches = run(a.data, a.alpha, a.out)

@@ -29,6 +29,7 @@ step calls exists.
 | `detector` | yes | Kotlin JUnit incl. the 36 vectors; retries with one worker if Maven Central rate-limits |
 | `evaluation` | **no, by default** | see below |
 | `secrets-scan` | yes | gitleaks over full history |
+| `integration` | yes | real Postgres 16 and Redis 7 as service containers: store concurrency, migrations on Postgres, the full auth flow, `db_roles.sql` for real, Redis limiter semantics. Fails if any of these tests is skipped, so it cannot pass vacuously. |
 | `dependency-scan` | yes | `pip-audit` on the server's installed dependencies. Gradle/Kotlin dependencies are not scanned yet. |
 | `docker` | yes | the server image must build |
 | `stubs` | yes | a PR may not add more `@SatarkStub` / `# SATARK_STUB` markers than it removes (replacing a stub with a stub is fine) |
