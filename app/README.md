@@ -8,7 +8,8 @@ and `contracts/auth.md` (M4).
 | `signals/` | 1.1 Call, Usage, Install, Watchlist sources + `SignalStatus`; `SignalService` keeps them alive |
 | `events/` | 1.2 `EventMapper`, `Deduplicator`, `EventSequencer`, `SessionPolicy`, Room storage, `EventDispatcher` |
 | `ui/onboarding/` | 1.3 permission steps, degraded-mode banners, trusted contact; the same screen is "Protection and trusted contact" later |
-| `ui/alerts/` | 1.4 Nudge / Hard / Trusted-contact / Long-session screens, `AlertController`, alarm notification |
+| `ui/alerts/` | 1.4 Nudge / Hard / Trusted-contact / Long-session screens, `AlertController`, alarm notification; `Friction` (scam playbook, purpose question, payment pause) |
+| `ui/theme/` | Satark colours (light and dark), the shield mark, `SatarkHeader`; the launcher icon is in `res/` |
 | `push/` | 1.4 trusted-contact push: pairing code, Firebase Cloud Messaging, the alert shown on the contact's phone |
 | `payments/`, `ui/pay/` | 1.5 QR scan, `UpiUriParser`, hand-off, checkout, result reporting |
 | `net/` | 1.6 Retrofit client, retry/backoff, token refresh, offline queue |
@@ -56,6 +57,20 @@ pushes to the contact through Firebase Cloud Messaging.
   must link again. The contact's phone shows a notification when that happens (after a code was first shown).
 * **Without Firebase** (debug builds): `adb shell am broadcast -n com.satark.app/.push.DebugFakePushReceiver --es type alarm`
   (or `long_session`) shows the alert exactly as a push would.
+
+## Friction ladder (app-side rungs of the improvements roadmap, section 3.4)
+
+Only rungs that work inside the app alone. They add caution on top of the detector; nothing here releases a held payment,
+lowers a score or sends data anywhere.
+
+1. **Playbook** (`Friction.playbook`): the scam the reasons point to ("digital arrest", screen sharing, sideloaded app,
+   unknown caller, new payee), shown on the Hard, long-session, contact and "payment on hold" screens.
+2. **Purpose question**: "What is this payment for?" with six answers; each explains the matching scam. The answer is not
+   stored or sent.
+3. **Payment pause** (`PaymentPause`): after a Hard alarm or a held payment, **Check and pay** is locked for 15 minutes, then
+   the person types one sentence. State is in the encrypted `TokenStore`, so it survives a restart; a clock set back cannot
+   stretch it. Debug builds have an "End pause" button. Rung 4 (trusted contact approves or blocks) needs server work (M3)
+   and is not built.
 
 ## Stubs (`@SatarkStub`, release build must fail while any remain)
 - Debug builds fall back to M4's `/auth/dev-token` when Key Attestation is refused (`net/Network.kt`). Remove it,
