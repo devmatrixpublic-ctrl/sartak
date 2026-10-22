@@ -28,6 +28,8 @@ class TokenStore(ctx: Context) {
     var deviceId: String? get() = prefs.getString("device_id", null); set(v) = prefs.edit().putString("device_id", v).apply()
     var ageBand: String? get() = prefs.getString("age_band", null); set(v) = prefs.edit().putString("age_band", v).apply()
     var onboarded: Boolean get() = prefs.getBoolean("onboarded", false); set(v) = prefs.edit().putBoolean("onboarded", v).apply()
+    /** SHA-256 of the push token last shown as this phone's pairing code (to notice it changed). Not the token. */
+    var sharedPushTokenHash: String? get() = prefs.getString("push_shown", null); set(v) = prefs.edit().putString("push_shown", v).apply()
 
     /** Per-install random salt for payee hashes (contracts/upi.md). Generated once. */
     val payeeSalt: ByteArray

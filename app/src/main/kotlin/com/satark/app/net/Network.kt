@@ -28,9 +28,8 @@ import kotlinx.coroutines.sync.withLock
 val NetJson = Json { ignoreUnknownKeys = true; explicitNulls = false; encodeDefaults = true }
 
 /**
- * Registers the device (Key Attestation via /auth/challenge + /auth/device) and refreshes tokens.
- * M4's /auth/{challenge,device,refresh} is not live yet: when those routes answer 404 the backend is still on the dev-token stub, where the
- * bearer value IS the device id, so we fall back to that.
+ * Registers the device (Key Attestation via /auth/challenge + /auth/device, contracts/auth.md) and refreshes tokens.
+ * Debug builds fall back to M4's dev-only /auth/dev-token when attestation is refused (an emulator's key is software).
  */
 class DeviceSession(private val ctx: Context, private val store: TokenStore, private val bare: () -> SatarkApi) {
     // One registration at a time: startup and a 401 retry used to register concurrently, each with its own device id,
@@ -39,20 +38,17 @@ class DeviceSession(private val ctx: Context, private val store: TokenStore, pri
 
     /** Idempotent; call from a background coroutine (it may hit the network). */
     suspend fun ensureRegistered() {
-        repairDevStubSession()
         if (store.accessToken != null && store.deviceId != null) return
         register()
     }
 
     suspend fun register() = registering.withLock {
+        // Startup asks from two places at once (MainActivity and AppGraph). Whoever waited for the lock must not
+        // register again: with real attestation each registration is a new key and a new device id on the server.
+        // (recover() clears the session before calling this, so a deliberate re-registration still happens.)
+        if (store.accessToken != null && store.deviceId != null) return@withLock
         val api = bare()
-        val ch = try {
-            api.challenge()
-        } catch (e: retrofit2.HttpException) {
-            if (e.code() != 404) throw e
-            registerWithDevStub() // server without /auth/* at all (M3's main before M4's auth merged)
-            return@withLock
-        }
+        val ch = api.challenge()
         try {
             val att = KeyAttestor.attest(ctx, Base64.decode(ch.challenge, Base64.URL_SAFE or Base64.NO_PADDING))
             Log.i("Satark.auth", "attestation level: ${att.level}") // StrongBox / TEE / software (plan 1.7)
@@ -68,24 +64,11 @@ class DeviceSession(private val ctx: Context, private val store: TokenStore, pri
         }
     }
 
-    @SatarkStub("dev token: bearer value is the device id until M4's /auth/device is live")
-    private fun registerWithDevStub() {
-        val id = store.deviceId ?: UUID.randomUUID().toString()
-        store.setSession(id, id, null)
-    }
-
     @SatarkStub("M4's /auth/dev-token: debug builds only, until attestation registers on a real phone")
     private suspend fun registerWithDevTokenRoute(api: SatarkApi): Boolean = runCatching {
         val t = api.devToken(DevTokenRequest(store.deviceId ?: UUID.randomUUID().toString()))
         store.setSession(t.deviceId, t.accessToken, t.refreshToken)
     }.isSuccess
-
-    /** Dev-token mode (no refresh token): the bearer must equal the device id. Heals installs hit by the old race. */
-    @SatarkStub("dev token repair; goes away with the dev token")
-    private fun repairDevStubSession() {
-        val id = store.deviceId ?: return
-        if (store.refreshToken == null && store.accessToken != null && store.accessToken != id) store.setSession(id, id, null)
-    }
 
     /** Called on 401: refresh, and if that fails register again. Returns the new access token or null. */
     @Synchronized

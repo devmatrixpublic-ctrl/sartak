@@ -3,6 +3,7 @@ package com.satark.app.ui
 import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Box
@@ -40,6 +41,8 @@ class MainActivity : ComponentActivity(), PaymentResultListener {
     private val graph get() = (application as SatarkApp).graph
     private var pending: PendingPay? = null
     private var status by mutableStateOf<String?>(null)
+    /** The "Protection and trusted contact" screen (also opened by the "pairing code changed" notification). */
+    private var showProtection by mutableStateOf(false)
 
     private val upiLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { r ->
         val p = pending ?: return@registerForActivityResult
@@ -59,7 +62,18 @@ class MainActivity : ComponentActivity(), PaymentResultListener {
         super.onCreate(savedInstanceState)
         lifecycleScope.launch(Dispatchers.IO) { runCatching { graph.session.ensureRegistered() } }
         if (graph.store.onboarded) SignalService.start(this)
+        handleOpen(intent)
         setContent { MaterialTheme { Root() } }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        handleOpen(intent)
+    }
+
+    private fun handleOpen(i: Intent?) {
+        if (i?.getStringExtra(EXTRA_OPEN) == OPEN_PROTECTION) showProtection = true
     }
 
     @Composable
@@ -69,8 +83,11 @@ class MainActivity : ComponentActivity(), PaymentResultListener {
         Box(Modifier.fillMaxSize()) {
             if (!onboarded) {
                 OnboardingFlow(graph) { graph.store.onboarded = true; onboarded = true; SignalService.start(this@MainActivity) }
+            } else if (showProtection) {
+                BackHandler { showProtection = false }
+                OnboardingFlow(graph, settings = true) { showProtection = false }
             } else {
-                PayHome(graph, status, ::onOutcome)
+                PayHome(graph, status, ::onOutcome, onOpenProtection = { showProtection = true })
             }
             AlertHost(alert, graph.alerts)
         }
@@ -115,5 +132,10 @@ class MainActivity : ComponentActivity(), PaymentResultListener {
             }
             pending = null
         }
+    }
+
+    companion object {
+        const val EXTRA_OPEN = "com.satark.app.OPEN"
+        const val OPEN_PROTECTION = "protection"
     }
 }

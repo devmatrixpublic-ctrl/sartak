@@ -23,6 +23,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -60,7 +61,12 @@ import java.util.concurrent.Executors
  * only be warned about, and a UPI hand-off result is reported by the UPI app, not verified.
  */
 @Composable
-fun PayHome(graph: AppGraph, status: String?, onOutcome: (PayOutcome, UpiRequest, BigDecimal) -> Unit) {
+fun PayHome(
+    graph: AppGraph,
+    status: String?,
+    onOutcome: (PayOutcome, UpiRequest, BigDecimal) -> Unit,
+    onOpenProtection: () -> Unit = {},
+) {
     // rememberSaveable: typed values survive the activity being recreated (rotation, call screen, process trim).
     var scanning by rememberSaveable { mutableStateOf(false) }
     var vpa by rememberSaveable { mutableStateOf("") }
@@ -97,6 +103,7 @@ fun PayHome(graph: AppGraph, status: String?, onOutcome: (PayOutcome, UpiRequest
             color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.labelLarge,
         )
         ProtectionBanners(graph.hub.status())
+        TextButton(onClick = onOpenProtection) { Text("Protection and trusted contact") }
         OutlinedButton(onClick = { error = null; scanning = true }, Modifier.fillMaxWidth()) { Text("Scan UPI QR") }
         OutlinedTextField(vpa, { vpa = it; source = "manual"; merchantCode = null; scannedName = null; scannedNote = null }, label = { Text("Payee UPI ID") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
         OutlinedTextField(amount, { amount = it }, label = { Text("Amount (₹)") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
