@@ -53,7 +53,11 @@ class AppGraph(private val app: Application) {
     val hub = SignalHub(app)
     val queue = OfflineQueue(dao) { api }
     val payments = PaymentRepository({ api }, dao, dispatcher, PayeeHasher(store.payeeSalt))
-    val alerts = AlertController(dispatcher, queue, store, model, scope)
+    val pause = com.satark.app.ui.alerts.PaymentPause(object : com.satark.app.ui.alerts.PaymentPause.Store {
+        override var untilMs: Long by store::pauseUntilMs
+        override var phraseOwed: Boolean by store::pausePhraseOwed
+    })
+    val alerts = AlertController(dispatcher, queue, store, model, scope, pause)
 
     fun start() {
         dispatcher.start()

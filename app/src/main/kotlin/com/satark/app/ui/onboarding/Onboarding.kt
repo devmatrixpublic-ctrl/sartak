@@ -17,6 +17,18 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.size
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.Surface
+import androidx.compose.ui.Alignment
+import com.satark.app.ui.theme.SatarkHeader
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
@@ -80,16 +92,27 @@ fun OnboardingFlow(graph: AppGraph, settings: Boolean = false, onDone: () -> Uni
         perms.launch(list.toTypedArray())
     }
 
-    Column(Modifier.verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Text(if (settings) "Protection and trusted contact" else "Set up Satark", style = MaterialTheme.typography.headlineSmall)
-        Text("Satark looks for the pattern of a coached payment scam. Nothing you say or see leaves your phone.")
+    Column(
+        Modifier.verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp),
+    ) {
+        SatarkHeader(
+            if (settings) "Protection and trusted contact" else "Set up Satark",
+            "Satark looks for the pattern of a coached payment scam. Nothing you say or see leaves your phone.",
+            trailing = if (settings) ({
+                IconButton(onClick = onDone) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back") }
+            }) else null,
+        )
+        NeverAsksCard()
         steps.forEach { s ->
-            Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors()) {
-                Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text(s.title, style = MaterialTheme.typography.titleMedium)
-                    Text(s.why)
-                    val st = status.of(s.source)
-                    Text(stateText(st))
+            val st = status.of(s.source)
+            Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLowest)) {
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(s.title, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
+                        StatePill(st)
+                    }
+                    Text(s.why, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     if (st == SourceState.DENIED) Button(onClick = {
                         if (s.source == SourceName.USAGE) ctx.startActivity(Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS)) else askPhone()
                     }) { Text("Allow") }
@@ -100,12 +123,12 @@ fun OnboardingFlow(graph: AppGraph, settings: Boolean = false, onDone: () -> Uni
 
         TrustedContactSetup(graph)
 
-        Button(onClick = onDone, modifier = Modifier.fillMaxWidth()) {
+        Button(onClick = onDone, modifier = Modifier.fillMaxWidth().height(52.dp)) {
             Text(when {
                 settings -> "Back to Pay via Satark"
                 status.allAvailable -> "Start protection"
                 else -> "Continue with limited protection"
-            })
+            }, style = MaterialTheme.typography.titleSmall)
         }
     }
 }
@@ -116,24 +139,76 @@ private fun stateText(s: SourceState) = when (s) {
     SourceState.UNSUPPORTED -> "Not available on this phone"
 }
 
+/** "On" / "Off: permission needed" as a small coloured label (the same words the banner uses). */
+@Composable
+private fun StatePill(s: SourceState) {
+    val (bg, fg) = when (s) {
+        SourceState.AVAILABLE -> MaterialTheme.colorScheme.primaryContainer to MaterialTheme.colorScheme.onPrimaryContainer
+        SourceState.DENIED -> MaterialTheme.colorScheme.errorContainer to MaterialTheme.colorScheme.onErrorContainer
+        SourceState.UNSUPPORTED -> MaterialTheme.colorScheme.surfaceVariant to MaterialTheme.colorScheme.onSurfaceVariant
+    }
+    Surface(color = bg, shape = MaterialTheme.shapes.small) {
+        Text(stateText(s), Modifier.padding(horizontal = 10.dp, vertical = 4.dp), style = MaterialTheme.typography.labelMedium, color = fg)
+    }
+}
+
+/** Fake "Satark" messages are a scam of their own: say on first run what a real alert never does. */
+@Composable
+private fun NeverAsksCard() {
+    Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)) {
+        Row(Modifier.padding(16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Icon(Icons.Filled.Lock, contentDescription = null, tint = MaterialTheme.colorScheme.onPrimaryContainer)
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text("Satark never asks for your PIN or OTP", style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer)
+                Text("Real Satark warnings appear only inside this app. They never come as an SMS or a link, and never ask for your UPI PIN, OTP or bank details.",
+                    style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onPrimaryContainer)
+            }
+        }
+    }
+}
+
+private val shownSources get() = SourceName.entries.filter { it != SourceName.WATCHLIST }
+
 /** A banner for every protection that is unavailable or denied (degraded mode). */
 @Composable
 fun ProtectionBanners(status: SignalStatus) {
-    val off = SourceName.entries.filter { status.of(it) != SourceState.AVAILABLE && it != SourceName.WATCHLIST }
+    val off = shownSources.filter { status.of(it) != SourceState.AVAILABLE }
     if (off.isEmpty()) return
+    val on = MaterialTheme.colorScheme.onErrorContainer
     Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)) {
-        Column(Modifier.padding(12.dp)) {
-            Text("Reduced protection", style = MaterialTheme.typography.titleSmall)
-            off.forEach { Text("• ${it.name.lowercase().replaceFirstChar(Char::uppercase)} signal is ${stateText(status.of(it)).lowercase()}") }
-            Text("Satark still checks payment amounts and new payees.")
+        Row(Modifier.padding(16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Icon(Icons.Filled.Warning, contentDescription = null, tint = on)
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text("Reduced protection", style = MaterialTheme.typography.titleSmall, color = on)
+                off.forEach { Text("• ${it.name.lowercase().replaceFirstChar(Char::uppercase)} signal is ${stateText(status.of(it)).lowercase()}",
+                    style = MaterialTheme.typography.bodyMedium, color = on) }
+                Text("Satark still checks payment amounts and new payees.", style = MaterialTheme.typography.bodySmall, color = on)
+            }
+        }
+    }
+}
+
+/** Pay screen summary: the reduced-protection banner, or a short "protection is on" line when everything works. */
+@Composable
+fun ProtectionSummary(status: SignalStatus) {
+    if (shownSources.any { status.of(it) != SourceState.AVAILABLE }) { ProtectionBanners(status); return }
+    Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)) {
+        Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Icon(Icons.Filled.CheckCircle, contentDescription = null, tint = MaterialTheme.colorScheme.onPrimaryContainer, modifier = Modifier.size(28.dp))
+            Column {
+                Text("Protection is on", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onPrimaryContainer)
+                Text("Calls, app use and app installs are being watched for scam patterns.", style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer)
+            }
         }
     }
 }
 
 @Composable
 fun TrustedContactSetup(graph: AppGraph) {
-    Card(Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLowest)) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Text("Trusted contact", style = MaterialTheme.typography.titleMedium)
             Text("A person who gets an alert on their phone if Satark thinks you may be being scammed. They need Satark too.")
             LinkTrustedContact(graph)

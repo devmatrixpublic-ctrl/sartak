@@ -30,6 +30,7 @@ class AlertController(
     private val store: TokenStore,
     private val model: ModelConfig,
     private val scope: CoroutineScope,
+    private val pause: PaymentPause,
 ) {
     private val _current = MutableStateFlow<AlertUi?>(null)
     val current: StateFlow<AlertUi?> = _current.asStateFlow()
@@ -40,7 +41,7 @@ class AlertController(
                 val d = a.decision
                 _current.value = when (d.mechanism) {
                     Mechanism.LONG_SESSION -> AlertUi.LongSession(d.reasons)
-                    else -> AlertUi.Hard(d.reasons)
+                    else -> AlertUi.Hard(d.reasons).also { pause.start() }
                 }
                 notifyServer(d, a.trace?.features)
             }

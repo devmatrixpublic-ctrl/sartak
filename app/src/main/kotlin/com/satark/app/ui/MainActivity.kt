@@ -5,10 +5,11 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
+import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.material3.MaterialTheme
+import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -29,6 +30,7 @@ import com.satark.app.signals.SignalService
 import com.satark.app.ui.alerts.AlertHost
 import com.satark.app.ui.onboarding.OnboardingFlow
 import com.satark.app.ui.pay.PayHome
+import com.satark.app.ui.theme.SatarkTheme
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import org.json.JSONObject
@@ -59,11 +61,12 @@ class MainActivity : ComponentActivity(), PaymentResultListener {
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        enableEdgeToEdge() // Android 15 draws behind the system bars anyway; Root() keeps content clear of them
         super.onCreate(savedInstanceState)
         lifecycleScope.launch(Dispatchers.IO) { runCatching { graph.session.ensureRegistered() } }
         if (graph.store.onboarded) SignalService.start(this)
         handleOpen(intent)
-        setContent { MaterialTheme { Root() } }
+        setContent { SatarkTheme { Root() } }
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -81,15 +84,22 @@ class MainActivity : ComponentActivity(), PaymentResultListener {
         var onboarded by remember { mutableStateOf(graph.store.onboarded) }
         val alert by graph.alerts.current.collectAsState()
         Box(Modifier.fillMaxSize()) {
+            Box(Modifier.fillMaxSize().safeDrawingPadding()) { Screens(onboarded) { onboarded = true } }
+            AlertHost(alert, graph.alerts) // full-screen warnings pad themselves, so their colour fills the whole screen
+        }
+    }
+
+    @Composable
+    private fun Screens(onboarded: Boolean, onOnboarded: () -> Unit) {
+        Box(Modifier.fillMaxSize()) {
             if (!onboarded) {
-                OnboardingFlow(graph) { graph.store.onboarded = true; onboarded = true; SignalService.start(this@MainActivity) }
+                OnboardingFlow(graph) { graph.store.onboarded = true; onOnboarded(); SignalService.start(this@MainActivity) }
             } else if (showProtection) {
                 BackHandler { showProtection = false }
                 OnboardingFlow(graph, settings = true) { showProtection = false }
             } else {
-                PayHome(graph, status, ::onOutcome, onOpenProtection = { showProtection = true })
+                PayHome(graph, status, ::onOutcome, onOpenProtection = { showProtection = true }, onNewPayment = { status = null })
             }
-            AlertHost(alert, graph.alerts)
         }
     }
 

@@ -1,4 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <style name="Theme.Satark" parent="android:Theme.Material.Light.NoActionBar" />
+    <!-- Compose draws the UI (ui/theme/Theme.kt); this only sets the window and launch-screen colour. -->
+    <style name="Theme.Satark" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">@color/satark_window</item>
+    </style>
 </resources>
