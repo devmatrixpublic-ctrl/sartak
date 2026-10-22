@@ -96,7 +96,20 @@ def test_alert_cannot_be_raised_for_another_device(client, db):
     assert resp.status_code == 403
 
 
-def test_trusted_contact_link_endpoint(client):
+def test_trusted_contact_must_already_be_registered(client):
+    resp = client.post(
+        "/trusted-contact",
+        json={"trusted_device_id": "never-registered", "fcm_token": "tok-xyz"},
+        headers=OWNER,
+    )
+    assert resp.status_code == 404
+    assert resp.json()["code"] == "trusted_device_not_found"
+
+
+def test_trusted_contact_link_endpoint(client, db):
+    db.add(Device(id="trusted-device-2", public_key="pk-trusted-2", attestation_level="TEE",
+                  verified_boot_state="verified"))
+    db.commit()
     resp = client.post(
         "/trusted-contact",
         json={"trusted_device_id": "trusted-device-2", "fcm_token": "tok-xyz"},

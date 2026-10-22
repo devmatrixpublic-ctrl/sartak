@@ -1,0 +1,116 @@
+{
+  "version": 1,
+  "owner": "M2",
+  "note": "Stable reason codes. `meaning` is developer-facing; the user-visible sentence for each code is written by M4 into strings.xml. Codes are never renamed or reused; add new ones only. A Decision carries 1-3 codes.",
+  "max_reasons": 3,
+  "codes": [
+    {
+      "code": "F_UNK_CONTACT_RECENT",
+      "kind": "feature",
+      "source": "unk_contact_recent",
+      "meaning": "An unknown (not-in-contacts) caller was in contact with the user within the last 2 hours."
+    },
+    {
+      "code": "F_UNK_CALL_ACTIVE",
+      "kind": "feature",
+      "source": "unk_call_active",
+      "meaning": "A call with an unknown contact is in progress right now."
+    },
+    {
+      "code": "F_UNK_VIDEO_ACTIVE",
+      "kind": "feature",
+      "source": "unk_video_active",
+      "meaning": "A video session with an unknown contact is in progress right now."
+    },
+    {
+      "code": "F_MINS_SINCE_UNK_LOG",
+      "kind": "feature",
+      "source": "mins_since_unk_log",
+      "meaning": "Little time has passed since the unknown contact first appeared (log-minutes)."
+    },
+    {
+      "code": "F_INSTALL_PLAY_DURING_UNK",
+      "kind": "feature",
+      "source": "install_play_during_unk",
+      "meaning": "An app was installed from Google Play after the unknown contact started."
+    },
+    {
+      "code": "F_INSTALL_SIDELOAD_DURING_UNK",
+      "kind": "feature",
+      "source": "install_sideload_during_unk",
+      "meaning": "An app was installed from outside Google Play (sideloaded) after the unknown contact started."
+    },
+    {
+      "code": "F_WATCHLIST_APP",
+      "kind": "feature",
+      "source": "watchlist_app",
+      "meaning": "A remote-access or screen-share app from the watch-list was installed or opened in this session."
+    },
+    {
+      "code": "F_NEW_PAYEE",
+      "kind": "feature",
+      "source": "new_payee",
+      "meaning": "The payment is to a payee the user has never paid before."
+    },
+    {
+      "code": "F_PAYEE_ADDED_AFTER_UNK",
+      "kind": "feature",
+      "source": "payee_added_after_unk",
+      "meaning": "The new payee was added after the unknown contact started."
+    },
+    {
+      "code": "F_LOG_AMT_RATIO",
+      "kind": "feature",
+      "source": "log_amt_ratio",
+      "meaning": "The amount is large compared with this user's usual payments."
+    },
+    {
+      "code": "F_ROBUST_Z_POS",
+      "kind": "feature",
+      "source": "robust_z_pos",
+      "meaning": "The amount is far above this user's usual range (median/MAD)."
+    },
+    {
+      "code": "F_REPEAT_TO_PAYEE",
+      "kind": "feature",
+      "source": "repeat_to_payee",
+      "meaning": "The user has already paid this payee several times in this session."
+    },
+    {
+      "code": "F_IS_P2P",
+      "kind": "feature",
+      "source": "is_p2p",
+      "meaning": "The payment is person-to-person, not to a merchant."
+    },
+    {
+      "code": "F_OCSS_ORDERED",
+      "kind": "feature",
+      "source": "ocss_ordered",
+      "meaning": "Events happened in the typical scam order: contact, then install, then new payee, then payment, within the time bounds."
+    },
+    {
+      "code": "F_NEWPAYEE_X_AMT",
+      "kind": "feature",
+      "source": "newpayee_x_amt",
+      "meaning": "A large amount to a new payee."
+    },
+    {
+      "code": "F_UNK_X_NEWPAYEE",
+      "kind": "feature",
+      "source": "unk_x_newpayee",
+      "meaning": "A new payee shortly after an unknown contact."
+    },
+    {
+      "code": "RULE_SIDELOAD_DURING_CALL",
+      "kind": "rule",
+      "source": "sideload_during_call",
+      "meaning": "An app was installed from outside Google Play while an unknown contact was in touch."
+    },
+    {
+      "code": "RULE_LONG_SESSION",
+      "kind": "rule",
+      "source": "long_session",
+      "meaning": "A video session with an unknown contact has lasted 2 hours or more."
+    }
+  ]
+}

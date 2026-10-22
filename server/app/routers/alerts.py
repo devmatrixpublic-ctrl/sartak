@@ -1,7 +1,7 @@
-from typing import Literal, Optional
+from typing import Annotated, Literal, Optional
 
 from fastapi import APIRouter, Depends
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from app.alerts.fcm_client import FcmClient, get_fcm_client
@@ -20,9 +20,9 @@ def fcm_client_dependency(settings: Settings = Depends(get_settings)) -> FcmClie
 
 
 class AlertIn(StrictInput):
-    device_id: str
+    device_id: str = Field(min_length=1, max_length=36)
     type: Literal["alarm", "long_session"]
-    reasons: Optional[list[str]] = None
+    reasons: Optional[list[Annotated[str, Field(max_length=64)]]] = Field(default=None, max_length=10)
 
 
 class AlertOut(BaseModel):

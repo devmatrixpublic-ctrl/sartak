@@ -137,8 +137,14 @@ components:
         amount:
           type: number
           format: float
+          minimum: 0
+          exclusiveMinimum: true
+          maximum: 10000000
+          description: Rupees. Must be finite, positive and at most 10,000,000 (a sanity bound).
         payee_hash:
           type: string
+          minLength: 1
+          maxLength: 128
         is_p2p:
           type: boolean
 
@@ -199,6 +205,7 @@ components:
           enum: [success, failure]
         txn_ref:
           type: string
+          maxLength: 128
 
     AlertRequest:
       type: object
@@ -471,8 +478,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/SignatureResponse'
-        '400':
-          description: Malformed or rejected body
+        '422':
+          description: Malformed or rejected body (validation_error; the app-wide handler answers 422 for every endpoint)
           content:
             application/json:
               schema:

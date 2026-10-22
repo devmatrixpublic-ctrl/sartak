@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Satark</string>
+    <string name="notif_channel_name">Satark protection</string>
+    <string name="notif_running">Satark is watching for scam patterns</string>
+    <string name="notif_alarm_channel">Scam warnings</string>
+    <string name="notif_alarm_title">Stop. This may be a scam.</string>
+    <string name="notif_alarm_text">Do not send money or install anything. Tap to see why.</string>
+    <string name="notif_alarm_long_session">You have been on a long video call with someone you do not know. Tap to see why.</string>
+</resources>

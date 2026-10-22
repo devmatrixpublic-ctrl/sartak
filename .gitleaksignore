@@ -1,0 +1,4 @@
+# gitleaks false positive: a test fixture string, not a credential.
+# server/tests/test_m4_security.py (commit e0f8807) used a variable named `secret` to check that validation
+# errors never echo client input. The line was renamed afterwards; the fingerprint below baselines history.
+e0f8807f78ef79ab14157d0688b1a3fb04fa111f:server/tests/test_m4_security.py:generic-api-key:85

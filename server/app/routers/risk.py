@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
-from app.auth.dependencies import ensure_device_exists, require_device
+from app.auth.dependencies import require_device
 from app.core.settings import get_settings
 from app.db.session import get_db
 from app.payments.order_client import get_order_client
@@ -11,14 +11,12 @@ from app.schemas import RiskCheckRequest, RiskCheckResponse
 router = APIRouter(tags=["risk"])
 
 
-@router.post("/risk-check", response_model=RiskCheckResponse)
+@router.post("/risk-check", response_model=RiskCheckResponse, response_model_exclude_none=True)
 async def post_risk_check(
     body: RiskCheckRequest,
     device_id: str = Depends(require_device),
     db: Session = Depends(get_db),
 ) -> RiskCheckResponse:
-    ensure_device_exists(db, device_id)
-
     # Baseline server-side policy: HARD and TRUSTED_CONTACT levels from the
     # on-device detector hold the payment; NONE/NUDGE allow it. This is the
     # authoritative decision point — the client cannot self-report ALLOW.

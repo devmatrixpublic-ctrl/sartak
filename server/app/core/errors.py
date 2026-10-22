@@ -26,8 +26,18 @@ async def unhandled_error_handler(_request: Request, _exc: Exception) -> JSONRes
     )
 
 
+def _describe(errors: list[dict]) -> str:
+    """Field names and generic reasons only. str(exc) includes the client's input and, in this
+    FastAPI version, server file paths and source lines, so it must never reach the response."""
+    parts = []
+    for e in errors[:5]:
+        loc = ".".join(str(x) for x in e.get("loc", ())[1:]) or "body"
+        parts.append(f"{loc}: {e.get('msg', 'invalid')}")
+    return "Invalid request: " + "; ".join(parts) if parts else "Invalid request."
+
+
 async def validation_error_handler(_request: Request, exc) -> JSONResponse:
     return JSONResponse(
         status_code=422,
-        content={"code": "validation_error", "message": str(exc)},
+        content={"code": "validation_error", "message": _describe(exc.errors())},
     )

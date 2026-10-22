@@ -1,0 +1,80 @@
+{
+  "_comment": "SatarkSim parameters. Every value carries a provenance label: REAL (primary source read in this project), SECONDHAND (reported by press/search summary, primary not opened), FIT (derived from labelled inputs), ASSUMED (design choice with no source; covered by sensitivity sweeps). See docs/satarksim-provenance.md.",
+  "version": 1,
+  "population": {
+    "age_bands": {"values": ["18-35", "36-55", "56+"], "shares": [0.45, 0.35, 0.20], "label": "ASSUMED"},
+    "age_log_amount_shift": {"18-35": 0.0, "36-55": 0.1, "56+": -0.3, "label": "ASSUMED"},
+    "between_user_variance_share": {"value": 0.4, "label": "ASSUMED"},
+    "history_length": {
+      "cold_start_share": 0.15, "cold_start_max": 19, "warm_mean": 60, "label": "ASSUMED"
+    },
+    "known_payees": {"base": 3, "extra_poisson_mean": 6, "zipf_a": 1.6, "label": "ASSUMED"}
+  },
+  "amounts": {
+    "p2m_count_share": {"value": 0.63, "label": "SECONDHAND", "source": "NPCI/press: P2M ~63% of UPI count"},
+    "p2m": {"mu": 3.73, "sigma": 2.30, "label": "FIT",
+            "fit_to": "mean Rs 589 (Worldline, SECONDHAND) and 86% of P2M under Rs 500 (SECONDHAND)"},
+    "p2p": {"mu": 5.74, "sigma": 2.07, "label": "FIT",
+            "fit_to": "mean ~Rs 2640 (derived from H1-2025 P2P volume/value, SECONDHAND) and 59% of P2P under Rs 500 (SECONDHAND)"},
+    "cap_rupees": 100000, "floor_rupees": 1,
+    "population_mean_check_rupees": {"npci_real_monthly_mean_2026": {"Apr": 1299.1, "May": 1288.9, "Jun": 1273.2, "Jul": 1262.9, "Aug": 1216.8, "Sep": 1220.4}, "label": "REAL", "source": "NPCI Product Statistics UPI 2026-27 Monthly (user-supplied xlsx): value/volume"}
+  },
+  "legit": {
+    "new_payee_prob": {"18-35": 0.09, "36-55": 0.08, "56+": 0.05, "label": "ASSUMED", "note": "no published new-payee rate was found"},
+    "new_payee_lead_ms": {"min": 20000, "max": 600000, "label": "ASSUMED"},
+    "p2p_share_given_new": 0.55,
+    "unknown_call_active": 0.03,
+    "unknown_call_recent_ended": 0.03,
+    "known_call_active": 0.06,
+    "unknown_video_active": 0.004,
+    "unknown_video_long_share": 0.05,
+    "play_install_in_window": 0.03,
+    "play_install_during_unknown_call": 0.003,
+    "sideload_install_in_window": 0.002,
+    "watchlist_install_during_unknown_call": 0.001,
+    "watchlist_open_in_window": 0.002,
+    "large_payment_new_payee": {"prob": 0.01, "multiple_median": 12, "multiple_sigma": 0.5},
+    "call_signal_unavailable": 0.03,
+    "label": "ASSUMED",
+    "note": "hard-negative rates; no frequency data was found. Covered by sensitivity sweeps (hard_negative_scale)."
+  },
+  "scam": {
+    "playbook_mix": {"digital_arrest": 0.35, "remote_access_kyc": 0.30, "sideload_apk": 0.15, "no_remote_tool": 0.20,
+                     "label": "ASSUMED", "note": "no official split by playbook was found"},
+    "amount": {
+      "digital_arrest": {"median": 40000, "sigma": 0.9},
+      "remote_access_kyc": {"median": 20000, "sigma": 1.0},
+      "sideload_apk": {"median": 12000, "sigma": 1.0},
+      "no_remote_tool": {"median": 6000, "sigma": 1.0},
+      "cap_rupees": 100000, "floor_rupees": 500,
+      "label": "ASSUMED",
+      "note": "UPI per-transaction limit Rs 1 lakh caps single transfers; digital-arrest losses reported as ~Rs 1.57 lakh mean per complaint (SECONDHAND, MHA 2024) arrive as several transfers"
+    },
+    "transfers": {"digital_arrest": [1, 5], "remote_access_kyc": [1, 3], "sideload_apk": [1, 3], "no_remote_tool": [1, 2], "label": "ASSUMED"},
+    "timing_minutes": {
+      "call_to_video": [1, 10],
+      "digital_arrest_video_duration": [30, 360],
+      "digital_arrest_to_newpayee": [10, 90],
+      "call_to_install": [2, 15],
+      "install_to_newpayee": [3, 25],
+      "newpayee_to_payment": [1, 8],
+      "no_remote_call_to_newpayee": [5, 40],
+      "label": "ASSUMED",
+      "note": "No empirical gap data was found. Ranges deliberately straddle the OCSS design bounds (10/20/5 min) so the ordered flag does not always hold."
+    },
+    "digital_arrest_install_prob": 0.4,
+    "remote_access_already_installed_prob": 0.25,
+    "sideload_call_prob": 0.7,
+    "call_signal_unavailable": 0.05,
+    "label": "ASSUMED"
+  },
+  "detector_constants": {
+    "window_ms": 3600000,
+    "install_grace_ms": 300000,
+    "long_session_h": 2,
+    "ocss_gaps_ms": {"call_to_install": 600000, "install_to_newpayee": 1200000, "newpayee_to_payment": 300000},
+    "baseline_n": 50,
+    "cold_start_k": 20,
+    "label": "DESIGN (from implementation plan and architecture doc)"
+  }
+}

@@ -1,0 +1,111 @@
+# Satark app: end-to-end log (M1)
+
+Runs of the Android app against the backend. Each row is one scripted run; failures that were fixed are listed with
+the commit that fixed them.
+
+**Setup for every run below**
+
+| Item | Value |
+|---|---|
+| Device | Android emulator, Pixel 6 profile, Android 15 (API 35, `google_apis` x86_64). **Not a physical phone.** |
+| App | `role_1` debug build (`./gradlew :app:assembleDebug`), long-session runs use `-PsatarkLongSessionTestMin=2` |
+| Server | `server/` from this branch (main's M3 backend), local SQLite, `uvicorn --host 0.0.0.0 --port 8000`; app uses `http://10.0.2.2:8000/` |
+| Auth | Dev-token stub (`/auth/challenge` answers 404 on this server, app falls back). Key Attestation not exercised. |
+| Detector | M2 detector as linked by `includeBuild("detector")` (JVM build, `model.json` from `feat/m2-detector` at `8b6b1df`) |
+| Reason text | Raw reason codes (`@SatarkStub`): M4's `strings.xml` not on this branch |
+
+**Test helpers (emulator only, not part of the app)**
+
+| Helper | How |
+|---|---|
+| Unknown call | `adb emu gsm call 98765000NN` then `adb emu gsm accept …` / `cancel …` (number not in contacts) |
+| Sideloaded remote-access app | Throw-away APK with package `com.anydesk.anydeskandroid` (on the watch-list), installed with `adb install` |
+| UPI app | Throw-away APK that handles `upi://pay` and returns `Status=SUCCESS&txnRef=REF123` |
+| Video app | Throw-away APK with package `com.whatsapp` showing one screen |
+| Permissions | `adb shell pm grant/revoke`, `adb shell appops set com.satark.app GET_USAGE_STATS allow/deny` |
+| Offline | `adb shell svc wifi disable; adb shell svc data disable` (calls still work) |
+
+## Runs (2026-10-22)
+
+| # | Path | Steps | Expected | Result |
+|---|---|---|---|---|
+| 1 | First launch | Fresh install, open app | Onboarding with plain-language reasons; "Reduced protection" banner for missing permissions | Pass |
+| 2 | Offline, no alarm | Server stopped, pay ₹1 to `test@upi` | "Can't reach Satark… no payment was made"; no intent | Pass |
+| 3 | Clean, no UPI app | Server up, pay ₹1 | `/risk-check` → ALLOW; "No UPI app is installed on this phone"; no crash | Pass, after fix A |
+| 4 | Clean hand-off | Fake UPI app installed, pay ₹1 | Chooser → UPI app → "The UPI app reported success (not verified by Satark)"; `POST /payments/{id}/result` 200 | Pass |
+| 5 | Scam: sideload during unknown call | Unknown call → accept → sideload "AnyDesk" | `RULE_SIDELOAD_DURING_CALL` HARD screen within seconds; `/alert` 200 | Pass, after fixes B, C, D |
+| 6 | Scam: payment during the scam, app killed in between | Run 5 → `am force-stop` → reopen → pay ₹25,000 to new payee | Detector still remembers the call and sideload; HARD (`F_INSTALL_SIDELOAD_DURING_UNK`, `F_UNK_X_NEWPAYEE`, `F_WATCHLIST_APP`); `/risk-check` → HOLD; no UPI app opened | Pass, after fix E |
+| 7 | Alarm while offline | Wi-Fi + data off → run 5 | `/alert` fails and is queued; on reconnect it is sent (200) and the queue is empty | Pass, after fix F |
+| 8 | Offline + alarm payment | Wi-Fi + data off, scam session, pay ₹30,000 | "Payment on hold. Satark did not send this payment. Nothing was paid."; no intent | Pass |
+| 9 | Permissions revoked | Revoke phone, contacts, usage access → reopen → place a call | No crash; banners "Call signal is off" and "Usage signal is off" | Pass |
+| 10 | Checkout without a Razorpay key | Pay ₹1 via "Satark checkout (test)" | Razorpay errors → "Checkout did not complete. No payment was made." within seconds | Pass, after fix G |
+| 11 | Long session (test build, 2 min) | Unknown call → hang up → fake video app for 2.5 min | Session marked unknown; `RULE_LONG_SESSION`; `/alert type=long_session` 200; notification shown over the video app | Pass, after fixes H, I, J |
+
+### Against M4's server (PR #9, `origin/m4` at `01e039d`, run from a separate checkout, not merged)
+
+Server: `SATARK_ENV=dev SATARK_AUTH_ENABLE_DEV_TOKEN=1`, port 8001; app built with `-PsatarkBaseUrl=http://10.0.2.2:8001/`.
+
+| # | Path | Expected | Result |
+|---|---|---|---|
+| 12 | Upgrade from the old dev token | Old bearer rejected (401) → challenge → emulator attestation refused (503: no roots configured in dev) → `/auth/dev-token` → JWT + refresh token; `/risk-check`, `/alert`, `/signature` 200 | Pass, after fix K |
+| 13 | Restart after a video session ended while the app was dead | No stale "video still active" alarm | Pass, after fix L |
+| 14 | Run 6 again (app killed mid-scam, ₹25,000) | HARD → HOLD, no UPI app opened | Pass |
+| 15 | Clean ₹1 hand-off | ALLOW → fake UPI app → reported success | Pass |
+
+### Detector in the app: M2's 36 test vectors
+
+Run with `./gradlew :app:assembleDebug :app:assembleDebugAndroidTest`, install both APKs, then
+`adb shell am instrument -w com.satark.app.test/androidx.test.runner.AndroidJUnitRunner`
+(or `./gradlew :app:connectedDebugAndroidTest`, which uninstalls the app afterwards). JVM version: `VectorsJvmTest`.
+
+| # | Where | Path | Result |
+|---|---|---|---|
+| 16 | JVM | Detector only | 36/36 |
+| 17 | JVM | App pipeline (stored as schema JSON and read back, app dedup, `SessionPolicy`) | 36/36, after fix M (was 33/36) |
+| 18 | Emulator, API 35 | Detector only, `model.json` from the APK | 36/36 |
+| 19 | Emulator, API 35 | App pipeline | 36/36 |
+
+Still needed: the same run on both physical phones (plan 2.7), then M2 sets `detector-freeze`.
+
+### Attestation chain export (for M4)
+
+Debug builds show **"Export attestation chain for M4"** at the bottom of the pay screen. It fetches a challenge from
+`/auth/challenge` (or makes a local one if the server has no auth routes), creates a key under its own Keystore alias
+(the app's registration key is never touched), and opens the share sheet with a JSON file. It also saves the file to
+`/sdcard/Android/data/com.satark.app/files/` (`adb pull` works). Format `satark-attestation-export/1`: device, package,
+build type, **signing-certificate SHA-256** (what `SATARK_AUTH_EXPECTED_SIGNING_SHA256` needs), key security level,
+challenge, public key, chain (leaf first).
+
+| # | Where | Result |
+|---|---|---|
+| 20 | Emulator, API 35 | Pass: key level `software`; 3-certificate chain; challenge embedded in the attestation extension and leaf key = exported public key (checked with Python `cryptography`); root "Google Test LLC" as expected for an emulator. Share sheet opens. |
+
+**For each physical phone:** install the debug build, tap the button, send the JSON to M4. Expect `TEE` or `StrongBox`
+and a chain ending at Google's hardware attestation root.
+
+## Defects found and fixed (all on `role_1`)
+
+| | Defect | Fix | Commit |
+|---|---|---|---|
+| A | Debug build blocked plain HTTP, so it could never reach the local server | Debug-only network config for `10.0.2.2`/`localhost`; release stays HTTPS-only | `d915f16` |
+| B | Call start sent before the number arrived → `caller_known` always missing → unknown-call rules never fired | Wait up to 2 s for the number; phone-state broadcast drives calls below Android 12 | `d915f16` |
+| C | Two registrations at once mixed device id and token → `/alert` 403 | Registration serialized, session written in one commit, self-repair | `d915f16` |
+| D | Alarm waited for the next 30 s tick | Events released right after the 1.5 s reorder hold | `d915f16` |
+| E | App killed mid-scam lost the detector session → ₹25,000 payment ALLOWed | Session rebuilt from the last 3 h of stored events; blank call start ignored during an open call | `d915f16` |
+| F | Offline queue only flushed at app start | Flush on network available; one flush at a time | `e676ac7` |
+| G | Razorpay error left the user waiting 60 s | Short check, then a plain "did not complete" message | `e676ac7` |
+| H | Video session closed after ~2 min without new usage events | `VideoSessionTracker` keeps it open while the app is in front | `64fa08a` |
+| I | Video always sent with an unknown-or-missing caller, so the long-session rule could never fire | `VideoOrigin`: video during/≤15 min after an unknown call is unknown | `64fa08a` |
+| K | App could not authenticate against M4's server (it only knew "bearer = device id"); Android 8 crashed in key generation (`setIsStrongBoxBacked` is API 28+) | Debug builds fall back to M4's `/auth/dev-token`; StrongBox call guarded | `a627b52` |
+| L | Session restore kept a call/video open whose end was missed while the app was dead → false `F_UNK_VIDEO_ACTIVE` | Sources report current state at start; restored video end is dated at the last event seen | `a627b52` |
+| M | The app reset the detector after any 2 h gap, even during an open unknown video call: lost the long-session alarm (vectors S050008, S050139) and changed a decision M2 measured (S052021) | Reset only after 96 h of silence (longest SatarkSim session) and never while a call or video is open | `4782b89` |
+| J | Alarm only visible inside Satark, which the user is usually not looking at | High-priority notification on every alarm | `64fa08a` |
+
+## Not covered here (needs others or a physical phone)
+
+- Key Attestation, refresh after expiry, re-register: needs M4's `/auth/*` merged; StrongBox/TEE needs a real phone.
+- Trusted-contact link and push received on a second device: needs a Firebase project (`google-services.json`).
+- Razorpay test-mode `paid` path and webhooks: needs a Razorpay test key on the server and the app.
+- Readable reasons on screen: needs M4's `strings.xml`.
+- QR scan with a real camera, ₹1 to a real VPA through GPay/PhonePe, the older test phone (minSdk 26), and the
+  final two passes on both phones, the last on the release build.

@@ -1,18 +1,19 @@
 from fastapi import APIRouter, Depends
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
-from app.auth.dependencies import ensure_device_exists, require_device
+from app.auth.dependencies import require_device
+from app.core.errors import ApiError
 from app.core.schemas import StrictInput
-from app.db.models import TrustedLink
+from app.db.models import Device, TrustedLink
 from app.db.session import get_db
 
 router = APIRouter(tags=["trusted-contact"])
 
 
 class TrustedContactIn(StrictInput):
-    trusted_device_id: str
-    fcm_token: str
+    trusted_device_id: str = Field(min_length=1, max_length=36)
+    fcm_token: str = Field(min_length=1, max_length=4096)
 
 
 class TrustedContactOut(BaseModel):
@@ -25,8 +26,10 @@ async def post_trusted_contact(
     device_id: str = Depends(require_device),
     db: Session = Depends(get_db),
 ) -> TrustedContactOut:
-    ensure_device_exists(db, device_id)
-    trusted_device = ensure_device_exists(db, body.trusted_device_id)
+    # The trusted contact must already have registered via /auth/device; we never fabricate a device.
+    trusted_device = db.get(Device, body.trusted_device_id)
+    if trusted_device is None or trusted_device.revoked:
+        raise ApiError(404, "trusted_device_not_found", "The trusted contact's device is not registered.")
     trusted_device.fcm_token = body.fcm_token
     db.add(trusted_device)
 

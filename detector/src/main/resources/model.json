@@ -1,0 +1,130 @@
+{
+  "model_version": "satark-detector-1",
+  "provenance": "Trained on SatarkSim v2 (simulated data) by detector/tools/export_model.py; not real-world accuracy.",
+  "alpha": 0.0008,
+  "target_false_alarm": 0.001,
+  "features": [
+    "unk_contact_recent",
+    "unk_call_active",
+    "unk_video_active",
+    "mins_since_unk_log",
+    "install_play_during_unk",
+    "install_sideload_during_unk",
+    "watchlist_app",
+    "new_payee",
+    "payee_added_after_unk",
+    "log_amt_ratio",
+    "robust_z_pos",
+    "repeat_to_payee",
+    "is_p2p",
+    "ocss_ordered",
+    "newpayee_x_amt",
+    "unk_x_newpayee"
+  ],
+  "scaler": {
+    "mean": [
+      0.17686402081977878,
+      0.1340793754066363,
+      0.04153545868575147,
+      0.9294372770269587,
+      0.10534808067664281,
+      0.04788549121665582,
+      0.0788028627195836,
+      0.3790500975927131,
+      0.22443721535458686,
+      1.4027418886685619,
+      1.8093146712417347,
+      0.593597918022121,
+      0.5001431359791803,
+      0.14782042940793755,
+      1.2382858678831212,
+      0.17522446324007807
+    ],
+    "scale": [
+      0.38155358596039907,
+      0.34073757717223174,
+      0.19952509706178745,
+      1.8684245663905459,
+      0.3070014048410697,
+      0.2135239353037392,
+      0.2694308288722396,
+      0.4851506169301114,
+      0.41721115962838967,
+      2.7376194952578037,
+      2.3920871934812857,
+      1.7000717585056622,
+      0.499999979512091,
+      0.3549218928970014,
+      2.4520586599462906,
+      0.38015898085183336
+    ]
+  },
+  "logistic": {
+    "coef": [
+      -1.8067883066427106,
+      0.5366886770481166,
+      0.4750474782883122,
+      -0.10560481710993806,
+      0.4358043991682704,
+      0.8428860816038263,
+      0.5197738622577983,
+      0.1321987156071331,
+      -0.6087660665812541,
+      -0.17775269975664057,
+      0.09290868668084978,
+      0.8937921842732539,
+      0.3187894726208059,
+      0.3528528441270279,
+      1.6596382097252658,
+      1.7183084136353077
+    ],
+    "intercept": -2.1886610819227705
+  },
+  "cohort_thresholds": {
+    "18-35": {
+      "threshold": 1.027744719361806,
+      "n_cal": 4512,
+      "k": 4510,
+      "method": "split_conformal"
+    },
+    "36-59": {
+      "threshold": 1.0072285065740338,
+      "n_cal": 4246,
+      "k": 4244,
+      "method": "split_conformal"
+    },
+    "60+": {
+      "threshold": 1.5299705770223024,
+      "n_cal": 1398,
+      "k": 1398,
+      "method": "split_conformal"
+    }
+  },
+  "pooled_threshold": 1.0072285065740338,
+  "constants": {
+    "LONG_SESSION_H": 2.0,
+    "CONTACT_WINDOW_S": 7200,
+    "OCSS_WINDOW_S": 3600,
+    "DEDUPE_WINDOW_S": 3,
+    "AMOUNT_RATIO_CLIP": [
+      -5.0,
+      8.0
+    ],
+    "ROBUST_Z_MAD_SCALE": 1.4826,
+    "ROBUST_Z_MAD_FLOOR": 1.0,
+    "ROBUST_Z_CAP": 10000.0,
+    "REPEAT_CAP": 10
+  },
+  "watchlist": [
+    "com.anydesk.anydeskandroid",
+    "com.teamviewer.quicksupport.market",
+    "com.google.chromeremotedesktop"
+  ],
+  "baseline": {
+    "window_n": 50,
+    "blend_k": 20,
+    "prior_median_inr": 161.57,
+    "prior_mad_inr": 114.885,
+    "note": "Prior = median of train-user history stats. window_n and blend_k are design choices, not fitted by the reference."
+  }
+}

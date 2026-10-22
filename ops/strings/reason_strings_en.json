@@ -1,0 +1,25 @@
+{
+  "version": 1,
+  "source": "hand-written",
+  "note": "One plain sentence per reason code in contracts/reason_codes.json. Written by hand because Sarvam-30B access was not available; if regenerated with an LLM, change `source` and have a human review every line (never on the live path). Codes are never renamed (M2), so keys here only grow.",
+  "strings": {
+    "F_UNK_CONTACT_RECENT": "Someone who isn't in your contacts reached you in the last 2 hours.",
+    "F_UNK_CALL_ACTIVE": "You're on a call with someone who isn't in your contacts.",
+    "F_UNK_VIDEO_ACTIVE": "You're on a video call with someone who isn't in your contacts.",
+    "F_MINS_SINCE_UNK_LOG": "This started only a few minutes after an unknown person first contacted you.",
+    "F_INSTALL_PLAY_DURING_UNK": "An app was installed from Google Play while an unknown person was in touch with you.",
+    "F_INSTALL_SIDELOAD_DURING_UNK": "An app was installed from outside Google Play while an unknown person was in touch with you.",
+    "F_WATCHLIST_APP": "A remote-access or screen-sharing app was installed or opened. Scammers use these to watch or control a phone.",
+    "F_NEW_PAYEE": "You're paying someone you have never paid before.",
+    "F_PAYEE_ADDED_AFTER_UNK": "You added this payee after an unknown person contacted you.",
+    "F_LOG_AMT_RATIO": "This amount is much larger than your usual payments.",
+    "F_ROBUST_Z_POS": "This amount is far outside your normal range.",
+    "F_REPEAT_TO_PAYEE": "You have already paid this person several times in this session.",
+    "F_IS_P2P": "This is a payment to a person, not to a shop or business.",
+    "F_OCSS_ORDERED": "Things happened in the order scammers usually follow: contact, an app install, a new payee, then the payment.",
+    "F_NEWPAYEE_X_AMT": "This is a large amount to someone you have never paid before.",
+    "F_UNK_X_NEWPAYEE": "A new payee appeared shortly after an unknown person contacted you.",
+    "RULE_SIDELOAD_DURING_CALL": "An app was installed from outside Google Play while an unknown person was in touch with you.",
+    "RULE_LONG_SESSION": "You have been in a video call with an unknown person for 2 hours or more."
+  }
+}

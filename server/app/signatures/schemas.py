@@ -1,6 +1,9 @@
+import math
 import re
 
-from pydantic import field_validator
+from typing import Annotated
+
+from pydantic import Field, field_validator
 
 from app.core.schemas import StrictInput
 
@@ -30,7 +33,7 @@ DISALLOWED_KEY_SUBSTRINGS = (
 
 class SignatureIn(StrictInput):
     pattern_id: str
-    features: dict[str, float]
+    features: dict[Annotated[str, Field(min_length=1, max_length=64)], float]
 
     @field_validator("pattern_id")
     @classmethod
@@ -46,6 +49,8 @@ class SignatureIn(StrictInput):
             raise ValueError("features must not be empty")
         if len(v) > 64:
             raise ValueError("features must not exceed 64 entries")
+        if not all(math.isfinite(x) for x in v.values()):
+            raise ValueError("feature values must be finite numbers")
         lowered = {k.lower() for k in v}
         for bad in DISALLOWED_KEY_SUBSTRINGS:
             if any(bad in key for key in lowered):

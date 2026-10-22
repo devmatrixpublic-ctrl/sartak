@@ -1,0 +1,93 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://satark.example/contracts/schema.json",
+  "title": "Satark device event",
+  "description": "One event emitted by the app (M1) and consumed by the on-device detector (M2). Field names follow the SatarkSim event table. Owner: M2. See x-rules for time, deduplication and missing-signal rules.",
+  "type": "object",
+  "required": ["event_type", "t_ms"],
+  "properties": {
+    "event_type": {
+      "enum": ["CALL_START", "CALL_END", "VIDEO_SESSION_START", "VIDEO_SESSION_END", "APP_INSTALL", "APP_FOREGROUND", "NEW_PAYEE", "PAYMENT_ATTEMPT"]
+    },
+    "t_ms": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Device clock, epoch milliseconds. Only differences between events are used; the detector never reads the wall clock."
+    },
+    "caller_known": {
+      "type": ["boolean", "null"],
+      "description": "CALL_START / VIDEO_SESSION_START. false = the other party is not in contacts (unknown contact). null = not reported."
+    },
+    "app_package": {
+      "type": ["string", "null"],
+      "maxLength": 255,
+      "description": "APP_INSTALL / APP_FOREGROUND / VIDEO_SESSION_*: Android package name."
+    },
+    "install_source": {
+      "enum": ["play_store", "sideload", null],
+      "description": "APP_INSTALL only. play_store = installer is com.android.vending; sideload = any other installer or none. null = could not be determined."
+    },
+    "payee_id": {
+      "type": ["string", "null"],
+      "pattern": "^[0-9a-f]{16,128}$|^[A-Za-z0-9-]{1,64}$",
+      "description": "NEW_PAYEE / PAYMENT_ATTEMPT: HASHED payee VPA (hex digest or opaque id). Never a raw VPA, number or name."
+    },
+    "payee_is_new": {
+      "type": ["boolean", "null"],
+      "description": "PAYMENT_ATTEMPT: the payee is not among the user's known payees. null = unknown."
+    },
+    "amount_inr": {
+      "type": ["number", "null"],
+      "minimum": 0,
+      "description": "PAYMENT_ATTEMPT: rupees (decimal). From the UPI `am` parameter, or typed by the user when `am` is absent."
+    },
+    "payment_type": {
+      "enum": ["P2P", "P2M", null],
+      "description": "PAYMENT_ATTEMPT: P2M when the UPI URI has an `mc` (merchant code) parameter, else P2P."
+    },
+    "source": {
+      "enum": ["qr", "manual", null],
+      "description": "PAYMENT_ATTEMPT from Pay via Satark: how the payment was started. Informational; not a model feature."
+    }
+  },
+  "allOf": [
+    { "if": { "properties": { "event_type": { "const": "PAYMENT_ATTEMPT" } } },
+      "then": { "required": ["payee_id", "amount_inr", "payment_type"] } },
+    { "if": { "properties": { "event_type": { "const": "NEW_PAYEE" } } },
+      "then": { "required": ["payee_id"] } },
+    { "if": { "properties": { "event_type": { "const": "APP_INSTALL" } } },
+      "then": { "required": ["app_package"] } },
+    { "if": { "properties": { "event_type": { "const": "APP_FOREGROUND" } } },
+      "then": { "required": ["app_package"] } }
+  ],
+  "additionalProperties": false,
+
+  "x-rules": {
+    "time": "t_ms is the device clock in epoch milliseconds. Events must be passed to the detector in non-decreasing t_ms order (stable for ties); the app sorts by t_ms before dispatch. A clock jump backwards is the app's problem: do not feed events with decreasing time.",
+    "deduplication": {
+      "key": ["event_type", "app_package", "payee_id", "amount_inr"],
+      "window_ms": 3000,
+      "rule": "An event is a duplicate when its key equals the key of the PREVIOUS raw event and the absolute time difference is <= window_ms. The previous event is always the previous raw event, even if that one was itself dropped. The detector applies this rule itself; the app's Deduplicator (M1) must use the same rule and must not be stricter, or genuine repeated payments would be lost.",
+      "reference": "detector/reference/satark_detector.py dedupe()"
+    },
+    "session": "The reference detector evaluates self-contained sessions (unknown-contact evidence is never cleared inside a session). When a session starts and ends on a real phone is an app policy; the app calls Detector.reset() at a session boundary and Detector.finish() when it ends. A boundary is not defined by the reference and is not validated by SatarkSim.",
+    "payment_attempt_from_pay_via_satark": {
+      "payee_id": "hash of the `pa` (payee VPA) parameter; never stored or sent raw",
+      "amount_inr": "the `am` parameter, or the amount the user types when `am` is missing",
+      "payment_type": "P2M when the URI has an `mc` parameter, else P2P",
+      "source": "qr when scanned from a QR code, manual when typed",
+      "payee_is_new": "true when the hashed VPA is not in the user's known payees"
+    },
+    "missing_signal_defaults": {
+      "intro": "When a signal source is UNAVAILABLE the field is null (or the event is simply not emitted). The detector then behaves as follows; every case still yields a valid Decision.",
+      "caller_known = null or no CALL events": "no unknown-contact evidence: unk_contact_recent, unk_call_active, unk_video_active, payee_added_after_unk, ocss_ordered, the install-during-unknown features and mins_since_unk_log are all 0. The sideload and long-session rules cannot fire. Detection falls back to amount/payee/payment features only.",
+      "install_source = null": "the install is neither Play nor sideload: neither install feature is set and the sideload rule cannot fire. The install still counts as an install for ocss_ordered.",
+      "app_package = null": "never matches the watch-list; watchlist_app stays 0.",
+      "payee_is_new = null": "treated as false: new_payee, newpayee_x_amt, unk_x_newpayee and payee_added_after_unk are 0.",
+      "payee_id = null": "the payee is not remembered and not counted: repeat_to_payee is 0 and payee_added_after_unk is 0.",
+      "amount_inr = null, negative or not finite": "treated as 0.0.",
+      "payment_type = null": "is_p2p is 0.",
+      "age_band unknown": "the pooled conformal threshold from model.json is used (age_band selects a threshold only and is never a feature)."
+    }
+  }
+}

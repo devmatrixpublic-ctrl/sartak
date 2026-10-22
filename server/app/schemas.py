@@ -1,4 +1,4 @@
-from typing import Literal, Optional
+from typing import Annotated, Literal, Optional
 
 from pydantic import BaseModel, Field
 
@@ -11,15 +11,17 @@ class HealthResponse(BaseModel):
 
 class Decision(StrictInput):
     level: Literal["NONE", "NUDGE", "HARD", "TRUSTED_CONTACT"]
-    score: float
-    reasons: list[str] = Field(default_factory=list, max_length=3)
+    score: float = Field(allow_inf_nan=False)
+    reasons: list[Annotated[str, Field(max_length=64)]] = Field(default_factory=list, max_length=3)
 
 
 class RiskCheckRequest(StrictInput):
     decision: Decision
     method: Literal["upi_intent", "checkout"]
-    amount: float
-    payee_hash: str
+    # Sanity bounds, not product limits: positive, finite, at most Rs 1 crore. NaN used to reach the
+    # database as NULL and surface as a 500.
+    amount: float = Field(gt=0, le=10_000_000, allow_inf_nan=False)
+    payee_hash: str = Field(min_length=1, max_length=128)
     is_p2p: Optional[bool] = None
 
 
