@@ -15,7 +15,7 @@ This repository holds the whole system, built against the module-wise implementa
 | Module | Owner | What exists | Not done yet |
 | --- | --- | --- | --- |
 | Android app (`app/`) | Member 1 | all 8 plan sections implemented; 36/36 vectors on an emulator; privacy check; emulator end-to-end log (`app/e2e_log.md`) | runs on **physical phones**, real Key Attestation, Firebase push, Razorpay `paid` path, signed release build |
-| On-device detector (`detector/`) | Member 2 | Kotlin detector, `model.json`, schema and reason-code contracts, reports | 36/36 on physical phones, then the `detector-freeze` tag. Simulated results: recall 93.1%, false alarms 0.071% (`detector/detector_report.md`) |
+| On-device detector (`detector/`) | Member 2 | Kotlin detector, `model.json`, schema and reason-code contracts, reports | 36/36 on physical phones, then the `detector-freeze` tag. Simulated results: recall 93.1% on validation (cross-validated about 91.8%), false alarms 0.071% (`detector/detector_report.md`) |
 | **Backend (`server/`)** | **Member 3** | implemented (P0–P7) plus M4's auth; 161 tests | never deployed to Render; real Razorpay/Firebase credentials |
 | Security / CI / evaluation (`ops/`, `server/app/auth/`) | Member 4 | auth, CI, evaluation gate, strings, held-out runner, security checklist | Google attestation roots, chains from real phones, certificate pins (need the deployed domain), the one held-out run |
 
@@ -36,8 +36,7 @@ the evaluation gate fails.
 - **Unknown-contact signals depend on permissions and phone makers.** Without them the detector falls back to amount, payee and
   install signals (see `contracts/schema.json`, `missing_signal_defaults`).
 
-Backend build log, phase by phase, on branches `feat/m3-p0-contract` through
-`feat/m3-p7-hardening`:
+Backend build log, phase by phase (built as stacked branches, all merged to `main`):
 
 | Phase | What it shipped | Verified by |
 | --- | --- | --- |
@@ -50,7 +49,7 @@ Backend build log, phase by phase, on branches `feat/m3-p0-contract` through
 | P6 | Docker image + Render blueprint | structured JSON logs with request correlation, no payload bodies logged |
 | P7 | Security/contract hardening | mass-assignment guards, IDOR tests, contract-vs-implementation check |
 
-161 server tests (`cd server && pytest`) and 67 ops tests (`pytest ops`) pass on branch `m4`. The server suite is M3's original 56 plus M4's auth, security and rate-limit suites.
+The server suite (`cd server && pytest`, 182 tests) and the ops suite (`pytest ops`) run in CI on every pull request. The server suite is M3's original 56 plus M4's auth, security and rate-limit suites and the integration tests.
 
 ## Architecture
 
@@ -186,6 +185,8 @@ misconfigured deploy fails closed rather than silently using a fake secret.
 | `SATARK_AUTH_ATTESTATION_ROOTS` | yes | PEM bundle of pinned Google roots (`server/certs/`); server refuses to boot without it outside dev |
 | `SATARK_AUTH_EXPECTED_PACKAGE` / `_SIGNING_SHA256` | yes | identity of the release app, checked on every attestation |
 | `SATARK_MIGRATION_DATABASE_URL` | optional | owner connection used only by `alembic upgrade head`, so `SATARK_DATABASE_URL` can be the DML-only role in `ops/security/db_roles.sql` |
+| `SATARK_TRUSTED_PROXY_HOPS` | optional | proxies that append to `X-Forwarded-For` (default 0 = ignore the header; usually 1 on Render once checked) |
+| `SATARK_MAX_BODY_BYTES`, `SATARK_WEBHOOK_MAX_BODY_BYTES` | optional | request-body caps (defaults 64 KB and 256 KB) |
 | `SATARK_RAZORPAY_KEY_ID` / `_KEY_SECRET` | yes | without these, `/risk-check` falls back to a local stub order id — fine for dev, **not safe for production** |
 | `SATARK_RAZORPAY_WEBHOOK_SECRET` | yes | without this, `/webhooks/razorpay` rejects every request with `webhook_not_configured` (fails closed) |
 | `SATARK_FIREBASE_CREDENTIALS_JSON` | yes | without this, `/alert` uses a local stub FCM client — no real push is sent |

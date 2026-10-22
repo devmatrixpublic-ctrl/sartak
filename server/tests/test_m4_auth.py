@@ -346,3 +346,22 @@ def test_no_policy_means_503_not_a_crash(env):
     with pytest.raises(AuthError) as e:
         svc.register_device("c" * 43, "AAAA", ["AAAA", "AAAA"])
     assert e.value.status_code == 503
+
+
+# --- client address behind a proxy (app/core/clientip.py) -------------------------------------------------------------------------
+def _challenge(env, xff: str | None):
+    return env["client"].post("/auth/challenge", headers={"X-Forwarded-For": xff} if xff else {}).status_code
+
+
+def test_default_a_caller_cannot_dodge_the_limit_by_rotating_x_forwarded_for(make_env):
+    env = make_env()                                                    # trusted_proxy_hops = 0: the header is ignored
+    codes = [_challenge(env, f"203.0.113.{i}") for i in range(12)]
+    assert codes[:10] == [200] * 10 and codes[10:] == [429, 429]
+
+
+def test_with_one_trusted_hop_clients_get_separate_buckets_and_spoofed_prefixes_do_not_help(make_env):
+    env = make_env(trusted_proxy_hops=1)
+    assert [_challenge(env, "198.51.100.1") for _ in range(10)] == [200] * 10
+    assert _challenge(env, "198.51.100.1") == 429                       # client A is limited ...
+    assert _challenge(env, "198.51.100.2") == 200                       # ... client B has its own bucket
+    assert _challenge(env, "192.0.2.77, 198.51.100.1") == 429           # a forged left-hand entry does not escape A's bucket

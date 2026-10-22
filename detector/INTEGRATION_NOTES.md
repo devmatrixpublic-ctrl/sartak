@@ -1,10 +1,10 @@
 # Notes for M1: driving the detector from the app
 
-Written by M2 after reviewing `feat/m1-app` (commit `8b6b1df`). The pure-logic part of `app/` (parser, mapper, dedup,
+Written by M2 after reviewing M1's first app commit (`8b6b1df`, now in `main`). The pure-logic part of `app/` (parser, mapper, dedup,
 sequencer, watch-list/contract checks) was compiled against this detector on the JVM and its 20 tests pass. The Android
 module itself was not built (no Android SDK where this was reviewed), so nothing here has run on a phone.
 
-## Already fixed in the detector (pull `feat/m2-detector`)
+## Already fixed in the detector (all in `main`)
 1. **Long-session alarm repeated on every tick.** `onTick` now raises it once per unknown video session. Before, the
    30 s tick in `EventDispatcher` would have re-emitted the alarm, and `AlertController` would have sent `/alert`
    (a push to the trusted contact) every 30 s.

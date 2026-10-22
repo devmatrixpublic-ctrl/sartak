@@ -1,6 +1,6 @@
 # Candidate Google attestation roots (NOT trusted yet)
 
-Prepared for M4's manual verification. **No root is committed to `google_attestation_roots.pem`**: a trust anchor must be
+Prepared for M4's manual verification. **Reproduce and refresh with `python ops/security/attestation_roots.py --write`** (tested; it fetches both sources, flags expired or single-source roots, and writes `CANDIDATE_google_attestation_roots.pem`, a file the server does not read). **No root is committed to `google_attestation_roots.pem`**: a trust anchor must be
 checked by a person against Google's own page before it is pinned (see `README.md` here).
 
 Fetched 2026-10-22 from two Google sources and compared by SHA-256 of the DER:
