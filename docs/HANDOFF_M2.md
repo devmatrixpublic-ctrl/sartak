@@ -10,7 +10,7 @@ Read this first if you are picking the project up cold. It says what exists, how
   have it. A person should review and merge it.
 * Branch cleanup done 2026-10-22: the fully merged branches (`integration/all`, `feat/m2-detector`, `m4`, `feat/m3-*`, `docs/m3-readme`, `chore/post-merge-prep`) were deleted. `feat/m1-app` (duplicate of `role_1`'s first commit) is kept.
   **Do NOT delete `role_1`:** M1 kept working on it after PR #8 merged. Four commits (Firebase push, protection screen, `app/tools/phone_check.py`,
-  register-once) are on that branch only, with no PR and no CI run yet.
+  register-once) are on that branch; PR #12 carries them (10 of 10 CI checks green) and M1 or a reviewer merges it.
   `docs/context-handoff` (M3's old handoff) is superseded by `docs/BACKEND_HANDOFF.md`.
 * Release is **blocked on purpose** by dev-token stub markers (five on `main`; three once M1's `role_1` commits merge) until real Key Attestation works on a phone.
 
@@ -77,7 +77,7 @@ untested, not proven**; do not present them as a measured result.
 ## Decisions that need people (in order)
 
 1. Review and merge PR #11. Approve #10's contract and gate-adjacent changes (`api.yaml` 422, stub allowlist, calibration margin, held-out adapter).
-2. M1: open a PR for the four new commits on `role_1` (Firebase push, protection screen, `app/tools/phone_check.py`, register-once; merges cleanly, no CI has run on them), then both physical phones (36/36, attestation chains), a Firebase `google-services.json` and Razorpay test key, signed release.
+2. M1: merge PR #12 (the four new `role_1` commits: Firebase push, protection screen, `app/tools/phone_check.py`, register-once; CI green), then both physical phones (36/36, attestation chains), a Firebase `google-services.json` and Razorpay test key, signed release.
 3. M4: verify and pin Google's roots; then M3 deploys; then pins, DB role, `SATARK_TRUSTED_PROXY_HOPS`.
 4. M2: run the freeze pre-flight when the phone results exist, tag, then M4's single held-out run.
 5. Optional: a NUDGE tier (the detector only emits NONE or HARD), and real or better-simulated data to test whether personal baselines help.

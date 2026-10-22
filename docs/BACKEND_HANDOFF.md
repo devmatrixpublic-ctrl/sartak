@@ -6,7 +6,7 @@ The design decisions and the list of what was never verified are kept below beca
 
 ## Where things are now
 
-Everything is on `main`. The backend was built in stacked branches `feat/m3-p0-contract` ... `feat/m3-p7-hardening` and merged
+Everything is on `main`. The backend was built in stacked branches (since deleted) and merged
 (PRs 1 to 6), then the app (M1), detector (M2) and ops/auth (M4) were integrated in PR #10 with cross-member fixes.
 
 | Area | Where | Owner | State |
