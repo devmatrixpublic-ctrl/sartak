@@ -3,7 +3,7 @@
 Runs of the Android app against the backend. Each row is one scripted run; failures that were fixed are listed with
 the commit that fixed them.
 
-**Setup for every run below**
+**Setup for runs 1 to 20** (later runs list their own setup)
 
 | Item | Value |
 |---|---|
@@ -65,7 +65,9 @@ Run with `./gradlew :app:assembleDebug :app:assembleDebugAndroidTest`, install b
 | 18 | Emulator, API 35 | Detector only, `model.json` from the APK | 36/36 |
 | 19 | Emulator, API 35 | App pipeline | 36/36 |
 
-Still needed: the same run on both physical phones (plan 2.7), then M2 sets `detector-freeze`.
+Still needed: the same run on both physical phones (plan 2.7). `python app/tools/phone_check.py --build` runs it and
+prints the row in the form `detector/tools/freeze_preflight.py` counts (`Physical: ...` and `36/36`). Then M2 runs the
+pre-flight and tags `detector-freeze`.
 
 ### Attestation chain export (for M4)
 
@@ -80,8 +82,26 @@ challenge, public key, chain (leaf first).
 |---|---|---|
 | 20 | Emulator, API 35 | Pass: key level `software`; 3-certificate chain; challenge embedded in the attestation extension and leaf key = exported public key (checked with Python `cryptography`); root "Google Test LLC" as expected for an emulator. Share sheet opens. |
 
-**For each physical phone:** install the debug build, tap the button, send the JSON to M4. Expect `TEE` or `StrongBox`
-and a chain ending at Google's hardware attestation root.
+**For each physical phone:** install the debug build, tap the button, send the JSON to M4 (or run
+`python app/tools/phone_check.py --build`, which does the same without tapping and saves the JSON under
+`app/build/phone_check/`). Expect `TEE` or `StrongBox` and a chain ending at Google's hardware attestation root.
+
+### On merged `main` (after PR #10): trusted-contact push, registration, phone check
+
+Server: `main`'s backend (M3 + M4 auth) in dev mode, `SATARK_ENV=dev SATARK_AUTH_ENABLE_DEV_TOKEN=1`, port 8000, no
+Firebase or Razorpay credentials (the server uses its stub push and order clients). App: `role_1` on top of `main`, no
+`google-services.json` unless stated. Reason text: M4's generated `strings.xml`.
+
+| # | Path | Expected | Result |
+|---|---|---|---|
+| 21 | Fresh install | Onboarding shows the new trusted-contact card; "Show my pairing code" without a Firebase config says push is not set up in this build | Pass |
+| 22 | Protection screen | Pay screen → "Protection and trusted contact" (permission status, trusted contact); system back returns to the pay screen | Pass |
+| 23 | Link a trusted contact (a second device registered on the server with the dev token) | Garbage → "does not look right"; unknown device → "not registered yet" (404); own code → "your own code"; the contact → "Linked."; the server stores the link and exactly the pasted token | Pass, after fix N |
+| 24 | Alarm → push to the contact | Unknown call + sideload → `/alert` → the server sends to the contact's token (`alerts.delivered = 1`, stub push client) | Pass |
+| 25 | The contact's phone receives a push (simulated with `DebugFakePushReceiver`) | High-priority "Someone you protect may be being scammed" and "Long video call with an unknown person" notifications | Pass |
+| 26 | Firebase config present (dummy project, not committed) | Firebase initialises but makes no registration call at startup; "Show my pairing code" → Firebase refuses the dummy key → clear message, no crash | Pass |
+| 27 | Registration on a fresh install | Exactly one registration (challenge → `/auth/device` refused in dev → `/auth/dev-token`) | Pass, after fix O |
+| 28 | `python app/tools/phone_check.py --build --allow-emulator` | 36/36 both paths; attestation exported (challenge from the server); fresh install opens onboarding; permissions revoked → banners, no crash. The rows say "Emulator", so they do not count for the freeze | Pass |
 
 ## Defects found and fixed (all on `role_1`)
 
@@ -100,12 +120,15 @@ and a chain ending at Google's hardware attestation root.
 | L | Session restore kept a call/video open whose end was missed while the app was dead → false `F_UNK_VIDEO_ACTIVE` | Sources report current state at start; restored video end is dated at the last event seen | `a627b52` |
 | M | The app reset the detector after any 2 h gap, even during an open unknown video call: lost the long-session alarm (vectors S050008, S050139) and changed a decision M2 measured (S052021) | Reset only after 96 h of silence (longest SatarkSim session) and never while a call or video is open | `4782b89` |
 | J | Alarm only visible inside Satark, which the user is usually not looking at | High-priority notification on every alarm | `64fa08a` |
+| N | The pairing-code parser took any text glued after the code as part of the push token; the server accepts any string, so every alert to that contact would have failed silently | The token must have the FCM shape; over-long input is refused, not cut | `64de9b9` |
+| O | Startup registered 2 to 3 times (MainActivity and AppGraph at once); with real attestation each registration is a new key, so the phone's device id would have changed | Re-check inside the registration lock | `997fb08` |
 
 ## Not covered here (needs others or a physical phone)
 
-- Key Attestation, refresh after expiry, re-register: needs M4's `/auth/*` merged; StrongBox/TEE needs a real phone.
-- Trusted-contact link and push received on a second device: needs a Firebase project (`google-services.json`).
+- Key Attestation with a hardware key (TEE/StrongBox), refresh after expiry and re-register against a production-mode
+  server: needs a real phone, M4's pinned Google roots and the signing digest on the server.
+- A real push reaching a second device: needs a Firebase project (`app/google-services.json` for the app, credentials
+  for the server). Linking and the server-side send are verified above with the stub push client.
 - Razorpay test-mode `paid` path and webhooks: needs a Razorpay test key on the server and the app.
-- Readable reasons on screen: needs M4's `strings.xml`.
 - QR scan with a real camera, ₹1 to a real VPA through GPay/PhonePe, the older test phone (minSdk 26), and the
   final two passes on both phones, the last on the release build.

@@ -28,6 +28,8 @@ Checked on 2026-10-22, `role_1`, debug build on an Android 15 emulator against t
 | `/trusted-contact` | The trusted contact's device id and push token | Linking |
 | The UPI app the user picks | `upi://pay` with VPA, name, amount, note | Needed to pay; it is the user's own payment app, started by the user |
 | Razorpay checkout | Order id, amount, currency, "Satark" | Test-mode checkout. No VPA. |
+| Google (Firebase Cloud Messaging) | A Firebase installation id and this phone's push token. **Only after the user taps "Show my pairing code"** (auto-init is off in the manifest); analytics are off | To receive trusted-contact alerts. Phones that never show a code never contact Firebase (checked: with a Firebase config present, no registration call at startup) |
+| Through Google, to the contact's phone | The alert the server sends: today a title, a body made of the raw reason codes, and the data `type` and `owner_device_id` | The contact's alert. The app's own text for the contact names no payment details, but Android shows the server's body when the app is in the background (see open points) |
 
 Release builds talk HTTPS only (`res/xml/network_security_config.xml`); certificate pins are added once
 `contracts/pins.txt` exists.
@@ -69,7 +71,12 @@ Pass, after two fixes made during this check (event retention, device-transfer e
 ## Open points
 
 - **Physical phones**: repeat the canary run on both test phones (vendor dialers and backup tools differ).
-- **Firebase (not wired yet)**: when push is added, confirm only the push token and alert type reach Firebase.
+- **Push content (M3)**: the server's push puts the protected person's reason codes (e.g. `F_NEW_PAYEE`) in the
+  notification body, which passes through Google and shows on the contact's lock screen when Satark is in the
+  background. A data-only message (`type` only, high priority) would keep those details off Google's notification
+  payload and let the app show its own wording, which has no payment details.
+- **Firebase on a real project**: repeat the startup check (no Firebase traffic before "Show my pairing code") with the
+  team's Firebase project; the check above used a dummy project.
 - **For M3/M4, not privacy**: noticed during the run. A sideload-during-call alarm had fired, yet a ₹7 payment to a new
   payee in the same call was allowed (the payment's own score was low). The server holds only on the payment's own
   decision. Whether a session that already raised a HARD alarm should hold every payment is a product decision for
