@@ -8,9 +8,11 @@ Read this first if you are picking the project up cold. It says what exists, how
 * `main` holds all four modules: detector (M2), Android app (M1), backend (M3), security/CI/evaluation (M4). PR #10 merged them.
 * **PR #11 is open and not merged** (10 of 10 CI checks green). It adds the follow-up work listed below, so until it merges `main` does not
   have it. A person should review and merge it.
-* Branches `integration/all`, `feat/m1-app`, `feat/m2-detector`, `m4`, `role_1` and the old `feat/m3-*` are merged or superseded and can be deleted.
+* Branches `integration/all`, `feat/m1-app`, `feat/m2-detector`, `m4` and the old `feat/m3-*` are merged or superseded and can be deleted.
+  **Do NOT delete `role_1`:** M1 kept working on it after PR #8 merged. Four commits (Firebase push, protection screen, `app/tools/phone_check.py`,
+  register-once) are on that branch only, with no PR and no CI run yet.
   `docs/context-handoff` (M3's old handoff) is superseded by `docs/BACKEND_HANDOFF.md`.
-* Release is **blocked on purpose** by five dev-token stub markers until real Key Attestation works on a phone.
+* Release is **blocked on purpose** by dev-token stub markers (five on `main`; three once M1's `role_1` commits merge) until real Key Attestation works on a phone.
 
 ## Where the detector work lives
 
@@ -75,7 +77,7 @@ untested, not proven**; do not present them as a measured result.
 ## Decisions that need people (in order)
 
 1. Review and merge PR #11. Approve #10's contract and gate-adjacent changes (`api.yaml` 422, stub allowlist, calibration margin, held-out adapter).
-2. M1: both physical phones (36/36, attestation chains), the Firebase push **code** (the app has no Firebase integration yet; only the backend sends pushes), Razorpay test key, signed release.
+2. M1: open a PR for the four new commits on `role_1` (Firebase push, protection screen, `app/tools/phone_check.py`, register-once; merges cleanly, no CI has run on them), then both physical phones (36/36, attestation chains), a Firebase `google-services.json` and Razorpay test key, signed release.
 3. M4: verify and pin Google's roots; then M3 deploys; then pins, DB role, `SATARK_TRUSTED_PROXY_HOPS`.
 4. M2: run the freeze pre-flight when the phone results exist, tag, then M4's single held-out run.
 5. Optional: a NUDGE tier (the detector only emits NONE or HARD), and real or better-simulated data to test whether personal baselines help.

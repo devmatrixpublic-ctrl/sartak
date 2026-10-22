@@ -44,4 +44,4 @@ Without Android: `python ops/e2e/run_e2e.py` shows the real detector driving the
 ## Limits to know
 * **An emulator cannot register with a production-mode server.** Its attestation is software-only, so the server refuses it; debug builds fall back to
   `/auth/dev-token`, which exists only on a dev server. Against Render only a real phone with a hardware-backed key works, once M4's roots and the signing digest are set.
-* **Push to the trusted contact is not wired into the app** (no Firebase dependency, no messaging service). The backend sends pushes; the app cannot yet receive them.
+* **Push to the trusted contact:** on `main` the app has no Firebase code (the backend sends pushes, the app cannot receive them). M1 has since pushed Firebase push, a protection screen and a one-command phone check (`app/tools/phone_check.py`) to the `role_1` branch (commits 64de9b9..7d98cb1). That is **not merged and has had no CI run yet**; it needs a PR.
