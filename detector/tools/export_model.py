@@ -33,6 +33,13 @@ BASELINE_WINDOW_N = 50  # design choice, see Baseline.kt: last-N payments for th
 BASELINE_BLEND_K = 20   # design choice: weight of own history = n / (n + K), K ~ "under ~20 observed payments" (exec summary v3)
 
 
+def load_watchlist(path: Path) -> list[str]:
+    """The shared watch-list (contracts/watchlist.json, owned by M1) is the single source for model.json."""
+    pk = json.loads(path.read_text())["packages"]
+    assert pk and len(set(pk)) == len(pk), "watchlist.json must list each package once"
+    return pk
+
+
 def load(data: Path):
     users = pd.read_csv(data / "satarksim_users.csv")
     sessions = pd.read_csv(data / "satarksim_sessions.csv")
@@ -106,12 +113,14 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--data", type=Path, default=ROOT / "data" / "satarksim")
     ap.add_argument("--params", type=Path, default=ROOT / "detector" / "reference" / "params.json")
+    ap.add_argument("--watchlist", type=Path, default=ROOT / "contracts" / "watchlist.json")
     ap.add_argument("--alpha", type=float, default=0.001)
     ap.add_argument("--model-out", type=Path, default=ROOT / "detector" / "src" / "main" / "resources" / "model.json")
     ap.add_argument("--golden-out", type=Path, default=ROOT / "detector" / "src" / "test" / "resources" / "golden")
     a = ap.parse_args()
 
     params = json.loads(a.params.read_text())
+    params["watchlisted_remote_apps"] = load_watchlist(a.watchlist)  # contracts/watchlist.json wins over params.json
     users, sessions, events = load(a.data)
     pay, alerts, first_pay = sd.featurize(events, users, params["watchlisted_remote_apps"])
     det, model = build_model(users, sessions, pay, alerts, first_pay, a.alpha, params)

@@ -95,3 +95,11 @@ def test_malformed_or_non_upi_uris_are_rejected(uri):
 ])
 def test_invalid_events_are_rejected(bad):
     assert errors(bad)
+
+
+def test_model_watchlist_equals_the_shared_watchlist_contract():
+    """contracts/watchlist.json (M1) is the single source; model.json must carry exactly the same packages (M1's manifest
+    <queries> and WatchlistSource read the same file, and M1's test compares it with model.json)."""
+    wl = json.loads((ROOT / "contracts" / "watchlist.json").read_text())["packages"]
+    model = json.loads((ROOT / "detector" / "src" / "main" / "resources" / "model.json").read_text())
+    assert sorted(model["watchlist"]) == sorted(wl)
