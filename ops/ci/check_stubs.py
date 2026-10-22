@@ -18,6 +18,7 @@ from pathlib import Path
 MARKER = re.compile(r"@SatarkStub\b|#\s*SATARK_STUB\b")
 SKIP_DIRS = {".git", ".venv", "node_modules", "__pycache__", ".pytest_cache", "build", ".gradle"}
 SCAN_SUFFIXES = {".py", ".kt", ".kts", ".java", ".xml", ".yaml", ".yml", ".json", ".toml", ".gradle"}
+PLANNED = Path(__file__).with_name("planned_stubs.txt")
 SELF_FILES = {Path(__file__).resolve(), Path(__file__).with_name("test_check_stubs.py").resolve()}
 
 
@@ -38,6 +39,18 @@ def find_stubs(root: Path) -> list[tuple[Path, int, str]]:
     return hits
 
 
+def planned_stubs() -> list[tuple[str, str]]:
+    """(path, text) pairs from planned_stubs.txt: markers the plan itself lists. Each entry exempts ONE added marker line."""
+    out = []
+    if PLANNED.is_file():
+        for line in PLANNED.read_text(encoding="utf-8").splitlines():
+            if line.strip() and not line.lstrip().startswith("#"):
+                cells = [c.strip() for c in line.split("|")]
+                if len(cells) >= 2 and cells[0] and cells[1]:
+                    out.append((cells[0], cells[1]))
+    return out
+
+
 def changed_markers(root: Path, ref: str) -> tuple[list[tuple[str, str]], int]:
     """(marker lines ADDED, number of marker lines REMOVED) by the diff from `ref` to HEAD (three-dot)."""
     out = subprocess.run(["git", "-C", str(root), "diff", "--unified=0", "--no-color", f"{ref}...HEAD"],
@@ -45,6 +58,7 @@ def changed_markers(root: Path, ref: str) -> tuple[list[tuple[str, str]], int]:
     if out.returncode != 0:
         raise RuntimeError(f"git diff against {ref} failed: {out.stderr.strip()}")
     hits, removed, current = [], 0, ""
+    planned, used = planned_stubs(), set()
     for line in out.stdout.splitlines():
         if line.startswith("+++ b/"):
             current = line[6:]
@@ -56,7 +70,12 @@ def changed_markers(root: Path, ref: str) -> tuple[list[tuple[str, str]], int]:
             if Path(current).suffix not in SCAN_SUFFIXES or Path(current).name in {"check_stubs.py", "test_check_stubs.py"}:
                 continue
             if line.startswith("+"):
-                hits.append((current, line[1:].strip()))
+                text = line[1:].strip()
+                allowed = next((i for i, (p, t) in enumerate(planned) if p == current and t in text and i not in used), None)
+                if allowed is not None:
+                    used.add(allowed)           # a planned stub, exempted once
+                else:
+                    hits.append((current, text))
             else:
                 removed += 1
     return hits, removed

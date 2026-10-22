@@ -83,3 +83,42 @@ def test_new_since_with_an_unknown_ref_fails_loudly(tmp_path):
     _git(tmp_path, "add", "-A")
     _git(tmp_path, "commit", "-q", "-m", "x")
     assert check_stubs.main(["x", "--new-since", "no-such-ref", str(tmp_path)]) == 1
+
+
+# --- planned stubs (the plan's own "Temporary stubs" table): exempt from the PR rule, never from the release scan -----------------
+def _with_planned(monkeypatch, entries):
+    monkeypatch.setattr(check_stubs, "planned_stubs", lambda: entries)
+
+
+def test_a_planned_stub_is_not_counted_as_new_but_still_blocks_release(tmp_path, monkeypatch):
+    _repo_with_stub(tmp_path)
+    (tmp_path / "net.kt").write_text('@SatarkStub("dev token until /auth/device is live")\nfun a() {}\n')
+    _git(tmp_path, "add", "-A")
+    _git(tmp_path, "commit", "-q", "-m", "adds the planned dev-token stub")
+    assert check_stubs.main(["x", "--new-since", "main", str(tmp_path)]) == 1             # without the allowlist it fails
+    _with_planned(monkeypatch, [("net.kt", "dev token")])
+    assert check_stubs.main(["x", "--new-since", "main", str(tmp_path)]) == 0             # planned: tolerated in a PR
+    assert check_stubs.main(["x", str(tmp_path)]) == 1                                     # release scan ignores the allowlist
+
+
+def test_an_unplanned_stub_and_a_second_copy_of_a_planned_one_still_fail(tmp_path, monkeypatch):
+    _repo_with_stub(tmp_path)
+    _with_planned(monkeypatch, [("net.kt", "dev token")])
+    (tmp_path / "net.kt").write_text('@SatarkStub("dev token")\nfun a() {}\n@SatarkStub("dev token again")\nfun b() {}\n')
+    _git(tmp_path, "add", "-A")
+    _git(tmp_path, "commit", "-q", "-m", "two copies")
+    assert check_stubs.main(["x", "--new-since", "main", str(tmp_path)]) == 1             # each entry exempts exactly ONE marker
+    (tmp_path / "net.kt").write_text('@SatarkStub("dev token")\nfun a() {}\n')
+    (tmp_path / "other.py").write_text("x = 1  # SATARK_STUB: something nobody planned\n")
+    _git(tmp_path, "add", "-A")
+    _git(tmp_path, "commit", "-q", "-m", "unplanned")
+    assert check_stubs.main(["x", "--new-since", "main", str(tmp_path)]) == 1             # wrong file: not exempt
+
+
+def test_the_repo_planned_list_only_names_the_dev_token_stub_and_files_that_exist():
+    root = pathlib.Path(__file__).resolve().parents[2]
+    entries = check_stubs.planned_stubs()
+    assert entries and len(entries) <= 8, "the plan lists exactly one remaining stub (dev token); keep this list tight"
+    for path, text in entries:
+        assert (root / path).is_file(), f"planned_stubs.txt names a file that does not exist: {path}"
+        assert "dev" in text.lower() or "token" in text.lower() or "bearer" in text.lower(), f"not the dev-token stub: {text}"

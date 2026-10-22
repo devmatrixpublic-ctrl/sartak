@@ -2,6 +2,7 @@
 here can), but they pin the properties that matter: least privilege, no fork-secret exposure, release gating,
 and that every script a step calls actually exists."""
 import re
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -128,3 +129,12 @@ def test_every_java_setup_matches_the_toolchain_the_projects_require():
             if str(s.get("uses", "")).startswith("actions/setup-java"):
                 got = int(s["with"]["java-version"])
                 assert got >= need, f"{name}: setup-java provides JDK {got} but the projects need {need}"
+
+
+def test_the_gradle_wrapper_is_executable_in_git():
+    """`./gradlew` is run by the Android jobs; mode 100644 makes them fail with exit code 126 ("not executable"), which is exactly
+    how the first Android CI run failed. Windows checkouts silently drop the bit, so pin it."""
+    p = subprocess.run(["git", "-C", str(ROOT), "ls-files", "-s", "gradlew"], capture_output=True, text=True)
+    if p.returncode != 0 or not p.stdout.strip():
+        pytest.skip("not a git checkout or no gradlew in the repo")
+    assert p.stdout.split()[0] == "100755", f"gradlew has git mode {p.stdout.split()[0]}; run: git update-index --chmod=+x gradlew"
