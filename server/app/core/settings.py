@@ -31,6 +31,10 @@ class Settings(BaseSettings):
 
     rate_limit_per_minute: int = 60
 
+    # Request-body caps in bytes. The largest legitimate body is /auth/device (up to 6 attestation certificates, ~12 KB base64).
+    max_body_bytes: int = 64 * 1024
+    webhook_max_body_bytes: int = 256 * 1024
+
     # Device auth (Member 4, contracts/auth.md). Identity of the release app for attestation check 6.
     auth_expected_package: str = ""
     auth_expected_signing_sha256: str = ""      # comma-separated lowercase hex SHA-256 digests

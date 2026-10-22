@@ -6,6 +6,7 @@ from fastapi.exceptions import RequestValidationError
 from app.auth.config import validate_auth_settings
 from app.auth.errors import AuthError, auth_error_handler
 from app.auth.routes import router as auth_router
+from app.core.limits import BodySizeLimitMiddleware
 from app.core.errors import ApiError, api_error_handler, unhandled_error_handler, validation_error_handler
 from app.core.logging import RequestCorrelationMiddleware, configure_logging
 from app.core.settings import get_settings
@@ -33,6 +34,8 @@ def create_app() -> FastAPI:
     docs = {} if settings.is_dev else {"docs_url": None, "redoc_url": None, "openapi_url": None}
     app = FastAPI(title="Satark Backend", version="0.1.0", lifespan=lifespan, **docs)
     app.add_middleware(RequestCorrelationMiddleware)
+    app.add_middleware(BodySizeLimitMiddleware, max_bytes=settings.max_body_bytes,
+                       path_limits={"/webhooks/": settings.webhook_max_body_bytes})
 
     app.add_exception_handler(ApiError, api_error_handler)
     app.add_exception_handler(AuthError, auth_error_handler)   # same body, plus WWW-Authenticate / Retry-After
