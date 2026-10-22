@@ -164,3 +164,13 @@ def test_scoring_adapter_on_a_heldout_shaped_file(tmp_path):
     text = rh.render_result(res, "a" * 40, "b" * 64, note, "now")
     assert "baseline assumption" in text and "cases raised an alarm" in text
     assert all(sid in text for sid in ids)
+
+
+def test_cli_help_and_parser_construction_work(capsys):
+    """argparse treats a bare '%' in a help string as a format code: 'the 0.1% false-alarm' once crashed --help on every
+    Python and the whole runner on 3.14. Building the parser and printing help must never raise."""
+    with pytest.raises(SystemExit) as exc:
+        rh.main(["--help"])
+    assert exc.value.code == 0
+    out = capsys.readouterr().out
+    assert "--check" in out and "--alpha" in out and "0.1% false-alarm" in out

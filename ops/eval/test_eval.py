@@ -101,3 +101,12 @@ def test_local_hash_manifest_roundtrip_and_tamper_detection(tmp_path, monkeypatc
     assert "does not match" in rlh.verify(manifest, {"baf": raw})[0]
     assert "no hash recorded" in rlh.verify(manifest, {"ieee_cis": raw})[0]
     json.dumps(manifest)
+
+
+def test_cli_help_and_parser_construction_work(capsys):
+    """A bare '%' in an argparse help string is a format code: 'the 0.1% false-alarm' once crashed the whole pipeline on
+    Python 3.14 (and --help everywhere). Building the parser and printing help must never raise."""
+    with pytest.raises(SystemExit) as exc:
+        ev.main(["--help"])
+    assert exc.value.code == 0
+    assert "--alpha" in capsys.readouterr().out
