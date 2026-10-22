@@ -130,7 +130,7 @@ Not yet done: the instrumented run of the 36 vectors on the two **physical** pho
 ## 10. Open items
 
 - **Levels:** the detector emits `NONE` or `HARD`. `NUDGE` and `TRUSTED_CONTACT` (in `contracts/api.yaml`) are not produced.
-- **Baseline:** the rolling last-50 median/MAD with an `n/(n+20)` blend toward the population prior is a design choice of the port, unit-tested but not validated on data.
+- **Baseline (tested, result is uncomfortable):** the rolling last-50 median/MAD with an `n/(n+20)` blend toward a population prior is a design choice of the port. `detector/experiments/baseline_cold_start.md` compares a mature personal history with a brand-new install (population prior for everyone), each recalibrated: recall 93.1% vs 94.8% and false alarms 0.071% vs 0.111%, with overlapping intervals. **SatarkSim therefore shows no benefit from personalised baselines**, and with this data it cannot show they are useless either: its scam amounts are far above any user's normal, so the amount baseline barely matters. Do not present "adaptive per-user thresholds" as a measured result; it remains a design hypothesis until real or better-simulated data tests it.
 - **Session boundaries:** undefined by the reference; the app decides (`app/.../SessionPolicy.kt`).
 - **Rule false alarms:** SatarkSim has no genuine sideloads or long unknown-number video calls, so the rules' 0% false-alarm rate is untested against real behaviour.
 - **Unknown video origin:** the app infers it (`VideoOrigin`); the platform cannot say who is on a video call.

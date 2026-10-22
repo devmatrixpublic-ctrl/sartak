@@ -15,7 +15,7 @@ This repository holds the whole system, built against the module-wise implementa
 | Module | Owner | What exists | Not done yet |
 | --- | --- | --- | --- |
 | Android app (`app/`) | Member 1 | all 8 plan sections implemented; 36/36 vectors on an emulator; privacy check; emulator end-to-end log (`app/e2e_log.md`) | runs on **physical phones**, real Key Attestation, Firebase push, Razorpay `paid` path, signed release build |
-| On-device detector (`detector/`) | Member 2 | Kotlin detector, `model.json`, schema and reason-code contracts, reports | 36/36 on physical phones, then the `detector-freeze` tag. Simulated results: recall 93.1%, false alarms 0.071% (`detector/detector_report.md`) |
+| On-device detector (`detector/`) | Member 2 | Kotlin detector, `model.json`, schema and reason-code contracts, reports | 36/36 on physical phones, then the `detector-freeze` tag. Simulated results: recall 93.1% on validation (cross-validated about 91.8%), false alarms 0.071% (`detector/detector_report.md`) |
 | **Backend (`server/`)** | **Member 3** | implemented (P0–P7) plus M4's auth; 161 tests | never deployed to Render; real Razorpay/Firebase credentials |
 | Security / CI / evaluation (`ops/`, `server/app/auth/`) | Member 4 | auth, CI, evaluation gate, strings, held-out runner, security checklist | Google attestation roots, chains from real phones, certificate pins (need the deployed domain), the one held-out run |
 
