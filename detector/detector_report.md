@@ -119,4 +119,6 @@ Not yet done: the instrumented run of the 36 vectors on the two physical phones 
 - **Session boundaries:** undefined by the reference; the app decides when to call `reset()`/`finish()`.
 - **Rule false alarms:** SatarkSim has no genuine sideloads or long unknown-number video calls, so the 0% false-alarm rate of the two rules is untested against real behaviour.
 - **Watch-list:** the model knows 3 remote-access apps (from `params.json`); drift shows a static list loses coverage. M1 owns the real list; unverified package names in the research notes must be checked on a device.
-- **Tag:** `detector-freeze` is not set; it should be set only after the on-phone run and your sign-off.
+- **Tag:** `detector-freeze` is not set; it should be set only after the on-phone run and sign-off. M1 has run the 36 vectors 36/36 on an Android 15 emulator (JVM and instrumented, `app/e2e_log.md`); physical phones remain.
+- **False-alarm target:** `detector/experiments/conformal_confidence.md` tried thresholds with a 90% confidence statement on the false-alarm rate: false alarms 0.040% (CI 0.011-0.104%) but recall 92.6% (CI 90.1-94.6%). Neither this nor the shipped thresholds meets both plan targets on SatarkSim; the choice is a team decision and the shipped model is unchanged.
+- **Held-out baselines:** with no per-user history, `ops/heldout/run_heldout.py` scores each case as a brand-new user, as the phone does: the cold-start prior in `model.json` and an unknown age band (pooled threshold).

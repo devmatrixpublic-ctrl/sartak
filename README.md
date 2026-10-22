@@ -7,22 +7,34 @@ amounts, abnormally long sessions — scores them on-device with a
 conformal-calibrated detector, and can hold a payment, nudge the user, or
 alert a trusted contact before money moves.
 
-This repository currently contains **Member 3's scope** (the backend in
-`server/`: payments, alerts, deployment, built against `contracts/api.yaml`)
-and the first slice of **Member 4's scope** (device authentication in
-`server/app/auth/`, specified in `contracts/auth.md`). The full system (Android app, on-device
-detector, CI/security pipeline) is specified in the module-wise
-implementation plan; this README documents what's implemented here and how
-it fits into that larger plan.
+This repository holds the whole system, built against the module-wise implementation plan and the shared contracts in
+`contracts/`: the Android app, the on-device detector, the backend and the security/CI/evaluation tooling.
 
 ## Status
 
-| Module | Owner | Status |
-| --- | --- | --- |
-| Android app (`app/`) | Member 1 | not in this repo yet |
-| On-device detector (`detector/`) | Member 2 | not in this repo yet |
-| **Backend (`server/`)** | **Member 3** | **implemented (P0–P7), see below** |
-| Security / CI / evaluation (`ops/`, `server/app/auth/`) | Member 4 | **all six plan items built and tested here (4.1 auth, 4.2 CI, 4.3 evaluation, 4.4 strings, 4.5 security, 4.6 held-out runner); open items need real phones, the real domain or other members: see `ops/README.md`** |
+| Module | Owner | What exists | Not done yet |
+| --- | --- | --- | --- |
+| Android app (`app/`) | Member 1 | all 8 plan sections implemented; 36/36 vectors on an emulator; privacy check; emulator end-to-end log (`app/e2e_log.md`) | runs on **physical phones**, real Key Attestation, Firebase push, Razorpay `paid` path, signed release build |
+| On-device detector (`detector/`) | Member 2 | Kotlin detector, `model.json`, schema and reason-code contracts, reports | 36/36 on physical phones, `detector-freeze` tag, false-alarm target decision (see `detector/detector_report.md`) |
+| **Backend (`server/`)** | **Member 3** | implemented (P0–P7) plus M4's auth; 161 tests | never deployed to Render; real Razorpay/Firebase credentials |
+| Security / CI / evaluation (`ops/`, `server/app/auth/`) | Member 4 | auth, CI, evaluation gate, strings, held-out runner, security checklist | Google attestation roots, chains from real phones, certificate pins (need the deployed domain), the one held-out run |
+
+Release is gated on purpose: it fails while any `@SatarkStub` / `# SATARK_STUB` marker remains (the dev-token stub) and while
+the evaluation gate fails.
+
+## Limitations
+
+- **Holds cover only payments started in Satark** (scan or manual entry in the app). A payment started directly in GPay,
+  PhonePe or another UPI app can only be warned about, not held.
+- **UPI hand-off outcomes are app-reported, not verified.** Many UPI apps return nothing or unreliable data. Only a
+  Razorpay checkout in test mode is verified, by its webhook.
+- **Play Integrity is not implemented.** Android Key Attestation is used instead; it does not prove Play licensing or that
+  Google Play recognises the app.
+- **All detection results are on simulated data (SatarkSim).** They show the logic separates the simulated scam playbooks from
+  hard negatives; they do not measure real-world accuracy. At a realistic fraud rate (about 1 in 1.47 lakh) even a 0.1%
+  false-alarm rate gives a precision well under 1%.
+- **Unknown-contact signals depend on permissions and phone makers.** Without them the detector falls back to amount, payee and
+  install signals (see `contracts/schema.json`, `missing_signal_defaults`).
 
 Backend build log, phase by phase, on branches `feat/m3-p0-contract` through
 `feat/m3-p7-hardening`:

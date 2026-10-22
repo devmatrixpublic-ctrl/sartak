@@ -4,18 +4,21 @@ Workflows: [`ci.yml`](../../.github/workflows/ci.yml) on every pull request, [`r
 
 ## What was and was not verified
 
-None of this has run on GitHub yet. What was checked from this machine:
+**Ran on GitHub** (PR #9, head `01e039d`, 10 checks, all success): server tests + ops tests + strings, contract tests, detector
+JUnit (36 vectors, parity, fuzz), evaluation (reports, does not block), gitleaks over full history, dependency scan, server
+image build, stub check, TLS/pin tool tests. The `android` job was **skipped** there because `app/` did not exist yet.
 
-* Both files validate against GitHub's own workflow schema (`check-jsonschema --builtin-schema vendor.github-workflows`).
-* `ops/ci/test_workflows.py` pins least-privilege permissions, no `pull_request_target`, no secrets in PR runs, version-pinned actions,
-  release gating, and that every script a step calls exists.
-* The commands of the `server`, `contracts`, `strings`, `evaluation`, `dependency-scan` and `stubs` jobs were run locally and pass
-  (evaluation reports its known failure, below).
+**Not yet verified on a runner:** the `android` and `android-release` jobs (first real run happens once `app/` is merged; they
+need JDK 21, see below), the Render deploy hook, and anything that needs secrets.
 
-**Not verified anywhere yet:** the `detector` job (needs JDK 21 + Gradle; this machine has Java 8), `secrets-scan` (gitleaks via Docker
-image `zricethezav/gitleaks:v8.21.2`; Docker is not running here, and the tag is from memory, so a wrong tag shows up as a red job),
-`docker`, and `android` / `android-release` (there is no `app/` project in the repo yet, so they skip with a notice).
-Actions are pinned to major-version tags, not commit SHAs.
+**Fixed after review:** both Android jobs asked `setup-java` for JDK 17 while `app/` (`JavaVersion.VERSION_21`) and `detector/`
+(`jvmToolchain(21)`) need 21, so the first Android job would have failed on toolchain resolution. They now use 21, and
+`test_every_java_setup_matches_the_toolchain_the_projects_require` reads the requirement from the Gradle files so it cannot
+drift again. Actions are pinned to major-version tags, not commit SHAs.
+
+Also checked locally: both files validate against GitHub's workflow schema, and `ops/ci/test_workflows.py` pins least-privilege
+permissions, no `pull_request_target`, no secrets in PR runs, version-pinned actions, release gating, and that every script a
+step calls exists.
 
 ## Pull-request jobs
 
