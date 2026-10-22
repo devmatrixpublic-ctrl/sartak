@@ -15,7 +15,7 @@ This repository holds the whole system, built against the module-wise implementa
 | Module | Owner | What exists | Not done yet |
 | --- | --- | --- | --- |
 | Android app (`app/`) | Member 1 | all 8 plan sections implemented; 36/36 vectors on an emulator; privacy check; emulator end-to-end log (`app/e2e_log.md`) | runs on **physical phones**, real Key Attestation, Firebase push, Razorpay `paid` path, signed release build |
-| On-device detector (`detector/`) | Member 2 | Kotlin detector, `model.json`, schema and reason-code contracts, reports | 36/36 on physical phones, `detector-freeze` tag, false-alarm target decision (see `detector/detector_report.md`) |
+| On-device detector (`detector/`) | Member 2 | Kotlin detector, `model.json`, schema and reason-code contracts, reports | 36/36 on physical phones, then the `detector-freeze` tag. Simulated results: recall 93.1%, false alarms 0.071% (`detector/detector_report.md`) |
 | **Backend (`server/`)** | **Member 3** | implemented (P0–P7) plus M4's auth; 161 tests | never deployed to Render; real Razorpay/Firebase credentials |
 | Security / CI / evaluation (`ops/`, `server/app/auth/`) | Member 4 | auth, CI, evaluation gate, strings, held-out runner, security checklist | Google attestation roots, chains from real phones, certificate pins (need the deployed domain), the one held-out run |
 
@@ -238,7 +238,9 @@ requirement, not hidden in a footnote):
 ## Known limitations
 
 - **Release is gated and currently blocked, on purpose.** `release.yml` refuses to deploy while a stub marker remains (the dev-token
-  stub) or while the evaluation gate fails (false alarms 0.111% vs the 0.1% target, M2's own number). See `ops/ci/README.md`.
+  stub) or while the evaluation gate fails. The gate passes today on simulated data (recall 93.1%, false alarms 0.071%); the stub is
+  what blocks. See `ops/ci/README.md`.
+- Request bodies are capped at 64 KB (256 KB for `/webhooks/`) before parsing or authentication (`server/app/core/limits.py`).
 - `/docs`, `/redoc` and `/openapi.json` are served only when `SATARK_ENV=dev`.
 - Request amounts must be positive, finite and at most 10,000,000; string fields have length limits (see `contracts/api.yaml`).
 - Not yet verified on real infrastructure: Postgres (tests use SQLite), Redis (the limiter is tested against a fake), the Docker
