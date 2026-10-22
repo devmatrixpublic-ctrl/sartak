@@ -225,6 +225,8 @@
     "validation": 0.2
   },
   "target_false_pause_alpha": 0.001,
+  "calibration_alpha": 0.0008,
+  "_note_calibration_alpha": "Thresholds are calibrated at 0.08%, not at the 0.1% target: alpha = 0.001 only makes the EXPECTED false-alarm rate 0.1% and cross-validation (detector/experiments/calibration_margin_cv.md) shows it lands at 0.107%. 0.0008 is the largest margin whose cross-validated rate is <= 0.09%.",
   "_note_size": "50k legit sessions so each age band has >= 1/alpha - 1 = 999 legit sessions in the calibration split (needed to certify alpha = 0.1% per cohort).",
   "_note_scam_size": "3,000 scam sessions gives ~150-250 per playbook in validation, so per-playbook detection rates have usable confidence intervals.",
   "_version": "v2: per-user consistency, realistic hard negatives, signal noise, 12-week calendar with drift, 5 playbooks, timing sensitivity",

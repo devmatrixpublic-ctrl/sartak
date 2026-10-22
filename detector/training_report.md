@@ -34,13 +34,13 @@ Payment-level discrimination (score every payment attempt; true label). Accuracy
 | calibration | 0.9997 | 0.9989 | 0.9913 | 0.7959 |
 | validation | 0.9998 | 0.9990 | 0.9928 | 0.7983 |
 
-## 4. Operating point: per-cohort conformal thresholds at alpha = 0.1% (payment-score alarms only)
+## 4. Operating point: per-cohort conformal thresholds, calibration alpha = 0.08% (payment-score alarms only)
 
 | Split | Sessions with a payment | Scam recall (payment score) | False alarms on legit | Session accuracy |
 |---|---|---|---|---|
-| train | 31,474 | 92.1% (1678/1822) | 0.101% (30/29652) | 99.45% |
-| calibration | 10,669 | 91.7% (550/600) | 0.089% (9/10069) | 99.45% |
-| validation | 10,356 | 93.3% (539/578) | 0.112% (11/9778) | 99.52% |
+| train | 31,474 | 91.4% (1666/1822) | 0.071% (21/29652) | 99.44% |
+| calibration | 10,669 | 91.3% (548/600) | 0.070% (7/10069) | 99.45% |
+| validation | 10,356 | 92.7% (536/578) | 0.072% (7/9778) | 99.53% |
 
 Train false alarms are optimistic by construction only for the threshold sets calibrated on a *different* split; the calibration row is the data the thresholds were set on. Validation is the honest row. The full detector also has two rules (sideload during call, long session) which catch scams with no payment at all; their effect is in `detector_report.md`.
 
@@ -75,4 +75,4 @@ If boosting is not clearly better, the logistic model is not leaving accuracy on
 
 Max difference from the coefficients in `model.json`: 0.00e+00 (should be ~0: this script trains the same model).
 
-Training run took 66 s on CPU (scikit-learn 1.9.1).
+Training run took 56 s on CPU (scikit-learn 1.9.1).

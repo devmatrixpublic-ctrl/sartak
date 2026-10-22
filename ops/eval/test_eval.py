@@ -61,7 +61,11 @@ def test_clopper_pearson_known_values():
 
 def test_shipped_report_headline_is_parseable():
     got = ev.parse_shipped_report(ev.SHIPPED_REPORT)
-    assert got == {"scam_alarmed": 540, "scam_sessions": 578, "legit_false_alarms": 11, "legit_sessions": 9887}
+    assert set(got) == {"scam_alarmed", "scam_sessions", "legit_false_alarms", "legit_sessions"}
+    # The validation split is fixed (578 scams, 9,887 legitimate); the alarm counts change whenever M2 retrains or recalibrates,
+    # so only their shape is pinned here. run_eval's own run is what checks they equal the committed report.
+    assert got["scam_sessions"] == 578 and got["legit_sessions"] == 9887
+    assert 0 < got["scam_alarmed"] <= 578 and 0 <= got["legit_false_alarms"] <= 9887
 
 
 def test_unparseable_report_is_an_error(tmp_path):

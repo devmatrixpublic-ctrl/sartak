@@ -27,6 +27,7 @@ sys.path.insert(0, str(ROOT / "detector" / "reference"))
 import satark_detector as sd  # noqa: E402
 
 DATA = ROOT / "data" / "satarksim"
+CAL_ALPHA = json.loads((ROOT / "detector" / "reference" / "params.json").read_text())["calibration_alpha"]
 SEED = 0
 
 
@@ -105,8 +106,8 @@ def main():
 
     # 4. session-level at the real operating point (conformal thresholds, alpha = 0.1%)
     det = sd.Detector().fit(pay, sessions, set(sessions[sessions.split == "train"].session_id))
-    det.calibrate(pay, sessions, set(sessions[sessions.split == "calibration"].session_id), 0.001)
-    L += ["", "## 4. Operating point: per-cohort conformal thresholds at alpha = 0.1% (payment-score alarms only)", "",
+    det.calibrate(pay, sessions, set(sessions[sessions.split == "calibration"].session_id), CAL_ALPHA)
+    L += ["", f"## 4. Operating point: per-cohort conformal thresholds, calibration alpha = {CAL_ALPHA:.2%} (payment-score alarms only)", "",
           "| Split | Sessions with a payment | Scam recall (payment score) | False alarms on legit | Session accuracy |", "|---|---|---|---|---|"]
     for n in ("train", "calibration", "validation"):
         d = split_rows(pay, sessions, n)

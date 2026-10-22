@@ -2,30 +2,30 @@
 
 Simulated data: this shows the logic separates the simulated playbooks, not real-world accuracy.
 
-**Gate: FAIL** (recall >= 93% and false alarms <= 0.1%, point estimates, alpha = 0.1%)
+**Gate: PASS** (recall >= 93% and false alarms <= 0.1%, point estimates; thresholds calibrated at alpha = 0.08%)
 
-- FAIL: false-alarm rate 0.111% is above the 0.1% target
+- both targets met
 
 | Metric | Result | 95% CI |
 |---|---|---|
-| Scam recall | 540/578 = 93.4% | 91.1% - 95.3% |
-| Interdicted before first payment | 487/578 = 84.3% | |
-| False alarms (legit) | 11/9887 = 0.111% | 0.056% - 0.199% |
-| Median lead time | 19.1 min | |
+| Scam recall | 538/578 = 93.1% | 90.7% - 95.0% |
+| Interdicted before first payment | 485/578 = 83.9% | |
+| False alarms (legit) | 7/9887 = 0.071% | 0.028% - 0.146% |
+| Median lead time | 20.2 min | |
 | Naive baseline | recall 53.1%, false alarms 3.9% | |
 
-Matches committed `detector/detector_report.md`: **yes** (shipped: 540/578 scams, 11/9887 false alarms).
+Matches committed `detector/detector_report.md`: **yes** (shipped: 538/578 scams, 7/9887 false alarms).
 
 ## Input hashes (SHA-256)
 
-- `data/satarksim/detector_test_vectors_events.csv`: `b80245f1687b42fb98a19672d007cc7de83afbc6c46faed26c3b0041f38c069b`
-- `data/satarksim/detector_test_vectors_expected.csv`: `a6b1e33ca630e6488978073528c983eee8d03aa5e4b976eeffcb126d9df94158`
-- `data/satarksim/detector_test_vectors_users.csv`: `a3fbb1feee7b74fe0ad2cfe5fd3a96e142d620beda6888bae5dbafd46bec6eed`
-- `data/satarksim/satarksim_events.csv`: `c272e332273efc1818c485575f12dce8cac49c2e6759414f930f46c7d9f35fcc`
-- `data/satarksim/satarksim_sessions.csv`: `930e2175181547faf323bbffe87a86d34c8174b13db7258a9fca42b22a3d963d`
-- `data/satarksim/satarksim_users.csv`: `6a56c9b4f9af16e55e2126d2dd8c06cdef061739a57da7477fea74f6375fc94a`
-- `data/satarksim/params.json`: `9849b9c324eeb080e5101b568b4d346bb6bf222ee4f9096d57811db35ca43721`
-- `detector/reference/params.json`: `1d04bba931a25a15800b3c6edfd39a4f0fdf27975015665c083421b7cd9ad3fe`
-- `detector/reference/satark_detector.py`: `311f1ad0ceb7e6bdb6518cb5e264e08b16bbb318179eca4799b7cd533e1f07fc`
+- `data/satarksim/detector_test_vectors_events.csv`: `b6e5a7a57118a5aeae0b84560a91a72c4fb5d8d7242ac4151f0f9ee1865ba308`
+- `data/satarksim/detector_test_vectors_expected.csv`: `0c4b18483158ac801ec0d5f22a628854fda56ad1b6fa768adf64ad61771fddca`
+- `data/satarksim/detector_test_vectors_users.csv`: `8beefdb6d77f4763f18d6b10f99554e3d81da0bd635b1dcddc72fb1d0177cdd6`
+- `data/satarksim/satarksim_events.csv`: `29fa799a1c332bf7bf9e3e7c8f846d9345f075dc631c6da97644389f8bf9ceaa`
+- `data/satarksim/satarksim_sessions.csv`: `50a351b3e56f7378738887f27ec25f55cdc3016472dc955f4c96f8e080682de1`
+- `data/satarksim/satarksim_users.csv`: `0f4f61176851abbb9b3ce6470717ee4a9a2087b07f209d14677e2f560df02c75`
+- `data/satarksim/params.json`: `26e5a787504d4c222e49c9c4154e526ec94178364ebcd24e75966e3c83543d65`
+- `detector/reference/params.json`: `e0630e4ad4cca7bd6f96dd39ed62c988773b677297ee4a1ae24deaff5222b39f`
+- `detector/reference/satark_detector.py`: `97f06dd0e883605c4b06de5efbcc65bb98d0dace33d4f239e5f9b384a5a9ac76`
 
 BAF and IEEE-CIS are run locally only; see `ops/eval/input_hashes.json` for their recorded hashes.

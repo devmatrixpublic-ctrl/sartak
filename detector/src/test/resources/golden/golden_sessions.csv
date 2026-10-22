@@ -520,7 +520,7 @@ S045693,U14040,18-35,legit,plain_payment,none,False,none,False,,39
 S045748,U00345,36-59,legit,hn_rent_salary_day,none,False,none,False,,32
 S045816,U12308,36-59,legit,plain_payment,none,False,none,False,,51
 S045957,U02961,36-59,legit,plain_payment,none,False,none,False,,31
-S045991,U04380,18-35,legit,hn_family_emergency,none,True,payment_score,True,1341,1341
+S045991,U04380,18-35,legit,hn_family_emergency,none,False,none,False,,1341
 S046113,U11321,18-35,legit,hn_out_of_order,none,False,none,False,,0
 S046160,U14291,18-35,legit,plain_payment,none,False,none,False,,76
 S046224,U00919,60+,legit,plain_payment,none,False,none,False,,37
@@ -597,7 +597,7 @@ S050479,U02270,36-59,scam,scam,malicious_apk,True,sideload_during_call,True,211,
 S050487,U09204,36-59,scam,scam,malicious_apk,True,sideload_during_call,True,469,7491
 S050489,U01007,60+,scam,scam,screen_share,True,payment_score,True,1843,1843
 S050517,U07908,60+,scam,scam,remote_access,True,payment_score,True,1046,1046
-S050531,U14829,36-59,scam,scam,family_emergency_scam,True,payment_score,False,1100,695
+S050531,U14829,36-59,scam,scam,family_emergency_scam,True,payment_score,False,1836,695
 S050539,U00575,60+,scam,scam,family_emergency_scam,True,payment_score,False,1777,916
 S050556,U13914,18-35,scam,scam,screen_share,True,payment_score,True,1783,1783
 S050563,U00992,36-59,scam,scam,remote_access,True,payment_score,True,909,909
@@ -614,8 +614,8 @@ S050671,U07636,18-35,scam,scam,family_emergency_scam,True,payment_score,False,84
 S050685,U11015,18-35,scam,scam,remote_access,True,payment_score,True,1538,1538
 S050706,U10278,36-59,scam,scam,family_emergency_scam,True,payment_score,False,647,516
 S050728,U01904,60+,scam,scam,screen_share,True,payment_score,True,1240,1240
-S050731,U06750,36-59,scam,scam,family_emergency_scam,True,payment_score,False,594,505
-S050739,U04608,36-59,scam,scam,remote_access,True,payment_score,False,1743,1665
+S050731,U06750,36-59,scam,scam,family_emergency_scam,False,none,False,,505
+S050739,U04608,36-59,scam,scam,remote_access,False,none,False,,1665
 S050759,U03597,18-35,scam,scam,digital_arrest,True,long_session,True,8138,190773
 S050765,U05092,60+,scam,scam,malicious_apk,True,sideload_during_call,True,191,6277
 S050771,U00620,36-59,scam,scam,screen_share,True,payment_score,True,1230,1230

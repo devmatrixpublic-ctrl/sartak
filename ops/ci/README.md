@@ -36,19 +36,19 @@ step calls exists.
 
 The plan's three red-PR examples: *breaks a vector* -> `detector`; *adds a fake key* -> `secrets-scan`; *leaves a stub marker* -> `stubs`.
 
-## The evaluation gate is currently red, on purpose
+## The evaluation gate
 
-`ops/eval/run_eval.py` applies the plan's gate (recall >= 93%, false alarms <= 0.1%, point estimates). It reproduces M2's published
-numbers exactly: recall 93.4% (met), false alarms 0.111% (**not met**; M2's report says the interval contains both sides). Making every PR
-red for that would train people to ignore CI, so in `ci.yml` the job reports (step summary + artifact) and does not block. Set the
-repository **variable** `EVAL_GATE_ENFORCED=true` to make it block PRs. `release.yml` always enforces it.
-Decision needed from the team: improve the detector, widen the target to the interval, or accept the gap in writing.
+`ops/eval/run_eval.py` applies the plan's gate (recall >= 93%, false alarms <= 0.1%, point estimates) to a fresh run of the reference
+detector and checks its counts equal the ones in `detector/detector_report.md`. It currently **passes** (recall 93.1%, false alarms 0.071%);
+it was red (0.111%) until thresholds were calibrated with a margin (`detector/experiments/calibration_margin_cv.md`). The intervals still
+straddle both targets, and cross-validation puts recall nearer 91.8%, so a future model change can turn it red again. In `ci.yml` the
+job reports (step summary + artifact) and does not block PRs; set the repository **variable** `EVAL_GATE_ENFORCED=true` to make it block.
+`release.yml` always enforces it.
 
 ## Release (`main`)
 
-`gate` runs first and nothing ships unless it passes: no stub markers anywhere, evaluation gate, strings valid. Today it fails on both
-the dev-token stub and the 0.111%. That is the intended release behaviour; it means **no automated deploy until the dev-token stub is
-removed and the gate is resolved.** (Render can still deploy from the repo on its own, independent of Actions.)
+`gate` runs first and nothing ships unless it passes: no stub markers anywhere, evaluation gate, strings valid. Today it fails on the
+dev-token stub only. That is the intended release behaviour; it means **no automated deploy until the dev-token stub is removed.** (Render can still deploy from the repo on its own, independent of Actions.)
 
 Then `server-image` builds the image and POSTs the Render deploy hook, and `android-release` builds the signed APK (when `app/` exists).
 

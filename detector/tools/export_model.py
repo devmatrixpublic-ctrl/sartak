@@ -71,6 +71,7 @@ def build_model(users, sessions, pay, alerts, first_pay, alpha, params):
         "model_version": "satark-detector-1",
         "provenance": "Trained on SatarkSim v2 (simulated data) by detector/tools/export_model.py; not real-world accuracy.",
         "alpha": alpha,
+        "target_false_alarm": params["target_false_pause_alpha"],
         "features": sd.FEATURES,
         "scaler": {"mean": det.scaler.mean_.tolist(), "scale": det.scaler.scale_.tolist()},
         "logistic": {"coef": det.lr.coef_[0].tolist(), "intercept": float(det.lr.intercept_[0])},
@@ -114,12 +115,14 @@ def main():
     ap.add_argument("--data", type=Path, default=ROOT / "data" / "satarksim")
     ap.add_argument("--params", type=Path, default=ROOT / "detector" / "reference" / "params.json")
     ap.add_argument("--watchlist", type=Path, default=ROOT / "contracts" / "watchlist.json")
-    ap.add_argument("--alpha", type=float, default=0.001)
+    ap.add_argument("--alpha", type=float, default=None, help="calibration alpha; default: params.json calibration_alpha")
     ap.add_argument("--model-out", type=Path, default=ROOT / "detector" / "src" / "main" / "resources" / "model.json")
     ap.add_argument("--golden-out", type=Path, default=ROOT / "detector" / "src" / "test" / "resources" / "golden")
     a = ap.parse_args()
 
     params = json.loads(a.params.read_text())
+    if a.alpha is None:
+        a.alpha = params["calibration_alpha"]
     params["watchlisted_remote_apps"] = load_watchlist(a.watchlist)  # contracts/watchlist.json wins over params.json
     users, sessions, events = load(a.data)
     pay, alerts, first_pay = sd.featurize(events, users, params["watchlisted_remote_apps"])

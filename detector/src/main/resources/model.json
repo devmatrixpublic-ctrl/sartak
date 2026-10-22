@@ -1,7 +1,8 @@
 {
   "model_version": "satark-detector-1",
   "provenance": "Trained on SatarkSim v2 (simulated data) by detector/tools/export_model.py; not real-world accuracy.",
-  "alpha": 0.001,
+  "alpha": 0.0008,
+  "target_false_alarm": 0.001,
   "features": [
     "unk_contact_recent",
     "unk_call_active",
@@ -81,15 +82,15 @@
   },
   "cohort_thresholds": {
     "18-35": {
-      "threshold": 0.9151472749909733,
+      "threshold": 1.027744719361806,
       "n_cal": 4512,
-      "k": 4509,
+      "k": 4510,
       "method": "split_conformal"
     },
     "36-59": {
-      "threshold": 0.7689530683498083,
+      "threshold": 1.0072285065740338,
       "n_cal": 4246,
-      "k": 4243,
+      "k": 4244,
       "method": "split_conformal"
     },
     "60+": {
@@ -99,7 +100,7 @@
       "method": "split_conformal"
     }
   },
-  "pooled_threshold": 0.8308586512747858,
+  "pooled_threshold": 1.0072285065740338,
   "constants": {
     "LONG_SESSION_H": 2.0,
     "CONTACT_WINDOW_S": 7200,

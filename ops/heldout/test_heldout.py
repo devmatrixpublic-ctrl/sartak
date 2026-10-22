@@ -156,7 +156,9 @@ def test_scoring_adapter_on_a_heldout_shaped_file(tmp_path):
     path = tmp_path / "heldout_events.csv"
     held.to_csv(path, index=False)
 
-    res, note = rh.score_cases(path, data, 0.001, None)
+    import json
+    alpha = json.loads((rh.ROOT / "detector" / "reference" / "params.json").read_text())["calibration_alpha"]
+    res, note = rh.score_cases(path, data, alpha, None)
     assert len(res) == 10 and set(res.alarm.unique()) <= {True, False}
     assert "NO per-user history supplied" in note and "pooled conformal threshold" in note and "brand-new user" in note
     text = rh.render_result(res, "a" * 40, "b" * 64, note, "now")

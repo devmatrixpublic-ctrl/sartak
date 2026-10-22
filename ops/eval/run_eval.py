@@ -12,7 +12,7 @@ Not run here, by design (plan 4.3): BAF and IEEE-CIS need raw Kaggle files that 
 licence-restricted for CI. Their reports are committed under data/satarksim/; record the hashes of the
 raw files you ran them on with ops/eval/record_local_hashes.py.
 
-Usage (repo root):  python ops/eval/run_eval.py [--data data/satarksim] [--alpha 0.001]
+Usage (repo root):  python ops/eval/run_eval.py [--data data/satarksim] [--alpha 0.0008]
 """
 from __future__ import annotations
 
@@ -99,7 +99,7 @@ def render_report(h: dict, failures: list[str], matches: bool, shipped: dict, ha
     lines = [
         "# M4 evaluation run (SatarkSim v2, validation split)", "",
         "Simulated data: this shows the logic separates the simulated playbooks, not real-world accuracy.", "",
-        f"**Gate: {status}** (recall >= {RECALL_MIN:.0%} and false alarms <= {FALSE_ALARM_MAX:.1%}, point estimates, alpha = {alpha:.1%})", "",
+        f"**Gate: {status}** (recall >= {RECALL_MIN:.0%} and false alarms <= {FALSE_ALARM_MAX:.1%}, point estimates; thresholds calibrated at alpha = {alpha:.2%})", "",
     ]
     lines += [f"- FAIL: {f}" for f in failures] or ["- both targets met"]
     lines += ["", "| Metric | Result | 95% CI |", "|---|---|---|",
@@ -140,7 +140,8 @@ def run(data: Path, alpha: float, out_dir: Path, shipped_report: Path = SHIPPED_
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--data", type=Path, default=ROOT / "data" / "satarksim")
-    ap.add_argument("--alpha", type=float, default=0.001)
+    ap.add_argument("--alpha", type=float, default=json.loads((ROOT / "detector" / "reference" / "params.json").read_text())["calibration_alpha"],
+                    help="calibration alpha (params.json); the 0.1% false-alarm TARGET is a separate constant")
     ap.add_argument("--out", type=Path, default=ROOT / "ops" / "eval" / "reports")
     a = ap.parse_args(argv)
     h, failures, matches = run(a.data, a.alpha, a.out)

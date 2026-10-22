@@ -11,7 +11,7 @@ Device realism: the detector deduplicates near-identical events itself (it never
 uses only `label_observed` for training. Age band is used ONLY to pick the cohort threshold, never as a feature.
 
 Usage:
-  python satark_detector.py --data data --alpha 0.001 --out data/detector_report.md
+  python satark_detector.py --data data --out data/detector_report.md   # --alpha defaults to params.json calibration_alpha
   python satark_detector.py ... --sensitivity --kaggle-upi K.csv --npci-xlsx N.xlsx   # also train-1x/test-0.5x,2x
 """
 from __future__ import annotations
@@ -26,6 +26,7 @@ import pandas as pd
 from sklearn.linear_model import LogisticRegression
 from sklearn.preprocessing import StandardScaler
 
+TARGET_FALSE_ALARM = 0.001    # plan target: false alarms <= 0.1% of legitimate sessions (thresholds use a smaller calibration alpha, see params.json)
 LONG_SESSION_H = 2.0          # §4.6 trigger
 CONTACT_WINDOW_S = 2 * 3600   # unknown-contact evidence window for payment scoring
 OCSS_WINDOW_S = 3600          # order-constrained sequence must complete within this
@@ -229,7 +230,7 @@ def report(det, res, alpha, drift, sens) -> str:
     sc, lg = v[v.label == "scam"], v[v.label == "legit"]
     L = ["# Satark reference detector: results on SatarkSim v2 (validation split)", "",
          f"Simulated data, not real-world accuracy. Trained on `label_observed` (2% noisy) from the train split; Hard-intervention "
-         f"thresholds per age cohort by split-conformal calibration on legit calibration sessions at α = {alpha:.1%}; evaluated on the "
+         f"thresholds per age cohort by split-conformal calibration on legit calibration sessions at α = {alpha:.2%}; evaluated on the "
          f"true `label` of {len(v):,} validation sessions ({len(sc)} scams). Held-out real cases NOT used.", "",
          "## 1. Headline vs the naive baseline", "",
          "| Metric | Naive co-occurrence rule | **Satark** |", "|---|---|---|",
@@ -253,16 +254,17 @@ def report(det, res, alpha, drift, sens) -> str:
           f"(cannot separate). **Satark: flags {pct(fe_l.alarm.mean())} of genuine and catches {pct(fe_s.alarm.mean())} of scams** "
           "— separation comes from amount relative to the user's own baseline and repeat payments.", ""]
     L += ["## 5. Calibration and fairness (false-alarm guarantee)", "",
-          f"Target false-pause rate per cohort: α = {alpha:.1%}. Payment-score alarms only (rule alarms reported separately).", "",
-          "| Age band | Threshold | Legit validation sessions | Empirical false-alarm rate (one-sided binomial test that the true rate exceeds α) |", "|---|---|---|---|"]
+          f"Target false-pause rate per cohort: {TARGET_FALSE_ALARM:.2%}. Thresholds are calibrated at the margin α' = {alpha:.2%} so that sampling noise "
+          "does not push the realised rate over the target (see `detector/experiments/calibration_margin_cv.md`). Payment-score alarms only (rule alarms reported separately).", "",
+          "| Age band | Threshold | Legit validation sessions | Empirical false-alarm rate (one-sided binomial test that the true rate exceeds the 0.10% target) |", "|---|---|---|---|"]
     rates = {}
     for b, g in lg.groupby("age_band"):
         k = int(g.pay_alarm_t.notna().sum())
         r = k / len(g)
         rates[b] = r
         from scipy.stats import binomtest
-        pv = binomtest(k, len(g), alpha, alternative="greater").pvalue
-        L.append(f"| {b} | {det.thr[b]:.2f} | {len(g):,} | {pct(r)} ({k} sessions; p = {pv:.2f} vs α) |")
+        pv = binomtest(k, len(g), TARGET_FALSE_ALARM, alternative="greater").pvalue
+        L.append(f"| {b} | {det.thr[b]:.2f} | {len(g):,} | {pct(r)} ({k} sessions; p = {pv:.2f} vs target) |")
     rule_fp = lg.rule_alarm_t.notna().mean()
     L += ["", f"Rule alarms (sideload-during-call, long-session) on legit sessions: {pct(rule_fp)}. "
           "**Caveat:** SatarkSim contains no genuine sideloads or long unknown-number video calls, so this is optimistic; "
@@ -293,7 +295,7 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--data", type=Path, default=Path("data"))
     ap.add_argument("--params", type=Path, default=Path(__file__).with_name("params.json"))
-    ap.add_argument("--alpha", type=float, default=0.001)
+    ap.add_argument("--alpha", type=float, default=json.loads(Path(__file__).with_name("params.json").read_text())["calibration_alpha"])
     ap.add_argument("--out", type=Path, default=Path("data/detector_report.md"))
     ap.add_argument("--sensitivity", action="store_true")
     ap.add_argument("--kaggle-upi", type=Path)
