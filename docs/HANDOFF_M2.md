@@ -8,7 +8,7 @@ Read this first if you are picking the project up cold. It says what exists, how
 * `main` holds all four modules: detector (M2), Android app (M1), backend (M3), security/CI/evaluation (M4). PR #10 merged them.
 * **PR #11 is open and not merged** (10 of 10 CI checks green). It adds the follow-up work listed below, so until it merges `main` does not
   have it. A person should review and merge it.
-* Branches `integration/all`, `feat/m1-app`, `feat/m2-detector`, `m4` and the old `feat/m3-*` are merged or superseded and can be deleted.
+* Branch cleanup done 2026-10-22: the fully merged branches (`integration/all`, `feat/m2-detector`, `m4`, `feat/m3-*`, `docs/m3-readme`, `chore/post-merge-prep`) were deleted. `feat/m1-app` (duplicate of `role_1`'s first commit) is kept.
   **Do NOT delete `role_1`:** M1 kept working on it after PR #8 merged. Four commits (Firebase push, protection screen, `app/tools/phone_check.py`,
   register-once) are on that branch only, with no PR and no CI run yet.
   `docs/context-handoff` (M3's old handoff) is superseded by `docs/BACKEND_HANDOFF.md`.

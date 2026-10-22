@@ -36,8 +36,7 @@ the evaluation gate fails.
 - **Unknown-contact signals depend on permissions and phone makers.** Without them the detector falls back to amount, payee and
   install signals (see `contracts/schema.json`, `missing_signal_defaults`).
 
-Backend build log, phase by phase, on branches `feat/m3-p0-contract` through
-`feat/m3-p7-hardening`:
+Backend build log, phase by phase (built as stacked branches, all merged to `main`):
 
 | Phase | What it shipped | Verified by |
 | --- | --- | --- |
@@ -50,7 +49,7 @@ Backend build log, phase by phase, on branches `feat/m3-p0-contract` through
 | P6 | Docker image + Render blueprint | structured JSON logs with request correlation, no payload bodies logged |
 | P7 | Security/contract hardening | mass-assignment guards, IDOR tests, contract-vs-implementation check |
 
-161 server tests (`cd server && pytest`) and 67 ops tests (`pytest ops`) pass on branch `m4`. The server suite is M3's original 56 plus M4's auth, security and rate-limit suites.
+The server suite (`cd server && pytest`, 182 tests) and the ops suite (`pytest ops`) run in CI on every pull request. The server suite is M3's original 56 plus M4's auth, security and rate-limit suites and the integration tests.
 
 ## Architecture
 
