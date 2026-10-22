@@ -16,10 +16,10 @@ Contracts owned here: `contracts/watchlist.json`, `contracts/upi.md`.
 
 ## Stubs (`@SatarkStub`, release build must fail while any remain)
 - Dev token when `/auth/*` answers 404 (`net/Network.kt`).
-- Raw reason codes on screen until M4's `strings.xml` (`ui/alerts/AlertController.kt`).
+- (removed) Raw reason codes: M4's `strings.xml` is merged and validated for all 18 codes.
 
 ## Tests
-`app/src/test` holds JVM tests (parser, mapper, dedup, sequencer, contract checks). Instrumented tests, the build of the Android module and the on-phone runs are still to do.
+`app/src/test` holds the JVM tests (UPI parser, event mapper, dedup, sequencer, session policy, M2's 36 vectors through the app pipeline, privacy and API contract checks). The instrumented 36-vector test has run on an emulator (see `e2e_log.md`); runs on physical phones are still to do.
 
 ```bash
 gradle wrapper && ./gradlew :app:testDebugUnitTest -PsatarkBaseUrl=https://<server>/ -PsatarkPins=sha256/...,sha256/...

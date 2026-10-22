@@ -1,7 +1,6 @@
 package com.satark.app.ui.alerts
 
 import android.content.Context
-import com.satark.app.SatarkStub
 import com.satark.app.events.EventDispatcher
 import com.satark.app.net.AlertRequest
 import com.satark.app.net.OfflineQueue
@@ -68,11 +67,11 @@ class AlertController(
 }
 
 /**
- * Reason code -> sentence. M4 generates `reason_<code lowercase>` strings into values/strings.xml; until they exist
- * the raw code is shown.
+ * Reason code -> sentence. M4 generates `reason_<code lowercase>` strings into values/strings.xml and
+ * `ops/strings/validate_strings.py` fails the build when a code has none. The raw-code fallback below is only a safety
+ * net for a code added after the strings were generated; it is no longer a temporary stub.
  */
 object ReasonText {
-    @SatarkStub("raw reason codes on screen until M4's validated strings.xml is merged")
     fun of(ctx: Context, code: String): String {
         val id = ctx.resources.getIdentifier("reason_" + code.lowercase(), "string", ctx.packageName)
         return if (id != 0) ctx.getString(id) else code
