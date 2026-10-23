@@ -150,6 +150,7 @@ fun HardIntervention(a: AlertUi.Hard, onCallContact: () -> Unit, onHold30: () ->
             style = MaterialTheme.typography.titleMedium, color = on)
         Text("Why Satark stopped this", style = MaterialTheme.typography.labelLarge, color = on)
         Reasons(a.reasons, on)
+        ReadAloudButton("Stop. This looks like a scam.", "Hang up. A real bank or police officer will never ask you to move money or install an app.", a.reasons, on)
         PlaybookCard(a.reasons)
         PurposeQuestion()
         Text("Payments in Satark are paused for ${Friction.PAUSE_MS / 60_000} minutes so you can talk to someone you trust.",
@@ -170,6 +171,7 @@ fun TrustedContactAlert(a: AlertUi.TrustedContact, onDone: () -> Unit) {
         Text("They will see that Satark was worried. Call them now on a number you know, and do not continue the other call.",
             style = MaterialTheme.typography.titleMedium)
         Reasons(a.reasons)
+        ReadAloudButton("Your trusted contact has been told", "Call them now on a number you know, and do not continue the other call.", a.reasons)
         PlaybookCard(a.reasons)
         Button(onClick = onDone, modifier = Modifier.fillMaxWidth()) { Text("OK") }
     }
@@ -183,6 +185,7 @@ fun LongSessionAlert(a: AlertUi.LongSession, onDone: () -> Unit) {
         Text("Scammers keep people on a video call for a long time so they can't think or ask anyone. Take a break and talk to someone you trust.",
             style = MaterialTheme.typography.titleMedium, color = on)
         Reasons(a.reasons, on)
+        ReadAloudButton("This video call has been going on for hours", "Take a break and talk to someone you trust.", a.reasons, on)
         PlaybookCard(a.reasons)
         Button(onClick = onDone, modifier = Modifier.fillMaxWidth()) { Text("OK") }
     }

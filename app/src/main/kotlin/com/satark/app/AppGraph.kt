@@ -58,7 +58,14 @@ class AppGraph(private val app: Application) {
         override var untilMs: Long by store::pauseUntilMs
         override var phraseOwed: Boolean by store::pausePhraseOwed
     })
-    val alerts = AlertController(dispatcher, queue, store, model, scope, pause, onContinueAnyway = { payments.requestOverride() }, shadow = { store.shadowMode })
+    private val alarmNotifier by lazy { com.satark.app.ui.alerts.AlarmNotifier(app) }
+    val alerts = AlertController(dispatcher, queue, store, model, scope, pause, onContinueAnyway = { payments.requestOverride() }, shadow = { store.shadowMode },
+        merger = com.satark.app.ui.alerts.AlertMerger(object : com.satark.app.ui.alerts.AlertMerger.Store {
+            override suspend fun get(key: String) = dao.alertStat(key)
+            override suspend fun put(stat: com.satark.app.events.AlertStat) = dao.putAlertStat(stat)
+        }),
+        onShown = { alarmNotifier.show(it.mechanism) })
+
 
     /**
      * "Delete my data": stops protection, empties every local table and forgets tokens, ids and the payee salt. The server
@@ -78,8 +85,6 @@ class AppGraph(private val app: Application) {
         dispatcher.start()
         alerts.start()
         com.satark.app.push.ContactAlertNotifier.ensureChannel(app) // must exist before a background push arrives
-        val notifier = com.satark.app.ui.alerts.AlarmNotifier(app)
-        scope.launch { dispatcher.alarms.collect { if (!store.shadowMode) notifier.show(it.decision.mechanism) } }
         scope.launch { runCatching { session.ensureRegistered(); queue.flush() } }
         flushWhenOnline()
     }

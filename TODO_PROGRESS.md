@@ -15,11 +15,13 @@ Setup for builds: JDK 21 (`~/.gradle/jdks/eclipse_adoptium-21-amd64-windows.2`) 
 ## In progress
 (none)
 
-## Remaining
+## Remaining (only the on-hold items)
 9. DONE: consent screen (first run, revocable switch in Protection settings, gates SignalService) + "Delete my data" (clears Room and the encrypted store; the server keeps its device record, no server delete yet).
-10. TextToSpeech read-aloud button on alert screens.
-11. Merge repeat alerts within 60 minutes; local per-user alert counters in Room.
+10. DONE: Read aloud / Stop reading button on the Hard, trusted-contact and long-session screens (phone TextToSpeech).
+11. DONE: AlertMerger folds repeat alerts (same mechanism + reasons) within 60 min: no screen, notification, pause or contact push. Counters in Room table alert_stat (Room v2, Migration 1->2). Not shown in any UI yet.
 Items 12-14 need a vector re-freeze; not started, on hold until asked.
 
 ## Not verified
 Nothing here ran on a phone or emulator. Item 8's 300 ms budget will often be missed on a cold Render instance.
+
+Room migration 1->2 is only unit-untested: it needs one run on a device/emulator (an update install from v1).

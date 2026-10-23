@@ -35,6 +35,11 @@ class AlertController(
     /** Shadow mode (TokenStore.shadowMode): score and log only, show nothing. Read on every alarm, so it can change live. */
     private val shadow: () -> Boolean = { false },
     private val log: (String) -> Unit = { android.util.Log.i("SatarkShadow", it) },
+    /** Repeat alerts within 60 minutes are merged. Null = no merging (tests). */
+    private val merger: AlertMerger? = null,
+    private val now: () -> Long = System::currentTimeMillis,
+    /** Called once for each alert that is actually shown (not for merged repeats): the notification. */
+    private val onShown: (Decision) -> Unit = {},
 ) {
     private val _current = MutableStateFlow<AlertUi?>(null)
     val current: StateFlow<AlertUi?> = _current.asStateFlow()
@@ -43,11 +48,13 @@ class AlertController(
         scope.launch {
             dispatcher.alarms.collect { a ->
                 val d = a.decision
+                if (!shadow() && merger != null && !merger.admit(AlertMerger.keyOf(d.mechanism, d.reasons), now())) return@collect
                 if (shadow()) { log("level=${d.level} score=${"%.3f".format(d.score)} mechanism=${d.mechanism} reasons=${d.reasons.joinToString(",")}"); return@collect }
                 _current.value = when (d.mechanism) {
                     Mechanism.LONG_SESSION -> AlertUi.LongSession(d.reasons)
                     else -> AlertUi.Hard(d.reasons).also { pause.start() }
                 }
+                onShown(d)
                 notifyServer(d, a.trace?.features)
             }
         }
