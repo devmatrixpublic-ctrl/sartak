@@ -64,6 +64,7 @@ import com.google.mlkit.vision.barcode.BarcodeScanning
 import com.google.mlkit.vision.barcode.common.Barcode
 import com.google.mlkit.vision.common.InputImage
 import com.satark.app.AppGraph
+import com.satark.app.payments.HoldResolution
 import com.satark.app.payments.PayOutcome
 import com.satark.app.payments.UpiParseResult
 import com.satark.app.payments.UpiRequest
@@ -104,6 +105,7 @@ fun PayHome(
     var method by rememberSaveable { mutableStateOf("upi_intent") }
     var error by rememberSaveable { mutableStateOf<String?>(null) }
     var held by rememberSaveable { mutableStateOf<List<String>?>(null) }
+    var holdStatus by remember { mutableStateOf<String?>(null) } // what the trusted contact has done about a hold
     var busy by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val pause by graph.pause.state.collectAsState()
@@ -186,7 +188,30 @@ fun PayHome(
                             PayOutcome.Failed("Something went wrong. No payment was made.")
                         } finally { busy = false }
                         when (o) {
-                            is PayOutcome.Held -> { held = ArrayList(o.reasons); graph.pause.start() } // saveable type
+                            is PayOutcome.Held -> {
+                                held = ArrayList(o.reasons); graph.pause.start() // saveable type
+                                holdStatus = null
+                                o.paymentId?.let { id ->
+                                    // Dual custody: only the person's trusted contact can release this payment.
+                                    holdStatus = "Asking your trusted contact to approve or block this payment…"
+                                    scope.launch {
+                                        withContext(Dispatchers.IO) { runCatching { graph.alerts.requestApproval(id, o.reasons) } }
+                                        when (val r = withContext(Dispatchers.IO) { graph.payments.waitForDecision(id) }) {
+                                            HoldResolution.Blocked -> holdStatus = "Your trusted contact blocked this payment. Nothing was paid."
+                                            HoldResolution.ApprovedUpi -> {
+                                                holdStatus = "Your trusted contact approved this payment."
+                                                onOutcome(PayOutcome.HandOff(id, UpiUriParser.build(req, amt)), req, amt)
+                                            }
+                                            is HoldResolution.ApprovedCheckout -> {
+                                                holdStatus = "Your trusted contact approved this payment."
+                                                onOutcome(PayOutcome.Checkout(id, r.orderId, amt), req, amt)
+                                            }
+                                            HoldResolution.Waiting -> holdStatus = "No answer yet. The payment stays on hold; nothing was paid."
+                                            HoldResolution.Unknown -> holdStatus = null
+                                        }
+                                    }
+                                }
+                            }
                             is PayOutcome.Failed -> error = o.message
                             else -> onOutcome(o, req, amt)
                         }
@@ -202,6 +227,7 @@ fun PayHome(
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("Payment on hold", style = MaterialTheme.typography.titleMedium, color = on)
                     Text("Satark did not send this payment. Nothing was paid.", color = on)
+                    holdStatus?.let { Text(it, color = on, style = MaterialTheme.typography.labelLarge) }
                     Reasons(reasons, on)
                     PlaybookCard(reasons)
                 }

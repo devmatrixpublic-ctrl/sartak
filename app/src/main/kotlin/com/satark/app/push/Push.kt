@@ -68,7 +68,8 @@ object ContactAlertNotifier {
     }
 
     fun show(ctx: Context, alert: ContactAlert) =
-        post(ctx, if (alert.isLongSession) ID_LONG_SESSION else ID_ALARM, alert.title(), alert.text(), openProtection = false)
+        post(ctx, if (alert.isLongSession) ID_LONG_SESSION else ID_ALARM, alert.title(), alert.text(), openProtection = false,
+            decidePaymentId = alert.paymentId.takeIf { alert.canDecide })
 
     fun showCodeChanged(ctx: Context) = post(
         ctx, ID_CODE_CHANGED, "Your Satark pairing code changed",
@@ -76,14 +77,18 @@ object ContactAlertNotifier {
         openProtection = true,
     )
 
-    private fun post(ctx: Context, id: Int, title: String, text: String, openProtection: Boolean) {
+    private fun post(ctx: Context, id: Int, title: String, text: String, openProtection: Boolean, decidePaymentId: String? = null) {
         if (Build.VERSION.SDK_INT >= 33 &&
             ContextCompat.checkSelfPermission(ctx, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) return
         ensureChannel(ctx)
         val open = Intent(ctx, MainActivity::class.java)
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
-            .apply { if (openProtection) putExtra(MainActivity.EXTRA_OPEN, MainActivity.OPEN_PROTECTION) }
-        val pi = PendingIntent.getActivity(ctx, id, open, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
+            .apply {
+                if (openProtection) putExtra(MainActivity.EXTRA_OPEN, MainActivity.OPEN_PROTECTION)
+                if (decidePaymentId != null) putExtra(MainActivity.EXTRA_DECIDE_PAYMENT, decidePaymentId)
+            }
+        // A different request code per payment, so two held payments do not share one PendingIntent extra.
+        val pi = PendingIntent.getActivity(ctx, if (decidePaymentId != null) decidePaymentId.hashCode() else id, open, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
         val n = NotificationCompat.Builder(ctx, CHANNEL)
             .setSmallIcon(android.R.drawable.stat_sys_warning)
             .setContentTitle(title)

@@ -28,6 +28,7 @@ import com.satark.app.payments.UpiRequest
 import com.satark.app.payments.UpiResultParser
 import com.satark.app.signals.SignalService
 import com.satark.app.ui.alerts.AlertHost
+import com.satark.app.ui.alerts.ContactDecisionScreen
 import com.satark.app.ui.onboarding.OnboardingFlow
 import com.satark.app.ui.pay.PayHome
 import com.satark.app.ui.theme.SatarkTheme
@@ -45,6 +46,7 @@ class MainActivity : ComponentActivity(), PaymentResultListener {
     private var status by mutableStateOf<String?>(null)
     /** The "Protection and trusted contact" screen (also opened by the "pairing code changed" notification). */
     private var showProtection by mutableStateOf(false)
+    private var decidePaymentId by mutableStateOf<String?>(null) // trusted contact opened a held-payment alert
 
     private val upiLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { r ->
         val p = pending ?: return@registerForActivityResult
@@ -76,6 +78,7 @@ class MainActivity : ComponentActivity(), PaymentResultListener {
     }
 
     private fun handleOpen(i: Intent?) {
+        i?.getStringExtra(EXTRA_DECIDE_PAYMENT)?.takeIf { it.length in 1..36 }?.let { decidePaymentId = it }
         if (i?.getStringExtra(EXTRA_OPEN) == OPEN_PROTECTION) showProtection = true
     }
 
@@ -92,7 +95,11 @@ class MainActivity : ComponentActivity(), PaymentResultListener {
     @Composable
     private fun Screens(onboarded: Boolean, onOnboarded: () -> Unit) {
         Box(Modifier.fillMaxSize()) {
-            if (!onboarded) {
+            val deciding = decidePaymentId
+            if (deciding != null) {
+                BackHandler { decidePaymentId = null }
+                ContactDecisionScreen(graph.payments, deciding) { decidePaymentId = null }
+            } else if (!onboarded) {
                 OnboardingFlow(graph) { graph.store.onboarded = true; onOnboarded(); SignalService.start(this@MainActivity) }
             } else if (showProtection) {
                 BackHandler { showProtection = false }
@@ -147,5 +154,6 @@ class MainActivity : ComponentActivity(), PaymentResultListener {
     companion object {
         const val EXTRA_OPEN = "com.satark.app.OPEN"
         const val OPEN_PROTECTION = "protection"
+        const val EXTRA_DECIDE_PAYMENT = "com.satark.app.DECIDE_PAYMENT"
     }
 }

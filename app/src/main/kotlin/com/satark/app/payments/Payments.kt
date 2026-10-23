@@ -6,6 +6,8 @@ import com.satark.app.events.EventDispatcher
 import com.satark.app.events.KnownPayee
 import com.satark.app.events.SatarkDao
 import com.satark.app.net.DecisionDto
+import com.satark.app.net.PaymentDecisionRequest
+import com.satark.app.net.PaymentResponse
 import com.satark.app.net.PaymentResultRequest
 import com.satark.app.net.RiskCheckRequest
 import com.satark.app.net.SatarkApi
@@ -22,6 +24,29 @@ sealed interface PayOutcome {
     data class HandOff(val paymentId: String, val upiUri: String) : PayOutcome
     data class Checkout(val paymentId: String, val orderId: String, val amountInr: BigDecimal) : PayOutcome
     data class Failed(val message: String) : PayOutcome
+}
+
+/** Where a held payment stands once the owner's trusted contact may have answered (server state, GET /payments/{id}). */
+sealed interface HoldResolution {
+    data object Waiting : HoldResolution
+    data object Blocked : HoldResolution
+    /** upi_intent approved: the server has started the hand-off, so the app launches the UPI chooser. */
+    data object ApprovedUpi : HoldResolution
+    /** checkout approved: the server created the order. */
+    data class ApprovedCheckout(val orderId: String) : HoldResolution
+    /** Some other state (already settled, or an approval without an order): do nothing automatic. */
+    data object Unknown : HoldResolution
+
+    companion object {
+        fun of(p: PaymentResponse): HoldResolution = when {
+            p.state == "held" -> Waiting
+            p.state == "blocked" -> Blocked
+            p.method == "upi_intent" && p.state == "handed_off" -> ApprovedUpi
+            p.method == "checkout" && p.state == "approved" ->
+                p.razorpayOrderId?.let { ApprovedCheckout(it) } ?: Unknown
+            else -> Unknown
+        }
+    }
 }
 
 object UpiIntentLauncher {
@@ -84,6 +109,36 @@ class PaymentRepository(
         runCatching { api().paymentResult(paymentId, PaymentResultRequest(r.status, r.txnRef?.take(128))) }
         if (r.status == "success") markCompleted(req.payeeVpa, amountInr.toDouble())
         return r
+    }
+
+    /**
+     * A held payment waits for the owner's trusted contact. Polls until the contact answers or [timeoutMs] passes; an
+     * unanswered hold stays held on the server (it is never released by waiting), so a timeout returns [HoldResolution.Waiting].
+     */
+    suspend fun waitForDecision(paymentId: String, timeoutMs: Long = 10 * 60_000L, pollMs: Long = 3_000L): HoldResolution {
+        val end = now() + timeoutMs
+        while (now() < end) {
+            val r = runCatching { api().payment(paymentId) }.getOrNull()?.let { HoldResolution.of(it) }
+            if (r != null && r != HoldResolution.Waiting) return r
+            delay(pollMs)
+        }
+        return HoldResolution.Waiting
+    }
+
+    /** The trusted contact's answer. Returns null on success, otherwise a sentence for the screen. */
+    suspend fun decide(paymentId: String, approve: Boolean): String? = try {
+        api().paymentDecision(paymentId, PaymentDecisionRequest(if (approve) "approve" else "block"))
+        null
+    } catch (e: retrofit2.HttpException) {
+        when (e.code()) {
+            404 -> "This request is no longer available to you."
+            409 -> "This payment has already been decided."
+            else -> "Could not send your answer (${e.code()}). Try again."
+        }
+    } catch (e: kotlinx.coroutines.CancellationException) {
+        throw e
+    } catch (e: Exception) {
+        "Could not reach Satark. Check your connection and try again."
     }
 
     /** Checkout: the final state comes from the Razorpay webhook, so poll the server. */

@@ -158,7 +158,8 @@ Every error body is `{code, message}` — never a stack trace
 - **Trusted-contact approve/block.** A held payment moves to `approved` or `blocked` only through
   `POST /payments/{id}/decision` from a device the owner linked. Approve on `upi_intent` starts the hand-off; on `checkout`
   it creates the order. The owner, a stranger and an unknown id all get the same 404.
-- **Not built:** the app UI for the contact's Approve/Block and for the owner waiting on it; a 4-hour expiry (an unanswered
+- **App side:** built (`ContactDecisionScreen`, the hold screen waits for the answer); unit-tested, not yet run on two phones.
+- **Not built:** a 4-hour expiry (an unanswered
   hold stays held); the detector, sensor, Hawkes/GBDT, adaptive-conformal and federated-update pillars (the first would
   change the frozen model and its 36 vectors).
 
