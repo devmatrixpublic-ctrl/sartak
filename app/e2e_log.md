@@ -142,6 +142,26 @@ Notes: Razorpay's form did not accept text typed through adb, and the emulator's
 pasted from the clipboard. Back in the checkout opens an "Are you sure you want to exit?" sheet (tap "Yes, exit"). Razorpay
 rejected `9876543210` as an invalid number; `8123067459` was accepted. Not yet run against a deployed server.
 
+### Full pass on `main` with the others' features (consent screen, Hold 30 minutes, Continue anyway, Report fraud)
+
+Server: `main`'s backend in dev mode with a Razorpay test key; Android 15 emulator; debug build. 102 app tests and 229 server
+tests pass; debug, release and androidTest builds succeed; no new stubs.
+
+| # | Path | Expected | Result |
+|---|---|---|---|
+| 47 | Fresh install | "Before we start" consent, "I agree", setup, pay screen with "Protection is on" | Pass |
+| 48 | Clean payment `shop@okaxis` 50 | Handed to the UPI app, no alarm | Pass |
+| 49 | Unknown call, new payee | "Take a moment" banner, payment allowed | Pass |
+| 50 | Unknown call + sideloaded app | Stop screen with the reason, playbook, purpose question, Report fraud, Read aloud; buttons Call trusted contact / Hold payment 30 minutes / Continue anyway | Pass |
+| 51 | Purpose answer; Hold payment 30 minutes | Reply for the scam; pay screen with "Payments are paused" 29:5x; End pause (debug) clears it | Pass |
+| 52 | Held payment `refund@ybl` 25000 | "Payment on hold, nothing was paid"; no UPI app opened | Pass |
+| 53 | Contact's simulated alert; dark mode; crash log | Notification shown; app alive; `logcat -b crash` empty; no server errors | Pass |
+| 54 | Real Razorpay checkout (₹1, Netbanking, Success) with the webhook on the same account as the keys | Razorpay sent two webhooks (`Razorpay-Webhook/v1`), both 200; payment `paid`; app shows "Payment confirmed (test mode)." | Pass |
+| 55 | `phone_check.py --allow-emulator` | 36/36 both paths; attestation; fresh install; permissions revoked (the script now taps "I agree" on the new consent screen) | Pass |
+
+Note for the Razorpay run: webhooks only arrive if the dashboard account is the account the API keys belong to (checked with
+`GET https://api.razorpay.com/v1/webhooks`, which lists the webhooks of the key's account).
+
 ## Defects found and fixed (all on `role_1`)
 
 | | Defect | Fix | Commit |
