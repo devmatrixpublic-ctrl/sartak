@@ -79,6 +79,14 @@ class HeldPaymentDecisionTest {
     private fun payment(method: String, state: String, order: String? = null) =
         com.satark.app.net.PaymentResponse(uuid, method, state, "500_2k", "h", razorpayOrderId = order)
 
+    @Test fun linkRequestPushIsNotAnAlarmAndHasNoDecideButtons() {
+        val a = ContactAlert.from(mapOf("type" to "link_request", "owner_device_id" to uuid, "payment_id" to uuid))
+        assertTrue(a.isLinkRequest)
+        assertFalse(a.canDecide)
+        assertFalse(a.text().contains("http", ignoreCase = true))
+        assertFalse(Regex("\\b(PIN|OTP)\\b", RegexOption.IGNORE_CASE).containsMatchIn(a.title() + a.text()))
+    }
+
     @Test fun pushWithAPaymentIdAsksTheContactToDecide() {
         val a = ContactAlert.from(mapOf("type" to "alarm", "payment_id" to uuid))
         assertTrue(a.canDecide)

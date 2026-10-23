@@ -252,13 +252,33 @@ private fun LinkTrustedContact(graph: AppGraph) {
         }
     }) { Text(if (busy) "Linking…" else "Link") }
     msg?.let { Text(it) }
+    var removable by remember { mutableStateOf(graph.store.linkedContactId) }
+    removable?.let { id ->
+        OutlinedButton(enabled = !busy, onClick = {
+            busy = true
+            scope.launch {
+                msg = withContext(Dispatchers.IO) {
+                    runCatching { graph.api.removeTrustedContact(id) }.fold(
+                        { graph.store.linkedContactId = null; "Removed. They will not get any more alerts." },
+                        { e -> if ((e as? retrofit2.HttpException)?.code() == 404) { graph.store.linkedContactId = null; "Already removed." } else "Could not remove them. Check your connection and try again." },
+                    )
+                }
+                removable = graph.store.linkedContactId
+                busy = false
+            }
+        }) { Text("Remove this trusted contact") }
+    }
 }
 
 private suspend fun linkContact(graph: AppGraph, p: PairingCode.Parsed): String = try {
     graph.session.ensureRegistered()
-    if (graph.api.trustedContact(TrustedContactRequest(p.deviceId, p.pushToken)).linked)
-        "Linked. They will get an alert if Satark thinks you are being scammed."
-    else "Could not link. Try again."
+    val r = graph.api.trustedContact(TrustedContactRequest(p.deviceId, p.pushToken))
+    graph.store.linkedContactId = p.deviceId
+    when (r.status) {
+        "accepted" -> "Linked. They will get an alert if Satark thinks you are being scammed."
+        "pending" -> "Request sent. They must open Satark and tap Accept before any alert can reach them."
+        else -> "Could not link. Try again."
+    }
 } catch (e: CancellationException) {
     throw e
 } catch (e: retrofit2.HttpException) {
@@ -290,6 +310,7 @@ private fun MyPairingCode(graph: AppGraph) {
         ui = CodeUi.Loading
         scope.launch { ui = withContext(Dispatchers.IO) { loadPairingCode(ctx, graph) } }
     }
+    LinkRequestsPanel(graph)
     Text("Be someone's trusted contact", style = MaterialTheme.typography.titleSmall)
     Text("Show your pairing code and send it to the person you protect. This phone is registered for alerts only when you tap the button.")
     when (val s = ui) {

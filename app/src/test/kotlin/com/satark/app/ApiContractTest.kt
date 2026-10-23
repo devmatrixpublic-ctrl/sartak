@@ -167,6 +167,14 @@ class ApiContractTest {
         assertTrue((del["responses"] as Map<Any?, Any?>).keys.any { it.toString() == "204" })
     }
 
+    @Test fun trustedContactAcceptFlowMatchesTheContract() {
+        checkRequest("/trusted-contact/respond", "post", com.satark.app.net.TrustedRespondRequest(uuid, "accept"))
+        checkRequest("/trusted-contact/respond", "post", com.satark.app.net.TrustedRespondRequest(uuid, "decline"))
+        checkResponse("/trusted-contact/respond", "post", TrustedContactResponse.serializer())
+        checkResponse("/trusted-contact/requests", "get", com.satark.app.net.TrustedRequestsResponse.serializer())
+        op("/trusted-contact/{trusted_device_id}", "delete")
+    }
+
     @Test fun paymentDecisionRequestMatches() {
         checkRequest("/payments/{id}/decision", "post", PaymentDecisionRequest("approve"))
         checkRequest("/payments/{id}/decision", "post", PaymentDecisionRequest("block"))

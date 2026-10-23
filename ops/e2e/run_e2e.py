@@ -140,7 +140,9 @@ def run_flows(base: str, scen: dict) -> None:
 
     print("4. trusted contact")
     link = c.post("/trusted-contact", json={"trusted_device_id": B, "fcm_token": "stale-or-fake-token"}, headers=hA)
-    check("A links B as trusted contact", link.status_code == 200 and link.json() == {"linked": True}, link.text)
+    check("A asks B to be a trusted contact (pending)", link.status_code == 200 and link.json() == {"linked": True, "status": "pending"}, link.text)
+    ans = c.post("/trusted-contact/respond", json={"owner_device_id": A, "decision": "accept"}, headers=hB)
+    check("B accepts", ans.status_code == 200 and ans.json() == {"linked": True, "status": "accepted"}, ans.text)
     ghost = c.post("/trusted-contact", json={"trusted_device_id": str(uuid.uuid4()), "fcm_token": "x"}, headers=hA)
     check("an unregistered contact is refused (404), never fabricated", ghost.status_code == 404, ghost.text)
 

@@ -60,6 +60,9 @@ class TrustedLink(Base):
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
     owner_device_id: Mapped[str] = mapped_column(ForeignKey("devices.id"), nullable=False, index=True)
     trusted_device_id: Mapped[str] = mapped_column(ForeignKey("devices.id"), nullable=False, index=True)
+    # pending (asked, not answered) | accepted (the contact said yes) | revoked (declined, or removed by the owner).
+    # Only accepted links receive alerts or may approve/block a held payment.
+    status: Mapped[str] = mapped_column(String(16), nullable=False, default="pending")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
     __table_args__ = (UniqueConstraint("owner_device_id", "trusted_device_id", name="uq_trusted_link_pair"),)

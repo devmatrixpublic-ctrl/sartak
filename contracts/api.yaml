@@ -104,10 +104,38 @@ components:
 
     TrustedContactResponse:
       type: object
-      required: [linked]
+      required: [linked, status]
       properties:
         linked:
           type: boolean
+          description: True only when the contact has accepted.
+        status:
+          type: string
+          enum: [pending, accepted, revoked]
+
+    TrustedRequestsResponse:
+      type: object
+      required: [requests]
+      properties:
+        requests:
+          type: array
+          items:
+            type: object
+            required: [owner_device_id]
+            properties:
+              owner_device_id:
+                type: string
+
+    TrustedRespondRequest:
+      type: object
+      required: [owner_device_id, decision]
+      properties:
+        owner_device_id:
+          type: string
+          maxLength: 36
+        decision:
+          type: string
+          enum: [accept, decline]
 
     Decision:
       type: object
@@ -380,6 +408,78 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/TrustedContactResponse'
+
+  /trusted-contact/requests:
+    get:
+      summary: Pending trusted-contact requests addressed to the calling device
+      operationId: getTrustedRequests
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Requests
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TrustedRequestsResponse'
+
+  /trusted-contact/respond:
+    post:
+      summary: The asked device accepts or declines being a trusted contact
+      operationId: postTrustedRespond
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TrustedRespondRequest'
+      responses:
+        '200':
+          description: Answered
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TrustedContactResponse'
+        '404':
+          description: No such request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: Already answered
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /trusted-contact/{trusted_device_id}:
+    delete:
+      summary: The owner removes a trusted contact (the link is revoked)
+      operationId: deleteTrustedContact
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: trusted_device_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Revoked
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TrustedContactResponse'
+        '404':
+          description: No such trusted contact
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
 
   /risk-check:
     post:

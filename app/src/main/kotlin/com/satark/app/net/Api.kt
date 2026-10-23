@@ -32,7 +32,10 @@ import retrofit2.http.Path
     @SerialName("trusted_device_id") val trustedDeviceId: String,
     @SerialName("fcm_token") val fcmToken: String,
 )
-@Serializable data class TrustedContactResponse(val linked: Boolean)
+@Serializable data class TrustedContactResponse(val linked: Boolean, val status: String? = null) // pending | accepted | revoked
+@Serializable data class TrustedRequest(@SerialName("owner_device_id") val ownerDeviceId: String)
+@Serializable data class TrustedRequestsResponse(val requests: List<TrustedRequest>)
+@Serializable data class TrustedRespondRequest(@SerialName("owner_device_id") val ownerDeviceId: String, val decision: String) // accept | decline
 @Serializable data class DecisionDto(val level: String, val score: Double, val reasons: List<String>)
 @Serializable data class RiskCheckRequest(
     val decision: DecisionDto,
@@ -87,6 +90,9 @@ interface SatarkApi {
     @POST("auth/refresh") suspend fun refresh(@Body b: RefreshRequest): TokenResponse
     @POST("auth/dev-token") suspend fun devToken(@Body b: DevTokenRequest): TokenResponse
     @POST("trusted-contact") suspend fun trustedContact(@Body b: TrustedContactRequest): TrustedContactResponse
+    @retrofit2.http.GET("trusted-contact/requests") suspend fun trustedRequests(): TrustedRequestsResponse
+    @POST("trusted-contact/respond") suspend fun trustedRespond(@Body b: TrustedRespondRequest): TrustedContactResponse
+    @DELETE("trusted-contact/{id}") suspend fun removeTrustedContact(@Path("id") id: String): TrustedContactResponse
     @POST("risk-check") suspend fun riskCheck(@Body b: RiskCheckRequest): RiskCheckResponse
     @GET("payments/{id}") suspend fun payment(@Path("id") id: String, @Header(RETRY_HEADER) retry: String = "1"): PaymentResponse
     @POST("payments/{id}/result") suspend fun paymentResult(@Path("id") id: String, @Body b: PaymentResultRequest): PaymentResponse

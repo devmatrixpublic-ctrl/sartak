@@ -9,15 +9,18 @@ package com.satark.app.push
  */
 data class ContactAlert(val type: String, val paymentId: String? = null) {
     val isLongSession get() = type == LONG_SESSION
+    val isLinkRequest get() = type == LINK_REQUEST
 
     fun title(): String =
-        if (isLongSession) "Long video call with an unknown person" else "Someone you protect may be being scammed"
+        if (isLinkRequest) "Someone asked you to be their trusted contact"
+        else if (isLongSession) "Long video call with an unknown person" else "Someone you protect may be being scammed"
 
     /** Alerts that carry a held payment ask the contact to decide, not just to call. */
-    val canDecide get() = paymentId != null && !isLongSession
+    val canDecide get() = paymentId != null && !isLongSession && !isLinkRequest
 
     fun text(): String =
-        if (canDecide) "They are trying to send money and Satark put it on hold. Call them first, then approve or block it here."
+        if (isLinkRequest) "Open Satark to accept or decline. Only accept if you know them."
+        else if (canDecide) "They are trying to send money and Satark put it on hold. Call them first, then approve or block it here."
         else textBase()
 
     private fun textBase(): String =
@@ -28,11 +31,12 @@ data class ContactAlert(val type: String, val paymentId: String? = null) {
     companion object {
         const val ALARM = "alarm"
         const val LONG_SESSION = "long_session"
+        const val LINK_REQUEST = "link_request"
 
         /** From the FCM data payload (`type`: alarm | long_session); anything else is treated as an alarm. */
         fun from(data: Map<String, String>): ContactAlert =
             ContactAlert(
-                data["type"]?.takeIf { it == ALARM || it == LONG_SESSION } ?: ALARM,
+                data["type"]?.takeIf { it == ALARM || it == LONG_SESSION || it == LINK_REQUEST } ?: ALARM,
                 data["payment_id"]?.takeIf { it.length in 1..36 },
             )
     }
