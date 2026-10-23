@@ -87,13 +87,25 @@ fun ConsentCard(graph: AppGraph, onDeleted: () -> Unit) {
                 if (on) "On. Satark is watching, on this phone only." else "Off. Satark is not watching calls, installs or video apps. Payments you start in Satark are still checked.",
                 style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+            var counts by remember { mutableStateOf<Pair<Int, Int>?>(null) }
+            androidx.compose.runtime.LaunchedEffect(Unit) { counts = runCatching { graph.alertCounts() }.getOrNull() }
+            counts?.let { (shown, merged) ->
+                Text("Warnings shown: $shown. Repeats folded together: $merged.", style = MaterialTheme.typography.bodySmall)
+            }
+            if (com.satark.app.BuildConfig.DEBUG) {
+                var shadow by remember { mutableStateOf(graph.store.shadowMode) }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("Test build: shadow mode (log only, show nothing)", style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f))
+                    Switch(checked = shadow, onCheckedChange = { shadow = it; graph.store.shadowMode = it })
+                }
+            }
             OutlinedButton(onClick = { confirm = true }, Modifier.fillMaxWidth()) { Text("Delete my data") }
         }
     }
     if (confirm) AlertDialog(
         onDismissRequest = { confirm = false },
         title = { Text("Delete my data?") },
-        text = { Text("This stops Satark, erases what it keeps on this phone (events, decisions, saved contact choice, sign-in) and starts it fresh next time.") },
+        text = { Text("This stops Satark, erases what it keeps on this phone (events, decisions, saved contact choice, sign-in) and asks the server to erase its record of this phone. Satark starts fresh next time.") },
         confirmButton = {
             TextButton(onClick = { confirm = false; scope.launch { graph.deleteAllData(); onDeleted() } }) { Text("Delete") }
         },

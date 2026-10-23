@@ -138,11 +138,12 @@ Full contract: [`contracts/api.yaml`](contracts/api.yaml). Summary:
 | `GET /health` | none | liveness check |
 | `POST /auth/challenge`, `/auth/device`, `/auth/refresh` | none | **M4-owned**, mounted; Key Attestation → JWT, see `contracts/auth.md` |
 | `POST /trusted-contact` | bearer | link a trusted contact's device + FCM token |
-| `POST /risk-check` | bearer | evaluate a `Decision` from the on-device detector, create a payment as `held` or `allowed` |
+| `POST /risk-check` | bearer | evaluate a `Decision` from the on-device detector, create a payment as `held` or `allowed`; with `override` + `payment_id` ("Continue anyway") releases the caller's own detector hold (`allowed_by_user`) |
 | `GET /payments/{id}` | bearer | read a payment's current state (owner-scoped) |
 | `POST /payments/{id}/result` | bearer | report a UPI app's returned result (never for a `held` payment) |
 | `POST /webhooks/razorpay` | HMAC-SHA256 signature | the only source of truth for `checkout` → `paid`/`failed` |
 | `POST /alert` | bearer | push an alarm/long-session notification to the trusted contact (optional `payment_id` rides in the push) |
+| `DELETE /device` | bearer | "Delete my data": erases the calling device's payments, alerts, trusted links, tokens and device record |
 | `POST /payments/{id}/decision` | bearer | the owner's linked trusted contact approves or blocks a **held** payment (dual custody) |
 | `POST /signature` | bearer | store a pattern signature (no personal data) |
 
@@ -157,11 +158,10 @@ Every error body is `{code, message}` — never a stack trace
   no sketch needed at this scale.
 - **Trusted-contact approve/block.** A held payment moves to `approved` or `blocked` only through
   `POST /payments/{id}/decision` from a device the owner linked. Approve on `upi_intent` starts the hand-off; on `checkout`
-  it creates the order. The owner, a stranger and an unknown id all get the same 404.
+  the owner's app then fetches the order (`POST /risk-check` with `override`), because the amount is not stored. The owner, a stranger and an unknown id all get the same 404.
 - **App side:** built (`ContactDecisionScreen`, the hold screen waits for the answer); unit-tested, not yet run on two phones.
-- **Not built:** a 4-hour expiry (an unanswered
-  hold stays held); the detector, sensor, Hawkes/GBDT, adaptive-conformal and federated-update pillars (the first would
-  change the frozen model and its 36 vectors).
+- **By design:** an unanswered hold stays held (no auto-release after a timeout); payments store an `amount_band`, not the rupee amount.
+- **Not built:** the detector, sensor, Hawkes/GBDT, adaptive-conformal and federated-update roadmap pillars (they would change the frozen model and its 36 vectors).
 
 ## Local development
 

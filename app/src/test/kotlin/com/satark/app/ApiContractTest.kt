@@ -162,6 +162,11 @@ class ApiContractTest {
         checkRequest("/payments/{id}/result", "post", PaymentResultRequest("failure"))
     }
 
+    @Test fun deleteDeviceEndpointExistsInTheContract() {
+        val del = op("/device", "delete")
+        assertTrue((del["responses"] as Map<Any?, Any?>).keys.any { it.toString() == "204" })
+    }
+
     @Test fun paymentDecisionRequestMatches() {
         checkRequest("/payments/{id}/decision", "post", PaymentDecisionRequest("approve"))
         checkRequest("/payments/{id}/decision", "post", PaymentDecisionRequest("block"))

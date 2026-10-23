@@ -224,3 +224,27 @@ def test_override_with_an_amount_outside_the_held_band_is_refused(client):
 def test_log_level_is_allowed_never_held(client):
     r = _risk(client, "log-1", payee="p-log", decision={"level": "LOG", "score": 9.0, "reasons": ["F_NEW_PAYEE"]})
     assert r.status_code == 200 and r.json()["decision"] == "ALLOW"
+
+
+# ---- DELETE /device: "Delete my data" ----
+
+def test_delete_device_erases_its_rows_and_only_its_rows(client, db):
+    from app.db.models import Alert, Device, Payment, TrustedLink
+    _link(db, "gone", "buddy")
+    _link(db, "other", "buddy2")
+    _risk(client, "gone", payee="p-del")
+    _risk(client, "other", payee="p-keep")
+    db.add(Alert(device_id="gone", type="alarm"))
+    db.commit()
+    assert client.delete("/device", headers=_h("gone")).status_code == 204
+    db.expire_all()
+    assert db.get(Device, "gone") is None
+    assert db.query(Payment).filter(Payment.device_id == "gone").count() == 0
+    assert db.query(Alert).filter(Alert.device_id == "gone").count() == 0
+    assert db.query(TrustedLink).filter(TrustedLink.owner_device_id == "gone").count() == 0
+    assert db.get(Device, "buddy") is not None and db.get(Device, "other") is not None
+    assert db.query(Payment).filter(Payment.device_id == "other").count() == 1
+
+
+def test_delete_device_needs_a_token(client):
+    assert client.delete("/device").status_code == 401
