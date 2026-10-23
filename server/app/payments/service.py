@@ -93,6 +93,32 @@ def decide_held_payment(
     return payment
 
 
+def override_hold(db: Session, payment: Payment, *, order_client: OrderClient) -> Payment:
+    """The owner chose "Continue anyway" on a detector hold: held -> allowed_by_user, recorded and persisted.
+
+    Only the detector's own hold can be overridden by the person; a hold caused by other devices' payments to the
+    same payee (payee_fan_in) is evidence the person's phone cannot see, so it is not theirs to waive.
+    """
+    if payment.hold_reason != "detector":
+        raise ApiError(409, "override_not_allowed", "This hold cannot be overridden from the app.")
+    require_transition(payment.method, payment.state, "allowed_by_user")
+    payment.state = "allowed_by_user"
+    payment.user_override_at = datetime.now(timezone.utc)
+
+    if payment.method == "checkout":
+        payment.razorpay_order_id = order_client.create_order(
+            amount=payment.amount, currency="INR", receipt=f"satark_{payment.device_id[:8]}"
+        )
+    else:
+        require_transition(payment.method, "allowed_by_user", "handed_off")
+        payment.state = "handed_off"
+        payment.handed_off_at = datetime.now(timezone.utc)
+
+    db.commit()
+    db.refresh(payment)
+    return payment
+
+
 def mark_handed_off(db: Session, payment: Payment) -> Payment:
     require_transition(payment.method, payment.state, "handed_off")
     payment.state = "handed_off"

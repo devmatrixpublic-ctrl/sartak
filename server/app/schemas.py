@@ -23,6 +23,9 @@ class RiskCheckRequest(StrictInput):
     amount: float = Field(gt=0, le=10_000_000, allow_inf_nan=False)
     payee_hash: str = Field(min_length=1, max_length=128)
     is_p2p: Optional[bool] = None
+    # "Continue anyway": release the caller's own held payment (payment_id) instead of creating a new one.
+    override: bool = False
+    payment_id: Optional[str] = Field(default=None, max_length=36)
 
 
 class RiskCheckResponse(BaseModel):

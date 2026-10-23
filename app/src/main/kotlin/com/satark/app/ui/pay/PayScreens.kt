@@ -196,10 +196,14 @@ fun PayHome(
                                     holdStatus = "Asking your trusted contact to approve or block this payment…"
                                     scope.launch {
                                         withContext(Dispatchers.IO) { runCatching { graph.alerts.requestApproval(id, o.reasons) } }
-                                        when (val r = withContext(Dispatchers.IO) { graph.payments.waitForDecision(id) }) {
+                                        when (val r = withContext(Dispatchers.IO) {
+                                            graph.payments.waitForDecision(id, onOverride = {
+                                                graph.payments.overrideHold(id, method, amt.toDouble(), graph.payments.hashOf(req.payeeVpa), req.isP2P)
+                                            })
+                                        }) {
                                             HoldResolution.Blocked -> holdStatus = "Your trusted contact blocked this payment. Nothing was paid."
                                             HoldResolution.ApprovedUpi -> {
-                                                holdStatus = "Your trusted contact approved this payment."
+                                                holdStatus = "Payment released."
                                                 onOutcome(PayOutcome.HandOff(id, UpiUriParser.build(req, amt)), req, amt)
                                             }
                                             is HoldResolution.ApprovedCheckout -> {

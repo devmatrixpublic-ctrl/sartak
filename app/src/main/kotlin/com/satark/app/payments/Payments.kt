@@ -111,18 +111,44 @@ class PaymentRepository(
         return r
     }
 
+    fun hashOf(vpa: String): String = hasher.hash(vpa)
+
+    private val activeHold = java.util.concurrent.atomic.AtomicReference<String?>(null)
+    private val overrideRequested = java.util.concurrent.atomic.AtomicBoolean(false)
+
+    /** "Continue anyway" on the Hard screen. Only counts while a payment is being held and waited on. */
+    fun requestOverride() { if (activeHold.get() != null) overrideRequested.set(true) }
+
+    /** Release the caller's own held payment (POST /risk-check override). Null when the server refuses or is unreachable. */
+    suspend fun overrideHold(paymentId: String, method: String, amountInr: Double, payeeHash: String, isP2p: Boolean): HoldResolution? = try {
+        val r = api().riskCheck(RiskCheckRequest(DecisionDto("NONE", 0.0, emptyList()), method, amountInr, payeeHash, isP2p, true, paymentId))
+        if (r.decision != "ALLOW") null
+        else if (method == "checkout") r.orderId?.let { HoldResolution.ApprovedCheckout(it) } else HoldResolution.ApprovedUpi
+    } catch (e: kotlinx.coroutines.CancellationException) {
+        throw e
+    } catch (e: Exception) {
+        null
+    }
+
     /**
      * A held payment waits for the owner's trusted contact. Polls until the contact answers or [timeoutMs] passes; an
      * unanswered hold stays held on the server (it is never released by waiting), so a timeout returns [HoldResolution.Waiting].
      */
-    suspend fun waitForDecision(paymentId: String, timeoutMs: Long = 10 * 60_000L, pollMs: Long = 3_000L): HoldResolution {
+    suspend fun waitForDecision(
+        paymentId: String, timeoutMs: Long = 10 * 60_000L, pollMs: Long = 3_000L,
+        onOverride: (suspend () -> HoldResolution?)? = null,
+    ): HoldResolution {
         val end = now() + timeoutMs
-        while (now() < end) {
-            val r = runCatching { api().payment(paymentId) }.getOrNull()?.let { HoldResolution.of(it) }
-            if (r != null && r != HoldResolution.Waiting) return r
-            delay(pollMs)
-        }
-        return HoldResolution.Waiting
+        activeHold.set(paymentId); overrideRequested.set(false)
+        try {
+            while (now() < end) {
+                if (overrideRequested.getAndSet(false) && onOverride != null) onOverride()?.let { return it }
+                val r = runCatching { api().payment(paymentId) }.getOrNull()?.let { HoldResolution.of(it) }
+                if (r != null && r != HoldResolution.Waiting) return r
+                delay(pollMs)
+            }
+            return HoldResolution.Waiting
+        } finally { activeHold.set(null) }
     }
 
     /** The trusted contact's answer. Returns null on success, otherwise a sentence for the screen. */

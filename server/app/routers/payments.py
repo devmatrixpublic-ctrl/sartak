@@ -23,6 +23,7 @@ class PaymentOut(BaseModel):
     payee_hash: str
     razorpay_order_id: Optional[str] = None
     hold_reason: Optional[str] = None
+    user_override: Optional[bool] = None
     reported_status: Optional[str] = None
     reported_txn_ref: Optional[str] = None
 
@@ -36,6 +37,7 @@ class PaymentOut(BaseModel):
             payee_hash=payment.payee_hash,
             razorpay_order_id=payment.razorpay_order_id,
             hold_reason=payment.hold_reason,
+            user_override=True if payment.user_override_at else None,
             reported_status=payment.reported_status,
             reported_txn_ref=payment.reported_txn_ref,
         )

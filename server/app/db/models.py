@@ -85,6 +85,8 @@ class Payment(Base):
     hold_reason: Mapped[str | None] = mapped_column(String(32), nullable=True)
     decided_by_device_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
     decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # Set when the owner chose "Continue anyway" on a detector hold (held -> allowed_by_user).
+    user_override_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     device: Mapped["Device"] = relationship(back_populates="payments")
 

@@ -57,7 +57,7 @@ class AppGraph(private val app: Application) {
         override var untilMs: Long by store::pauseUntilMs
         override var phraseOwed: Boolean by store::pausePhraseOwed
     })
-    val alerts = AlertController(dispatcher, queue, store, model, scope, pause)
+    val alerts = AlertController(dispatcher, queue, store, model, scope, pause, onContinueAnyway = { payments.requestOverride() })
 
     fun start() {
         dispatcher.start()

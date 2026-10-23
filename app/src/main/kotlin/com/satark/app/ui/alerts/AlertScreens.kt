@@ -40,7 +40,7 @@ fun AlertHost(alert: AlertUi?, controller: AlertController) {
     when (alert) {
         null -> Unit
         is AlertUi.Nudge -> NudgeBanner(alert, controller::dismiss)
-        is AlertUi.Hard -> HardIntervention(alert, controller::escalateToTrustedContact, controller::holdThirtyMinutes, controller::dismiss)
+        is AlertUi.Hard -> HardIntervention(alert, controller::escalateToTrustedContact, controller::holdThirtyMinutes, controller::continueAnyway)
         is AlertUi.LongSession -> LongSessionAlert(alert, controller::dismiss)
         is AlertUi.TrustedContact -> TrustedContactAlert(alert, controller::dismiss)
     }

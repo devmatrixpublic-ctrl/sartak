@@ -31,6 +31,7 @@ class AlertController(
     private val model: ModelConfig,
     private val scope: CoroutineScope,
     private val pause: PaymentPause,
+    private val onContinueAnyway: () -> Unit = {},
 ) {
     private val _current = MutableStateFlow<AlertUi?>(null)
     val current: StateFlow<AlertUi?> = _current.asStateFlow()
@@ -72,6 +73,9 @@ class AlertController(
 
     /** "Hold payment 30 minutes": payments in Satark wait the longer pause, then the screen closes. */
     fun holdThirtyMinutes() { pause.start(Friction.HOLD_MS); _current.value = null }
+
+    /** "Continue anyway": the person overrides the hold. The pay screen releases it through the server; the screen closes. */
+    fun continueAnyway() { onContinueAnyway(); _current.value = null }
 
     fun dismiss() { _current.value = null }
 }

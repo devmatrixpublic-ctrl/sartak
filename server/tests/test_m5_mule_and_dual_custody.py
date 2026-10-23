@@ -141,3 +141,54 @@ def test_alert_push_carries_the_payment_id(client, db):
 
     send_alert(db, owner_device_id="owner3", alert_type="alarm", reasons=["x"], fcm_client=Spy(), payment_id="pay-1")
     assert sent[0]["payment_id"] == "pay-1"
+
+
+# ---- "Continue anyway": held -> allowed_by_user ----
+
+def _override(client, device, pid, method="upi_intent"):
+    return client.post(
+        "/risk-check",
+        json={"decision": HARD, "method": method, "amount": 500.0, "payee_hash": "p-ov", "override": True, "payment_id": pid},
+        headers=_h(device),
+    )
+
+
+def test_override_releases_a_detector_hold_and_is_recorded(client):
+    pid = _risk(client, "ov-1", payee="p-ov", decision=HARD).json()["payment_id"]
+    r = _override(client, "ov-1", pid)
+    assert r.status_code == 200 and r.json()["decision"] == "ALLOW" and r.json()["payment_id"] == pid
+    p = client.get(f"/payments/{pid}", headers=_h("ov-1")).json()
+    assert p["state"] == "handed_off" and p["user_override"] is True
+
+
+def test_override_on_checkout_creates_an_order(client):
+    pid = _risk(client, "ov-2", payee="p-ov", method="checkout", decision=HARD).json()["payment_id"]
+    r = _override(client, "ov-2", pid, method="checkout")
+    assert r.json()["decision"] == "ALLOW" and r.json()["order_id"]
+
+
+def test_override_needs_a_payment_id_and_the_owner(client):
+    pid = _risk(client, "ov-3", payee="p-ov", decision=HARD).json()["payment_id"]
+    body = {"decision": HARD, "method": "upi_intent", "amount": 5.0, "payee_hash": "x", "override": True}
+    assert client.post("/risk-check", json=body, headers=_h("ov-3")).status_code == 404
+    assert _override(client, "someone-else", pid).status_code == 404
+    assert client.get(f"/payments/{pid}", headers=_h("ov-3")).json()["state"] == "held"
+
+
+def test_override_cannot_be_used_twice_or_on_a_fan_in_hold(client):
+    pid = _risk(client, "ov-4", payee="p-ov", decision=HARD).json()["payment_id"]
+    assert _override(client, "ov-4", pid).status_code == 200
+    assert _override(client, "ov-4", pid).status_code == 409
+    for i in range(3):
+        _risk(client, f"ov-v{i}", payee="mule-ov")
+    fan = _risk(client, "ov-5", payee="mule-ov")
+    assert fan.json()["hold_reason"] == "payee_fan_in"
+    body = {"decision": NONE, "method": "upi_intent", "amount": 500.0, "payee_hash": "mule-ov",
+            "override": True, "payment_id": fan.json()["payment_id"]}
+    r = client.post("/risk-check", json=body, headers=_h("ov-5"))
+    assert r.status_code == 409 and r.json()["code"] == "override_not_allowed"
+
+
+def test_override_with_wrong_method_is_refused(client):
+    pid = _risk(client, "ov-6", payee="p-ov", decision=HARD).json()["payment_id"]
+    assert _override(client, "ov-6", pid, method="checkout").status_code == 409
