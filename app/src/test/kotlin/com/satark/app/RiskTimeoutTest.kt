@@ -10,6 +10,12 @@ import kotlin.test.assertTrue
 class RiskTimeoutTest {
     @Test fun budgetIs300Ms() = assertEquals(300L, RiskTimeout.MS)
 
+    @Test fun aCheckoutGetsTimeToCreateTheOrderAtRazorpay() {
+        assertEquals(RiskTimeout.MS, RiskTimeout.budgetMs("upi_intent"))
+        assertTrue(RiskTimeout.budgetMs("checkout") >= 5_000)
+        assertTrue(RiskTimeout.SIGN_IN_MS > RiskTimeout.MS)
+    }
+
     @Test fun anAlarmIsHeldWhateverTheMethod() {
         assertEquals(Fallback.HOLD, RiskTimeout.fallback(alarmed = true, method = "upi_intent"))
         assertEquals(Fallback.HOLD, RiskTimeout.fallback(alarmed = true, method = "checkout"))

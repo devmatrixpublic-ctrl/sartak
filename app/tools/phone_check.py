@@ -144,6 +144,18 @@ def screen_texts(adb: Adb) -> list[str]:
     return [html.unescape(t) for t in re.findall(r'text="([^"]*)"', xml) if t]
 
 
+def accept_consent(adb: Adb) -> None:
+    """A fresh install now opens on the "Before we start" consent screen; tap "I agree" to reach the setup screen."""
+    adb.shell("uiautomator", "dump", "/sdcard/satark_ui.xml")
+    xml = adb.out("exec-out", "cat", "/sdcard/satark_ui.xml")
+    adb.shell("rm", "-f", "/sdcard/satark_ui.xml")
+    m = re.search(r'text="I agree"[^>]*bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"', xml)
+    if m:
+        x1, y1, x2, y2 = map(int, m.groups())
+        adb.shell("input", "tap", str((x1 + x2) // 2), str((y1 + y2) // 2))
+        time.sleep(3)
+
+
 def app_alive(adb: Adb) -> bool:
     return bool(adb.shell("pidof", APP_ID).strip())
 
@@ -188,6 +200,7 @@ def check_fresh_install(adb: Adb) -> tuple[bool, str]:
     adb.shell("pm", "clear", APP_ID)
     adb.out("logcat", "-b", "crash", "-c")
     launch(adb, 8)
+    accept_consent(adb)
     texts = screen_texts(adb)
     ok = any("Set up Satark" in t for t in texts) and app_alive(adb) and not app_crashed(adb)
     return ok, "onboarding shown" if ok else f"screen: {texts[:8]}, alive={app_alive(adb)}, crashed={app_crashed(adb)}"
@@ -200,6 +213,7 @@ def check_permissions_revoked(adb: Adb) -> tuple[bool, str]:
     adb.shell("am", "force-stop", APP_ID)
     adb.out("logcat", "-b", "crash", "-c")
     launch(adb, 10)
+    accept_consent(adb)
     # The banner sits below the permission cards; on a small screen it is off the first page, so scroll and look again.
     seen: list[str] = []
     for _ in range(5):

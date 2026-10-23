@@ -56,7 +56,13 @@ sealed interface HoldResolution {
  */
 object RiskTimeout {
     const val MS = 300L
+    /** A checkout waits for the server to create the order at Razorpay (a real round trip, about 0.7 s), so it gets longer. */
+    const val CHECKOUT_MS = 10_000L
+    /** Signing in (first payment after install, or an expired session) is done before the timed call, not inside it. */
+    const val SIGN_IN_MS = 5_000L
     const val LOCAL_PREFIX = "local:"
+
+    fun budgetMs(method: String): Long = if (method == "checkout") CHECKOUT_MS else MS
 
     enum class Fallback { HOLD, ALLOW_LOCAL, FAIL }
 
@@ -86,6 +92,8 @@ class PaymentRepository(
     private val now: () -> Long = System::currentTimeMillis,
     /** Shadow mode: the decision is reported as LOG (the server allows it) and an alarm does not hold the payment. */
     private val shadow: () -> Boolean = { false },
+    /** Called before the timed risk call so a first payment does not spend its budget on registering. Must not throw. */
+    private val ready: suspend () -> Unit = {},
 ) {
     /**
      * Pay via Satark. Events reach the detector BEFORE any money moves; then /risk-check; HOLD stops everything.
@@ -103,8 +111,9 @@ class PaymentRepository(
         val decision: Decision = dispatcher.submitAndDecide(signals, source)
         val alarmed = decision.level.showsScreen && !shadow()
         val dto = DecisionDto(if (decision.level.showsScreen && shadow()) "LOG" else decision.level.name, decision.score, decision.reasons.take(3))
+        kotlinx.coroutines.withTimeoutOrNull(RiskTimeout.SIGN_IN_MS) { ready() }
         val check = try {
-            kotlinx.coroutines.withTimeoutOrNull(RiskTimeout.MS) {
+            kotlinx.coroutines.withTimeoutOrNull(RiskTimeout.budgetMs(method)) {
                 api().riskCheck(RiskCheckRequest(dto, method, amountInr.toDouble(), hash, req.isP2P))
             }
         } catch (e: IOException) {
