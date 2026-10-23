@@ -162,6 +162,7 @@ rejected `9876543210` as an invalid number; `8123067459` was accepted. Not yet r
 | N | The pairing-code parser took any text glued after the code as part of the push token; the server accepts any string, so every alert to that contact would have failed silently | The token must have the FCM shape; over-long input is refused, not cut | `64de9b9` |
 | O | Startup registered 2 to 3 times (MainActivity and AppGraph at once); with real attestation each registration is a new key, so the phone's device id would have changed | Re-check inside the registration lock | `997fb08` |
 | P | A payment result ("The UPI app reported success") stayed on screen under a later "Payment on hold, nothing was paid" | A new payment attempt clears the old message | this branch |
+| Q | The 300 ms risk-call limit also covered signing in (first payment after install: about 450 ms) and a Razorpay checkout (the server waits about 0.7 s for the order), so those payments ended with "Satark was slow to answer. No payment was made." | The app signs in before the timed call (up to 5 s); a checkout gets 10 s; the normal UPI path keeps 300 ms and its fallbacks | this branch |
 
 ## Not covered here (needs others or a physical phone)
 
