@@ -67,6 +67,32 @@ fun ConsentScreen(onChoice: (agreed: Boolean) -> Unit) {
     }
 }
 
+/** In Protection settings: the language of the warning reasons. The Hindi is machine-drafted and needs native review. */
+@Composable
+fun LanguageCard() {
+    val ctx = LocalContext.current
+    var current by remember { mutableStateOf(com.satark.app.ui.Language.get(ctx)) }
+    fun pick(code: String?) {
+        com.satark.app.ui.Language.set(ctx, code); current = code
+        (ctx as? android.app.Activity)?.recreate()
+    }
+    Card(Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("Language of warnings", style = MaterialTheme.typography.titleMedium)
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                for ((label, code) in listOf("English" to com.satark.app.ui.Language.ENGLISH, "हिन्दी" to com.satark.app.ui.Language.HINDI)) {
+                    if (current == code) Button(onClick = { pick(code) }) { Text(label) } else OutlinedButton(onClick = { pick(code) }) { Text(label) }
+                }
+                if (current != null) TextButton(onClick = { pick(null) }) { Text("Phone's language") }
+            }
+            Text(
+                "Only the reasons inside a warning are translated. The Hindi is machine-drafted and still needs review by a native speaker.",
+                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+}
+
 /** In Protection settings: turn watching off or on again, and delete everything Satark keeps on this phone. */
 @Composable
 fun ConsentCard(graph: AppGraph, onDeleted: () -> Unit) {

@@ -121,6 +121,7 @@ fun OnboardingFlow(graph: AppGraph, settings: Boolean = false, onDeleted: () -> 
         }
         ProtectionBanners(status)
 
+        if (settings) LanguageCard()
         if (settings) ConsentCard(graph, onDeleted)
 
         TrustedContactSetup(graph)

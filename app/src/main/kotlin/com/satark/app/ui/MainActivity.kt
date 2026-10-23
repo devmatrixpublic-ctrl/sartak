@@ -64,6 +64,8 @@ class MainActivity : ComponentActivity(), PaymentResultListener {
         }
     }
 
+    override fun attachBaseContext(newBase: android.content.Context) = super.attachBaseContext(Language.wrap(newBase))
+
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge() // Android 15 draws behind the system bars anyway; Root() keeps content clear of them
         super.onCreate(savedInstanceState)
