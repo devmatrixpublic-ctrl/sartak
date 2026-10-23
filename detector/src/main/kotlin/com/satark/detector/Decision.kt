@@ -1,8 +1,12 @@
 package com.satark.detector
 
 /** Same levels as contracts/api.yaml `Decision.level`. The detector emits NONE or HARD; NUDGE and TRUSTED_CONTACT are
- *  escalation levels owned by the app / server and are never produced here. */
-enum class Level { NONE, NUDGE, HARD, TRUSTED_CONTACT }
+ *  escalation levels owned by the app / server and are never produced here. LOG is silent: recorded, no screen, no
+ *  pause, no push (the app uses it for shadow mode); the detector does not produce it either. */
+enum class Level { NONE, LOG, NUDGE, HARD, TRUSTED_CONTACT }
+
+/** True for the levels that interrupt the person (everything except NONE and the silent LOG). */
+val Level.showsScreen: Boolean get() = this != Level.NONE && this != Level.LOG
 
 object Mechanism {
     const val PAYMENT_SCORE = "payment_score"

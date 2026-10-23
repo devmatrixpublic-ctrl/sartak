@@ -28,6 +28,8 @@ class TokenStore(ctx: Context) {
     var deviceId: String? get() = prefs.getString("device_id", null); set(v) = prefs.edit().putString("device_id", v).apply()
     var ageBand: String? get() = prefs.getString("age_band", null); set(v) = prefs.edit().putString("age_band", v).apply()
     var onboarded: Boolean get() = prefs.getBoolean("onboarded", false); set(v) = prefs.edit().putBoolean("onboarded", v).apply()
+    /** Shadow mode: the detector still scores and the app logs it, but nothing is shown, paused, pushed or held. */
+    var shadowMode: Boolean get() = prefs.getBoolean("shadow", false); set(v) = prefs.edit().putBoolean("shadow", v).apply()
     /** Pointer (content URI) to the phone contact "Call trusted contact" dials. Never the number itself. */
     var dialContactUri: String? get() = prefs.getString("dial_contact", null); set(v) = prefs.edit().putString("dial_contact", v).apply()
     /** SHA-256 of the push token last shown as this phone's pairing code (to notice it changed). Not the token. */

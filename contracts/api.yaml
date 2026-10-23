@@ -115,7 +115,7 @@ components:
       properties:
         level:
           type: string
-          enum: [NONE, NUDGE, HARD, TRUSTED_CONTACT]
+          enum: [NONE, LOG, NUDGE, HARD, TRUSTED_CONTACT]  # LOG: silent, recorded only (shadow mode); never holds
         score:
           type: number
           format: float

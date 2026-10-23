@@ -10,7 +10,7 @@ class HealthResponse(BaseModel):
 
 
 class Decision(StrictInput):
-    level: Literal["NONE", "NUDGE", "HARD", "TRUSTED_CONTACT"]
+    level: Literal["NONE", "LOG", "NUDGE", "HARD", "TRUSTED_CONTACT"]
     score: float = Field(allow_inf_nan=False)
     reasons: list[Annotated[str, Field(max_length=64)]] = Field(default_factory=list, max_length=3)
 

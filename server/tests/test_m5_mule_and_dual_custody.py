@@ -217,3 +217,10 @@ def test_override_with_an_amount_outside_the_held_band_is_refused(client):
     pid = _risk(client, "band-2", payee="p-band", decision=HARD).json()["payment_id"]
     r = _override(client, "band-2", pid, payee="p-band", amount=900000.0)
     assert r.status_code == 409 and r.json()["code"] == "amount_mismatch"
+
+
+# ---- silent LOG level (shadow mode) ----
+
+def test_log_level_is_allowed_never_held(client):
+    r = _risk(client, "log-1", payee="p-log", decision={"level": "LOG", "score": 9.0, "reasons": ["F_NEW_PAYEE"]})
+    assert r.status_code == 200 and r.json()["decision"] == "ALLOW"

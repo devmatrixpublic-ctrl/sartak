@@ -13,6 +13,7 @@ import com.satark.app.net.RiskCheckRequest
 import com.satark.app.net.SatarkApi
 import com.satark.app.signals.RawSignal
 import com.satark.detector.Decision
+import com.satark.detector.showsScreen
 import kotlinx.coroutines.delay
 import java.io.IOException
 import java.math.BigDecimal
@@ -64,6 +65,8 @@ class PaymentRepository(
     private val dispatcher: EventDispatcher,
     private val hasher: PayeeHasher,
     private val now: () -> Long = System::currentTimeMillis,
+    /** Shadow mode: the decision is reported as LOG (the server allows it) and an alarm does not hold the payment. */
+    private val shadow: () -> Boolean = { false },
 ) {
     /**
      * Pay via Satark. Events reach the detector BEFORE any money moves; then /risk-check; HOLD stops everything.
@@ -79,11 +82,12 @@ class PaymentRepository(
             add(RawSignal.PaymentAttempt(t, hash, amountInr.toDouble(), req.isP2P, isNew, source))
         }
         val decision: Decision = dispatcher.submitAndDecide(signals, source)
-        val dto = DecisionDto(decision.level.name, decision.score, decision.reasons.take(3))
+        val alarmed = decision.level.showsScreen && !shadow()
+        val dto = DecisionDto(if (decision.level.showsScreen && shadow()) "LOG" else decision.level.name, decision.score, decision.reasons.take(3))
         val check = try {
             api().riskCheck(RiskCheckRequest(dto, method, amountInr.toDouble(), hash, req.isP2P))
         } catch (e: IOException) {
-            return if (decision.level.name != "NONE") PayOutcome.Held(null, decision.reasons)
+            return if (alarmed) PayOutcome.Held(null, decision.reasons)
             else PayOutcome.Failed("Can't reach Satark. Check your connection; no payment was made.")
         } catch (e: retrofit2.HttpException) {
             return PayOutcome.Failed("Satark could not check this payment (${e.code()}). No payment was made.")
@@ -91,7 +95,7 @@ class PaymentRepository(
             throw e
         } catch (e: Exception) {
             // Bad response body, TLS/pinning failure, etc.: same safety rule as offline, never a crash.
-            return if (decision.level.name != "NONE") PayOutcome.Held(null, decision.reasons)
+            return if (alarmed) PayOutcome.Held(null, decision.reasons)
             else PayOutcome.Failed("Satark could not check this payment. No payment was made.")
         }
         if (check.decision == "HOLD") return PayOutcome.Held(check.paymentId, decision.reasons)
