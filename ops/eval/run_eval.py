@@ -28,6 +28,7 @@ ROOT = Path(__file__).resolve().parents[2]
 REF = ROOT / "detector" / "reference"
 SHIPPED_REPORT = ROOT / "detector" / "detector_report.md"   # has counts; data/satarksim/ copy is rounded
 RECALL_MIN = 0.93
+FAIRNESS_MIN_FALSE_ALARMS = 5   # a false-alarm ratio only counts when EVERY cohort has at least this many; otherwise n/a, no failure
 FAIRNESS_RATIO_MAX = 1.5   # max/min of a rate across the cohorts of one dimension; applied to point estimates as written
 FALSE_ALARM_MAX = 0.001
 
@@ -110,8 +111,11 @@ def fairness(res) -> dict:
                          "recall_ci95": clopper_pearson(s_k, s_n) if s_n else (0.0, 1.0),
                          "legit_n": l_n, "false_alarms": l_k, "false_alarm_rate": l_k / l_n if l_n else float("nan"),
                          "false_alarm_ci95": clopper_pearson(l_k, l_n) if l_n else (0.0, 1.0)})
+        enough = min(r["false_alarms"] for r in rows) >= FAIRNESS_MIN_FALSE_ALARMS
         out[name] = {"rows": rows, "recall_ratio": ratio([r["recall"] for r in rows]),
-                     "false_alarm_ratio": ratio([r["false_alarm_rate"] for r in rows])}
+                     # None = not enough false alarms in some cohort for a ratio to mean anything (reported as n/a, never a failure)
+                     "false_alarm_ratio": ratio([r["false_alarm_rate"] for r in rows]) if enough else None,
+                     "min_false_alarms": min(r["false_alarms"] for r in rows)}
     return out
 
 
@@ -119,8 +123,8 @@ def fairness_gate(f: dict, limit: float = FAIRNESS_RATIO_MAX) -> list[str]:
     fails = []
     for name, d in f.items():
         for key, label in (("recall_ratio", "recall"), ("false_alarm_ratio", "false-alarm rate")):
-            if d[key] > limit:
-                shown = "undefined (a cohort has none)" if d[key] == float("inf") else f"{d[key]:.2f}"
+            if d[key] is not None and d[key] > limit:
+                shown = f"{d[key]:.2f}"
                 fails.append(f"fairness: {label} max/min across {name} is {shown} (limit {limit})")
     return fails
 
@@ -130,8 +134,10 @@ def render_fairness(f: dict, failures: list[str]) -> str:
          "Validation split of SatarkSim, per cohort. **All numbers are from a simulator, not real users.** Language is skipped "
          "(SatarkSim has no language field) and there is no device-tier column, so call-state availability, a device-capability "
          "flag, is shown instead. The gate is the ratio max/min of a rate across the cohorts of one dimension, on point "
-         f"estimates, and fails above {FAIRNESS_RATIO_MAX}. A cohort with zero false alarms makes the false-alarm ratio "
-         "undefined (infinite), which fails the gate as written. Per-cohort false-alarm counts are 0 to 5, so these ratios are noisy.", "",
+         f"estimates, and fails above {FAIRNESS_RATIO_MAX}. The recall ratio is always gated. The false-alarm ratio is only gated "
+         f"when every cohort has at least {FAIRNESS_MIN_FALSE_ALARMS} false alarms; otherwise it is n/a, because a ratio of counts "
+         "that small is noise (this rule was chosen by the project owner after the strict version failed on zero-count cohorts). "
+         "n/a is not a pass: it means the simulation cannot show whether false alarms differ between cohorts.", "",
          f"**Gate: {'PASS' if not failures else 'FAIL'}**", ""]
     for name, d in f.items():
         L += [f"## {name}", "", "| cohort | scam sessions | recall (95% CI) | legit sessions | false alarms | false-alarm rate (95% CI) |", "|---|---|---|---|---|---|"]
@@ -139,7 +145,8 @@ def render_fairness(f: dict, failures: list[str]) -> str:
             L.append(f"| {r['cohort']} | {r['scam_n']} | {r['recall']:.1%} ({r['recall_ci95'][0]:.1%}-{r['recall_ci95'][1]:.1%}) | {r['legit_n']} | "
                      f"{r['false_alarms']} | {r['false_alarm_rate']:.3%} ({r['false_alarm_ci95'][0]:.3%}-{r['false_alarm_ci95'][1]:.3%}) |")
         far = d["false_alarm_ratio"]
-        L += ["", f"Recall max/min: **{d['recall_ratio']:.2f}**. False-alarm max/min: **{'undefined (a cohort has zero)' if far == float('inf') else f'{far:.2f}'}**.", ""]
+        far_txt = f"n/a (needs at least {FAIRNESS_MIN_FALSE_ALARMS} false alarms in every cohort; the smallest has {d['min_false_alarms']})" if far is None else f"{far:.2f}"
+        L += ["", f"Recall max/min: **{d['recall_ratio']:.2f}**. False-alarm max/min: **{far_txt}**.", ""]
     if failures:
         L += ["## Gate failures", ""] + [f"- {x}" for x in failures] + [""]
     return "\n".join(L) + "\n"

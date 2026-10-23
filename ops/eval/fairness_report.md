@@ -1,8 +1,8 @@
 # Fairness report (simulated data)
 
-Validation split of SatarkSim, per cohort. **All numbers are from a simulator, not real users.** Language is skipped (SatarkSim has no language field) and there is no device-tier column, so call-state availability, a device-capability flag, is shown instead. The gate is the ratio max/min of a rate across the cohorts of one dimension, on point estimates, and fails above 1.5. A cohort with zero false alarms makes the false-alarm ratio undefined (infinite), which fails the gate as written. Per-cohort false-alarm counts are 0 to 5, so these ratios are noisy.
+Validation split of SatarkSim, per cohort. **All numbers are from a simulator, not real users.** Language is skipped (SatarkSim has no language field) and there is no device-tier column, so call-state availability, a device-capability flag, is shown instead. The gate is the ratio max/min of a rate across the cohorts of one dimension, on point estimates, and fails above 1.5. The recall ratio is always gated. The false-alarm ratio is only gated when every cohort has at least 5 false alarms; otherwise it is n/a, because a ratio of counts that small is noise (this rule was chosen by the project owner after the strict version failed on zero-count cohorts). n/a is not a pass: it means the simulation cannot show whether false alarms differ between cohorts.
 
-**Gate: FAIL**
+**Gate: PASS**
 
 ## age band
 
@@ -12,7 +12,7 @@ Validation split of SatarkSim, per cohort. **All numbers are from a simulator, n
 | 36-59 | 220 | 95.5% (91.8%-97.8%) | 3990 | 4 | 0.100% (0.027%-0.256%) |
 | 60+ | 210 | 89.0% (84.0%-92.9%) | 1493 | 0 | 0.000% (0.000%-0.247%) |
 
-Recall max/min: **1.07**. False-alarm max/min: **undefined (a cohort has zero)**.
+Recall max/min: **1.07**. False-alarm max/min: **n/a (needs at least 5 false alarms in every cohort; the smallest has 0)**.
 
 ## activity tier
 
@@ -22,7 +22,7 @@ Recall max/min: **1.07**. False-alarm max/min: **undefined (a cohort has zero)**
 | low | 200 | 92.5% (87.9%-95.7%) | 454 | 0 | 0.000% (0.000%-0.809%) |
 | medium | 168 | 94.0% (89.3%-97.1%) | 2176 | 2 | 0.092% (0.011%-0.332%) |
 
-Recall max/min: **1.02**. False-alarm max/min: **undefined (a cohort has zero)**.
+Recall max/min: **1.02**. False-alarm max/min: **n/a (needs at least 5 false alarms in every cohort; the smallest has 0)**.
 
 ## call-state availability
 
@@ -31,11 +31,5 @@ Recall max/min: **1.02**. False-alarm max/min: **undefined (a cohort has zero)**
 | False | 77 | 85.7% (75.9%-92.6%) | 1016 | 0 | 0.000% (0.000%-0.362%) |
 | True | 501 | 94.2% (91.8%-96.1%) | 8871 | 7 | 0.079% (0.032%-0.163%) |
 
-Recall max/min: **1.10**. False-alarm max/min: **undefined (a cohort has zero)**.
-
-## Gate failures
-
-- fairness: false-alarm rate max/min across age band is undefined (a cohort has none) (limit 1.5)
-- fairness: false-alarm rate max/min across activity tier is undefined (a cohort has none) (limit 1.5)
-- fairness: false-alarm rate max/min across call-state availability is undefined (a cohort has none) (limit 1.5)
+Recall max/min: **1.10**. False-alarm max/min: **n/a (needs at least 5 false alarms in every cohort; the smallest has 0)**.
 
