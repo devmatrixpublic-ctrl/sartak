@@ -36,11 +36,19 @@ import androidx.compose.ui.unit.dp
 
 /** Picks the screen from the AlertUi. Nudge is a dismissible banner; the rest take over the screen. */
 @Composable
-fun AlertHost(alert: AlertUi?, controller: AlertController) {
+fun AlertHost(alert: AlertUi?, controller: AlertController, dialContactUri: String? = null) {
+    val ctx = androidx.compose.ui.platform.LocalContext.current
     when (alert) {
         null -> Unit
         is AlertUi.Nudge -> NudgeBanner(alert, controller::dismiss)
-        is AlertUi.Hard -> HardIntervention(alert, controller::escalateToTrustedContact, controller::holdThirtyMinutes, controller::continueAnyway)
+        is AlertUi.Hard -> HardIntervention(
+            alert,
+            onCallContact = {
+                runCatching { ctx.startActivity(ContactDialer.intent(ctx, dialContactUri)) } // no dialler: still tell the contact
+                controller.escalateToTrustedContact()
+            },
+            onHold30 = controller::holdThirtyMinutes, onContinue = controller::continueAnyway,
+        )
         is AlertUi.LongSession -> LongSessionAlert(alert, controller::dismiss)
         is AlertUi.TrustedContact -> TrustedContactAlert(alert, controller::dismiss)
     }

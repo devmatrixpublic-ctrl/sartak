@@ -88,7 +88,7 @@ class MainActivity : ComponentActivity(), PaymentResultListener {
         val alert by graph.alerts.current.collectAsState()
         Box(Modifier.fillMaxSize()) {
             Box(Modifier.fillMaxSize().safeDrawingPadding()) { Screens(onboarded) { onboarded = true } }
-            AlertHost(alert, graph.alerts) // full-screen warnings pad themselves, so their colour fills the whole screen
+            AlertHost(alert, graph.alerts, graph.store.dialContactUri) // full-screen warnings pad themselves, so their colour fills the whole screen
         }
     }
 

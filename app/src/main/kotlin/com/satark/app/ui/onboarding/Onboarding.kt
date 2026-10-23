@@ -225,6 +225,13 @@ private fun LinkTrustedContact(graph: AppGraph) {
     var msg by rememberSaveable { mutableStateOf<String?>(null) }
     var busy by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
+    var dialChosen by remember { mutableStateOf(graph.store.dialContactUri != null) }
+    val pickContact = rememberLauncherForActivityResult(ActivityResultContracts.PickContact()) { uri ->
+        if (uri != null) { graph.store.dialContactUri = uri.toString(); dialChosen = true }
+    }
+    Text("Who to call", style = MaterialTheme.typography.titleSmall)
+    Text("Pick the person from your contacts that “Call trusted contact” should dial. Satark keeps only which contact you picked, not their number.")
+    OutlinedButton(onClick = { pickContact.launch(null) }) { Text(if (dialChosen) "Change the person to call" else "Choose the person to call") }
     Text("Get alerts sent to someone you trust", style = MaterialTheme.typography.titleSmall)
     Text("Ask them to open Satark, tap “Show my pairing code” and send you the code. Paste it here.")
     OutlinedTextField(code, { code = it; msg = null }, label = { Text("Their pairing code") }, modifier = Modifier.fillMaxWidth(), maxLines = 3)
