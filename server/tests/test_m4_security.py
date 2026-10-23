@@ -2,6 +2,7 @@
 
 These run WITHOUT the harness auth override, so they exercise real authentication.
 """
+import re
 import json
 
 import pytest
@@ -52,7 +53,7 @@ def test_every_non_public_route_rejects_a_request_with_no_token(raw_client):
     cases = list(_route_cases())
     assert len(cases) >= 6                         # guard against the enumeration silently finding nothing
     for method, path in cases:
-        url = path.replace("{payment_id}", "x").replace("{id}", "x").replace("{trusted_device_id}", "x")
+        url = re.sub(r"\{[a-z_]+\}", "x", path)
         assert "{" not in url, f"unhandled path parameter in {path}"
         resp = raw_client.request(method, url, json={} if method in {"POST", "PUT", "PATCH"} else None)
         assert resp.status_code == 401, f"{method} {path} answered {resp.status_code} without a token"
