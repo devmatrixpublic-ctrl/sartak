@@ -59,7 +59,11 @@ class AppGraph(private val app: Application) {
     })
     val alerts = AlertController(dispatcher, queue, store, model, scope, pause, onContinueAnyway = { payments.requestOverride() }, shadow = { store.shadowMode })
 
+    /** Called by [com.satark.app.events.EventPurgeWorker]: delete event_queue rows older than 7 days. */
+    suspend fun purgeOldEvents(nowMs: Long) = dao.pruneEvents(com.satark.app.events.EventPurgeWorker.cutoff(nowMs))
+
     fun start() {
+        com.satark.app.events.EventPurgeWorker.schedule(app)
         dispatcher.start()
         alerts.start()
         com.satark.app.push.ContactAlertNotifier.ensureChannel(app) // must exist before a background push arrives
