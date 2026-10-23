@@ -35,6 +35,11 @@ the evaluation gate fails.
   false-alarm rate gives a precision well under 1%.
 - **Unknown-contact signals depend on permissions and phone makers.** Without them the detector falls back to amount, payee and
   install signals (see `contracts/schema.json`, `missing_signal_defaults`).
+- **Phase 2, not built** (details in [`docs/ROADMAP.md`](docs/ROADMAP.md)): the DoT FRI payee rating (a PSP-only feed); embedding in a real
+  PSP or bank app with a shadow-mode pilot (needs a partner); Play Integrity (Key Attestation is used instead); learning from overrides
+  (the server records "Continue anyway", nothing learns from it and nothing is tuned); real-world accuracy and a live A/B test (every
+  result here is on simulated data); and local differential-privacy noise and CUSUM outbreak detection on signatures.
+- **Hindi warnings are machine-drafted** and need review by a native speaker (`ops/strings/PROVENANCE.md`); only the reason sentences are translated.
 
 Backend build log, phase by phase (built as stacked branches, all merged to `main`):
 
