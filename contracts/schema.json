@@ -78,6 +78,10 @@
       "source": "qr when scanned from a QR code, manual when typed",
       "payee_is_new": "true when the hashed VPA is not in the user's known payees"
     },
+    "decision_display_points": {
+      "note": "Display only. A payment-score alarm Decision also carries points (one integer per reason, same order), totalPoints and band. points = max(1, floor(contribution / 0.5 + 0.5)) where contribution = weight x scaled value in logit units; band: total 0-3 LOG, 4-5 NUDGE, 6-8 PAUSE, 9+ ESCALATE. They never change level or score, are not probabilities, and rule alarms carry none. Mirror: detector/tools/points.py.",
+      "fields": ["points", "totalPoints", "band"]
+    },
     "missing_signal_defaults": {
       "intro": "When a signal source is UNAVAILABLE the field is null (or the event is simply not emitted). The detector then behaves as follows; every case still yields a valid Decision.",
       "caller_known = null or no CALL events": "no unknown-contact evidence: unk_contact_recent, unk_call_active, unk_video_active, payee_added_after_unk, ocss_ordered, the install-during-unknown features and mins_since_unk_log are all 0. The sideload and long-session rules cannot fire. Detection falls back to amount/payee/payment features only.",

@@ -75,9 +75,10 @@ class Detector(
                 val score = scorer.score(x)
                 traceSink?.invoke(PaymentTrace(t, x, score, threshold))
                 e.payeeId?.let { state.paidTo[it] = (state.paidTo[it] ?: 0) + 1 }
-                payment = if (score >= threshold)
-                    Decision(Level.HARD, score, explainer.reasonsForPayment(x), Mechanism.PAYMENT_SCORE, t)
-                else Decision.none(score)
+                payment = if (score >= threshold) {
+                    val (pts, total, band) = explainer.pointsForPayment(x)
+                    Decision(Level.HARD, score, explainer.reasonsForPayment(x), Mechanism.PAYMENT_SCORE, t, pts, total, band)
+                } else Decision.none(score)
             }
         }
         // Same precedence as the reference: a rule alarm wins when its alarm time is <= the payment alarm time.
