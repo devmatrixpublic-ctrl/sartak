@@ -36,6 +36,7 @@ class SignalService : Service() {
 
     companion object {
         private const val CHANNEL = "satark_protection"
+        fun stop(ctx: Context) { runCatching { ctx.stopService(Intent(ctx, SignalService::class.java)) } }
         fun start(ctx: Context) {
             val i = Intent(ctx, SignalService::class.java)
             // Never crash if the OS refuses (e.g. background-start limits); protection resumes next app open.

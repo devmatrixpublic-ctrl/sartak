@@ -16,7 +16,7 @@ Setup for builds: JDK 21 (`~/.gradle/jdks/eclipse_adoptium-21-amd64-windows.2`) 
 (none)
 
 ## Remaining
-9. Consent screen in onboarding (revocable) + "delete my data" button.
+9. DONE: consent screen (first run, revocable switch in Protection settings, gates SignalService) + "Delete my data" (clears Room and the encrypted store; the server keeps its device record, no server delete yet).
 10. TextToSpeech read-aloud button on alert screens.
 11. Merge repeat alerts within 60 minutes; local per-user alert counters in Room.
 Items 12-14 need a vector re-freeze; not started, on hold until asked.

@@ -29,6 +29,7 @@ import com.satark.app.payments.UpiResultParser
 import com.satark.app.signals.SignalService
 import com.satark.app.ui.alerts.AlertHost
 import com.satark.app.ui.alerts.ContactDecisionScreen
+import com.satark.app.ui.onboarding.ConsentScreen
 import com.satark.app.ui.onboarding.OnboardingFlow
 import com.satark.app.ui.pay.PayHome
 import com.satark.app.ui.theme.SatarkTheme
@@ -46,6 +47,7 @@ class MainActivity : ComponentActivity(), PaymentResultListener {
     private var status by mutableStateOf<String?>(null)
     /** The "Protection and trusted contact" screen (also opened by the "pairing code changed" notification). */
     private var showProtection by mutableStateOf(false)
+    private var consentAsked by mutableStateOf(false)
     private var decidePaymentId by mutableStateOf<String?>(null) // trusted contact opened a held-payment alert
 
     private val upiLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { r ->
@@ -66,7 +68,8 @@ class MainActivity : ComponentActivity(), PaymentResultListener {
         enableEdgeToEdge() // Android 15 draws behind the system bars anyway; Root() keeps content clear of them
         super.onCreate(savedInstanceState)
         lifecycleScope.launch(Dispatchers.IO) { runCatching { graph.session.ensureRegistered() } }
-        if (graph.store.onboarded) SignalService.start(this)
+        if (graph.store.onboarded && graph.store.consent) SignalService.start(this)
+        consentAsked = graph.store.consentAsked
         handleOpen(intent)
         setContent { SatarkTheme { Root() } }
     }
@@ -99,11 +102,13 @@ class MainActivity : ComponentActivity(), PaymentResultListener {
             if (deciding != null) {
                 BackHandler { decidePaymentId = null }
                 ContactDecisionScreen(graph.payments, deciding) { decidePaymentId = null }
+            } else if (!consentAsked) {
+                ConsentScreen { agreed -> graph.store.consent = agreed; consentAsked = true }
             } else if (!onboarded) {
-                OnboardingFlow(graph) { graph.store.onboarded = true; onOnboarded(); SignalService.start(this@MainActivity) }
+                OnboardingFlow(graph) { graph.store.onboarded = true; onOnboarded(); if (graph.store.consent) SignalService.start(this@MainActivity) }
             } else if (showProtection) {
                 BackHandler { showProtection = false }
-                OnboardingFlow(graph, settings = true) { showProtection = false }
+                OnboardingFlow(graph, settings = true, onDeleted = { showProtection = false; recreate() }) { showProtection = false }
             } else {
                 PayHome(graph, status, ::onOutcome, onOpenProtection = { showProtection = true }, onNewPayment = { status = null })
             }

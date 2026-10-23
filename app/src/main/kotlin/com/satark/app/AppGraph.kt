@@ -40,7 +40,8 @@ class AppGraph(private val app: Application) {
             m.copy(constants = m.constants.copy(longSessionH = BuildConfig.LONG_SESSION_TEST_MIN / 60.0))
         else m
     }
-    private val dao = SatarkDb.create(app).dao()
+    private val db = SatarkDb.create(app)
+    private val dao = db.dao()
 
     private val host = URI(BuildConfig.BASE_URL).host ?: "localhost"
     val session: DeviceSession by lazy { DeviceSession(app, store) { bareApi } }
@@ -58,6 +59,16 @@ class AppGraph(private val app: Application) {
         override var phraseOwed: Boolean by store::pausePhraseOwed
     })
     val alerts = AlertController(dispatcher, queue, store, model, scope, pause, onContinueAnyway = { payments.requestOverride() }, shadow = { store.shadowMode })
+
+    /**
+     * "Delete my data": stops protection, empties every local table and forgets tokens, ids and the payee salt. The server
+     * keeps its own device record (it holds no phone numbers, names or raw amounts); there is no server delete yet.
+     */
+    suspend fun deleteAllData() {
+        com.satark.app.signals.SignalService.stop(app)
+        kotlinx.coroutines.withContext(Dispatchers.IO) { runCatching { db.clearAllTables() } }
+        store.wipe()
+    }
 
     /** Called by [com.satark.app.events.EventPurgeWorker]: delete event_queue rows older than 7 days. */
     suspend fun purgeOldEvents(nowMs: Long) = dao.pruneEvents(com.satark.app.events.EventPurgeWorker.cutoff(nowMs))

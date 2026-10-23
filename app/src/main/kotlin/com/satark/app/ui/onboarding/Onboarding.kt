@@ -78,7 +78,7 @@ private val steps = listOf(
 
 /** First run, and later the "Protection and trusted contact" screen ([settings] = true) reached from the pay screen. */
 @Composable
-fun OnboardingFlow(graph: AppGraph, settings: Boolean = false, onDone: () -> Unit) {
+fun OnboardingFlow(graph: AppGraph, settings: Boolean = false, onDeleted: () -> Unit = {}, onDone: () -> Unit) {
     val ctx = LocalContext.current
     var tick by remember { mutableIntStateOf(0) }
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { tick++ }
@@ -120,6 +120,8 @@ fun OnboardingFlow(graph: AppGraph, settings: Boolean = false, onDone: () -> Uni
             }
         }
         ProtectionBanners(status)
+
+        if (settings) ConsentCard(graph, onDeleted)
 
         TrustedContactSetup(graph)
 

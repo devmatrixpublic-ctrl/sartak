@@ -28,6 +28,11 @@ class TokenStore(ctx: Context) {
     var deviceId: String? get() = prefs.getString("device_id", null); set(v) = prefs.edit().putString("device_id", v).apply()
     var ageBand: String? get() = prefs.getString("age_band", null); set(v) = prefs.edit().putString("age_band", v).apply()
     var onboarded: Boolean get() = prefs.getBoolean("onboarded", false); set(v) = prefs.edit().putBoolean("onboarded", v).apply()
+    /** Consent to watch for scam signals on this phone. Not asked yet = no protection runs. Revocable in Protection settings. */
+    val consentAsked: Boolean get() = prefs.contains("consent")
+    var consent: Boolean get() = prefs.getBoolean("consent", false); set(v) = prefs.edit().putBoolean("consent", v).apply()
+    /** "Delete my data": forget everything this app keeps on the phone (tokens, device id, salt, flags). */
+    fun wipe() = prefs.edit().clear().apply()
     /** Shadow mode: the detector still scores and the app logs it, but nothing is shown, paused, pushed or held. */
     var shadowMode: Boolean get() = prefs.getBoolean("shadow", false); set(v) = prefs.edit().putBoolean("shadow", v).apply()
     /** Pointer (content URI) to the phone contact "Call trusted contact" dials. Never the number itself. */
