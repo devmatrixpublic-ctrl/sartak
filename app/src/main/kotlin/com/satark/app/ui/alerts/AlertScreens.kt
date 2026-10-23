@@ -40,7 +40,7 @@ fun AlertHost(alert: AlertUi?, controller: AlertController) {
     when (alert) {
         null -> Unit
         is AlertUi.Nudge -> NudgeBanner(alert, controller::dismiss)
-        is AlertUi.Hard -> HardIntervention(alert, controller::escalateToTrustedContact, controller::dismiss)
+        is AlertUi.Hard -> HardIntervention(alert, controller::escalateToTrustedContact, controller::holdThirtyMinutes, controller::dismiss)
         is AlertUi.LongSession -> LongSessionAlert(alert, controller::dismiss)
         is AlertUi.TrustedContact -> TrustedContactAlert(alert, controller::dismiss)
     }
@@ -134,7 +134,7 @@ fun NudgeBanner(a: AlertUi.Nudge, onDismiss: () -> Unit) {
 
 /** Forced pause. The held payment cannot be continued from here: the only ways out are cancel or tell someone. */
 @Composable
-fun HardIntervention(a: AlertUi.Hard, onTellContact: () -> Unit, onCancel: () -> Unit) {
+fun HardIntervention(a: AlertUi.Hard, onCallContact: () -> Unit, onHold30: () -> Unit, onContinue: () -> Unit) {
     val on = MaterialTheme.colorScheme.onErrorContainer
     FullScreen(MaterialTheme.colorScheme.errorContainer) {
         AlertTitle("Stop. This looks like a scam.", on)
@@ -147,10 +147,11 @@ fun HardIntervention(a: AlertUi.Hard, onTellContact: () -> Unit, onCancel: () ->
         Text("Payments in Satark are paused for ${Friction.PAUSE_MS / 60_000} minutes so you can talk to someone you trust.",
             style = MaterialTheme.typography.bodyMedium, color = on)
         Button(
-            onClick = onTellContact, modifier = Modifier.fillMaxWidth(),
+            onClick = onCallContact, modifier = Modifier.fillMaxWidth(),
             colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error, contentColor = MaterialTheme.colorScheme.onError),
-        ) { Text("Tell my trusted contact") }
-        OutlinedButton(onClick = onCancel, modifier = Modifier.fillMaxWidth()) { Text("Cancel this payment", color = on) }
+        ) { Text("Call trusted contact") }
+        OutlinedButton(onClick = onHold30, modifier = Modifier.fillMaxWidth()) { Text("Hold payment 30 minutes", color = on) }
+        TextButton(onClick = onContinue, modifier = Modifier.fillMaxWidth()) { Text("Continue anyway", color = on) }
     }
 }
 
