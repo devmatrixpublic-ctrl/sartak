@@ -1,3 +1,4 @@
+import pytest
 import sys
 import xml.etree.ElementTree as ET
 from pathlib import Path
@@ -23,6 +24,21 @@ def test_shipped_xml_is_in_sync_and_well_formed():
     root = ET.parse(val.XML_OUT).getroot()
     names = {s.get("name") for s in root.findall("string")}
     assert names == {gen.resource_name(c) for c in val.load_codes()}
+
+
+@pytest.mark.parametrize("bad", [
+    "Open https://example.com to check this payment.", "Visit www.bank.in now", "Go to secure-pay.com",
+    "Share your PIN to continue", "Read out the OTP", "enter your otp",
+])
+def test_strings_with_a_url_pin_or_otp_fail(bad):
+    codes = val.load_codes()
+    strings = dict(val.load_strings())
+    strings[codes[0]] = bad
+    assert any(codes[0] in p and ("URL" in p or "PIN or OTP" in p) for p in val.validate(codes, strings))
+
+
+def test_ordinary_words_are_not_mistaken_for_pin_or_otp():
+    assert val.safety_problems("X", "Keep the line open, it is a pinned note about the photo.") == []
 
 
 def test_missing_string_fails_the_build():
