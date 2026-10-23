@@ -124,6 +124,24 @@ emulator, so an allowed payment ends with "The UPI app reported success".
 | 40 | Contact's simulated alert; dark mode; rotation; crash log | Notification shown; readable dark theme; typed values kept; `logcat -b crash` empty | Pass |
 | 41 | `python app/tools/phone_check.py --allow-emulator` | 36/36 both paths; attestation exported; fresh install; permissions revoked. One run failed the fresh-install step because the launcher was still showing after the emulator booted; the same step passed when repeated | Pass |
 
+### Razorpay test mode: the paid path
+
+Server: `main`'s backend on a laptop in dev mode with a Razorpay **test** key, reached by Razorpay through a temporary
+Cloudflare tunnel (the webhook URL in the dashboard pointed at the tunnel). App: debug build with `-PsatarkRazorpayKey`.
+Android 15 emulator. The Razorpay test keys and webhook secret were shared in a chat, so they must be regenerated.
+
+| # | Path | Expected | Result |
+|---|---|---|---|
+| 42 | Pay ₹1 with "Satark checkout (test)" | Satark checks first; the server creates a real test order at Razorpay (`POST /v1/orders` 200); checkout opens showing ₹1 | Pass |
+| 43 | Webhook with a forged signature, through the tunnel | 400, logged as forged | Pass |
+| 44 | A signed `payment.captured` sent by a script (simulation, not Razorpay) | 200 `processed`; payment `paid`; after closing checkout the app shows "Payment confirmed (test mode)." | Pass |
+| 45 | Real checkout: phone number pasted, Netbanking, "Success" on Razorpay's demo bank page, webhook URL pointing at the Render address that had no server | Razorpay: payment `captured`, order `paid`. Our server never got the webhook, so the app ended on "Still waiting for confirmation. Check again in a moment." (correct: it never says paid without the webhook) | Pass (expected behaviour) |
+| 46 | Same, with the webhook URL changed to the tunnel | Razorpay itself sent two webhooks (`Tr2SMoKTBIHoVk`, `Tr2SNCeLVX5NPY`), both 200; payment `allowed` → `paid`; the app shows "Payment confirmed (test mode)." | Pass |
+
+Notes: Razorpay's form did not accept text typed through adb, and the emulator's keyboard was unusable here; the number was
+pasted from the clipboard. Back in the checkout opens an "Are you sure you want to exit?" sheet (tap "Yes, exit"). Razorpay
+rejected `9876543210` as an invalid number; `8123067459` was accepted. Not yet run against a deployed server.
+
 ## Defects found and fixed (all on `role_1`)
 
 | | Defect | Fix | Commit |
@@ -151,6 +169,7 @@ emulator, so an allowed payment ends with "The UPI app reported success".
   server: needs a real phone, M4's pinned Google roots and the signing digest on the server.
 - A real push reaching a second device: needs a Firebase project (`app/google-services.json` for the app, credentials
   for the server). Linking and the server-side send are verified above with the stub push client.
-- Razorpay test-mode `paid` path and webhooks: needs a Razorpay test key on the server and the app.
+- Razorpay `paid` path against a deployed server: verified above through a tunnel to a laptop server; repeat on the
+  deployed server once it exists (webhook URL and secret must match it).
 - QR scan with a real camera, ₹1 to a real VPA through GPay/PhonePe, the older test phone (minSdk 26), and the
   final two passes on both phones, the last on the release build.
