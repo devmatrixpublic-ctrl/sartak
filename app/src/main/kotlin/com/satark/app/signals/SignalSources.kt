@@ -315,7 +315,9 @@ class SignalHub(ctx: Context) {
     val watchlist = WatchlistSource(ctx)
     val sources: List<SignalSource> = listOf(CallSignalSource(ctx), UsageSignalSource(ctx), InstallSignalSource(ctx), watchlist)
 
-    fun status() = SignalStatus(sources.associate { it.name to it.state() })
+    val screenRecording = ScreenRecordingSource()
+
+    fun status() = SignalStatus(sources.associate { it.name to it.state() }, screenRecording.state())
 
     fun start(emit: (RawSignal) -> Unit) = sources.forEach { s ->
         runCatching { s.start(emit) }.onFailure { Log.w(TAG, "${s.name} failed", it) }
