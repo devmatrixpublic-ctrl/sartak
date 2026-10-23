@@ -11,8 +11,9 @@ from app.core.errors import ApiError
 CHECKOUT_TRANSITIONS: dict[str, set[str]] = {
     "created": {"held", "allowed"},
     # Dual custody: only a linked trusted contact moves a held payment on (service.decide_held_payment).
-    "held": {"approved", "blocked"},
+    "held": {"approved", "blocked", "allowed_by_user"},
     "approved": {"paid", "failed"},
+    "allowed_by_user": {"paid", "failed"},
     "blocked": set(),
     "allowed": {"paid", "failed"},
     "paid": set(),
@@ -21,8 +22,9 @@ CHECKOUT_TRANSITIONS: dict[str, set[str]] = {
 
 UPI_INTENT_TRANSITIONS: dict[str, set[str]] = {
     "created": {"held", "allowed"},
-    "held": {"approved", "blocked"},
+    "held": {"approved", "blocked", "allowed_by_user"},
     "approved": {"handed_off"},
+    "allowed_by_user": {"handed_off"},
     "blocked": set(),
     "allowed": {"handed_off"},
     "handed_off": {"reported_success", "reported_failure", "no_result"},

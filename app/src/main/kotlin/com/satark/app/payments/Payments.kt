@@ -13,6 +13,7 @@ import com.satark.app.net.RiskCheckRequest
 import com.satark.app.net.SatarkApi
 import com.satark.app.signals.RawSignal
 import com.satark.detector.Decision
+import com.satark.detector.showsScreen
 import kotlinx.coroutines.delay
 import java.io.IOException
 import java.math.BigDecimal
@@ -33,7 +34,8 @@ sealed interface HoldResolution {
     /** upi_intent approved: the server has started the hand-off, so the app launches the UPI chooser. */
     data object ApprovedUpi : HoldResolution
     /** checkout approved: the server created the order. */
-    data class ApprovedCheckout(val orderId: String) : HoldResolution
+    /** [orderId] is null when the contact approved but the owner's app still has to fetch the order (needs the amount). */
+    data class ApprovedCheckout(val orderId: String?) : HoldResolution
     /** Some other state (already settled, or an approval without an order): do nothing automatic. */
     data object Unknown : HoldResolution
 
@@ -42,11 +44,29 @@ sealed interface HoldResolution {
             p.state == "held" -> Waiting
             p.state == "blocked" -> Blocked
             p.method == "upi_intent" && p.state == "handed_off" -> ApprovedUpi
-            p.method == "checkout" && p.state == "approved" ->
-                p.razorpayOrderId?.let { ApprovedCheckout(it) } ?: Unknown
+            p.method == "checkout" && p.state == "approved" -> ApprovedCheckout(p.razorpayOrderId)
             else -> Unknown
         }
     }
+}
+
+/**
+ * The risk call gets [MS] milliseconds. If the server has not answered by then, the on-device decision stands:
+ * an alarm holds the payment (an alarm is never auto-confirmed), a clean payment may go ahead where it can.
+ */
+object RiskTimeout {
+    const val MS = 300L
+    const val LOCAL_PREFIX = "local:"
+
+    enum class Fallback { HOLD, ALLOW_LOCAL, FAIL }
+
+    fun fallback(alarmed: Boolean, method: String): Fallback = when {
+        alarmed -> Fallback.HOLD
+        method == "checkout" -> Fallback.FAIL // a checkout needs the server's order, so there is nothing to continue with
+        else -> Fallback.ALLOW_LOCAL
+    }
+
+    fun isLocal(paymentId: String) = paymentId.startsWith(LOCAL_PREFIX)
 }
 
 object UpiIntentLauncher {
@@ -64,6 +84,8 @@ class PaymentRepository(
     private val dispatcher: EventDispatcher,
     private val hasher: PayeeHasher,
     private val now: () -> Long = System::currentTimeMillis,
+    /** Shadow mode: the decision is reported as LOG (the server allows it) and an alarm does not hold the payment. */
+    private val shadow: () -> Boolean = { false },
 ) {
     /**
      * Pay via Satark. Events reach the detector BEFORE any money moves; then /risk-check; HOLD stops everything.
@@ -79,11 +101,14 @@ class PaymentRepository(
             add(RawSignal.PaymentAttempt(t, hash, amountInr.toDouble(), req.isP2P, isNew, source))
         }
         val decision: Decision = dispatcher.submitAndDecide(signals, source)
-        val dto = DecisionDto(decision.level.name, decision.score, decision.reasons.take(3))
+        val alarmed = decision.level.showsScreen && !shadow()
+        val dto = DecisionDto(if (decision.level.showsScreen && shadow()) "LOG" else decision.level.name, decision.score, decision.reasons.take(3))
         val check = try {
-            api().riskCheck(RiskCheckRequest(dto, method, amountInr.toDouble(), hash, req.isP2P))
+            kotlinx.coroutines.withTimeoutOrNull(RiskTimeout.MS) {
+                api().riskCheck(RiskCheckRequest(dto, method, amountInr.toDouble(), hash, req.isP2P))
+            }
         } catch (e: IOException) {
-            return if (decision.level.name != "NONE") PayOutcome.Held(null, decision.reasons)
+            return if (alarmed) PayOutcome.Held(null, decision.reasons)
             else PayOutcome.Failed("Can't reach Satark. Check your connection; no payment was made.")
         } catch (e: retrofit2.HttpException) {
             return PayOutcome.Failed("Satark could not check this payment (${e.code()}). No payment was made.")
@@ -91,8 +116,14 @@ class PaymentRepository(
             throw e
         } catch (e: Exception) {
             // Bad response body, TLS/pinning failure, etc.: same safety rule as offline, never a crash.
-            return if (decision.level.name != "NONE") PayOutcome.Held(null, decision.reasons)
+            return if (alarmed) PayOutcome.Held(null, decision.reasons)
             else PayOutcome.Failed("Satark could not check this payment. No payment was made.")
+        }
+        if (check == null) return when (RiskTimeout.fallback(alarmed, method)) {
+            RiskTimeout.Fallback.HOLD -> PayOutcome.Held(null, decision.reasons)
+            RiskTimeout.Fallback.ALLOW_LOCAL ->
+                PayOutcome.HandOff(RiskTimeout.LOCAL_PREFIX + java.util.UUID.randomUUID(), UpiUriParser.build(req, amountInr))
+            RiskTimeout.Fallback.FAIL -> PayOutcome.Failed("Satark was slow to answer. No payment was made. Try again.")
         }
         if (check.decision == "HOLD") return PayOutcome.Held(check.paymentId, decision.reasons)
         return when (method) {
@@ -106,23 +137,51 @@ class PaymentRepository(
     suspend fun reportUpiResult(paymentId: String, response: String?, req: UpiRequest, amountInr: BigDecimal): UpiResultParser.Result? {
         val r = UpiResultParser.parse(response) ?: return null
         // api.yaml caps txn_ref at 128 chars; a longer value from a UPI app must not cost us the whole result.
-        runCatching { api().paymentResult(paymentId, PaymentResultRequest(r.status, r.txnRef?.take(128))) }
+        if (!RiskTimeout.isLocal(paymentId)) runCatching { api().paymentResult(paymentId, PaymentResultRequest(r.status, r.txnRef?.take(128))) }
         if (r.status == "success") markCompleted(req.payeeVpa, amountInr.toDouble())
         return r
+    }
+
+    fun hashOf(vpa: String): String = hasher.hash(vpa)
+
+    private val activeHold = java.util.concurrent.atomic.AtomicReference<String?>(null)
+    private val overrideRequested = java.util.concurrent.atomic.AtomicBoolean(false)
+
+    /** "Continue anyway" on the Hard screen. Only counts while a payment is being held and waited on. */
+    fun requestOverride() { if (activeHold.get() != null) overrideRequested.set(true) }
+
+    /** Release the caller's own held payment (POST /risk-check override). Null when the server refuses or is unreachable. */
+    suspend fun overrideHold(paymentId: String, method: String, amountInr: Double, payeeHash: String, isP2p: Boolean): HoldResolution? = try {
+        val r = api().riskCheck(RiskCheckRequest(DecisionDto("NONE", 0.0, emptyList()), method, amountInr, payeeHash, isP2p, true, paymentId))
+        if (r.decision != "ALLOW") null
+        else if (method == "checkout") r.orderId?.let { HoldResolution.ApprovedCheckout(it) } else HoldResolution.ApprovedUpi
+    } catch (e: kotlinx.coroutines.CancellationException) {
+        throw e
+    } catch (e: Exception) {
+        null
     }
 
     /**
      * A held payment waits for the owner's trusted contact. Polls until the contact answers or [timeoutMs] passes; an
      * unanswered hold stays held on the server (it is never released by waiting), so a timeout returns [HoldResolution.Waiting].
      */
-    suspend fun waitForDecision(paymentId: String, timeoutMs: Long = 10 * 60_000L, pollMs: Long = 3_000L): HoldResolution {
+    suspend fun waitForDecision(
+        paymentId: String, timeoutMs: Long = 10 * 60_000L, pollMs: Long = 3_000L,
+        onOverride: (suspend () -> HoldResolution?)? = null,
+    ): HoldResolution {
         val end = now() + timeoutMs
-        while (now() < end) {
-            val r = runCatching { api().payment(paymentId) }.getOrNull()?.let { HoldResolution.of(it) }
-            if (r != null && r != HoldResolution.Waiting) return r
-            delay(pollMs)
-        }
-        return HoldResolution.Waiting
+        activeHold.set(paymentId); overrideRequested.set(false)
+        try {
+            while (now() < end) {
+                if (overrideRequested.getAndSet(false) && onOverride != null) onOverride()?.let { return it }
+                val r = runCatching { api().payment(paymentId) }.getOrNull()?.let { HoldResolution.of(it) }
+                if (r is HoldResolution.ApprovedCheckout && r.orderId == null && onOverride != null) {
+                    onOverride()?.let { return it } // approved by the contact: ask the server for the order
+                } else if (r != null && r != HoldResolution.Waiting) return r
+                delay(pollMs)
+            }
+            return HoldResolution.Waiting
+        } finally { activeHold.set(null) }
     }
 
     /** The trusted contact's answer. Returns null on success, otherwise a sentence for the screen. */

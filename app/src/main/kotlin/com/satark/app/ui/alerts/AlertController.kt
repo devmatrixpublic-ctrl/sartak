@@ -31,6 +31,15 @@ class AlertController(
     private val model: ModelConfig,
     private val scope: CoroutineScope,
     private val pause: PaymentPause,
+    private val onContinueAnyway: () -> Unit = {},
+    /** Shadow mode (TokenStore.shadowMode): score and log only, show nothing. Read on every alarm, so it can change live. */
+    private val shadow: () -> Boolean = { false },
+    private val log: (String) -> Unit = { android.util.Log.i("SatarkShadow", it) },
+    /** Repeat alerts within 60 minutes are merged. Null = no merging (tests). */
+    private val merger: AlertMerger? = null,
+    private val now: () -> Long = System::currentTimeMillis,
+    /** Called once for each alert that is actually shown (not for merged repeats): the notification. */
+    private val onShown: (Decision) -> Unit = {},
 ) {
     private val _current = MutableStateFlow<AlertUi?>(null)
     val current: StateFlow<AlertUi?> = _current.asStateFlow()
@@ -39,14 +48,17 @@ class AlertController(
         scope.launch {
             dispatcher.alarms.collect { a ->
                 val d = a.decision
+                if (!shadow() && merger != null && !merger.admit(AlertMerger.keyOf(d.mechanism, d.reasons), now())) return@collect
+                if (shadow()) { log("level=${d.level} score=${"%.3f".format(d.score)} mechanism=${d.mechanism} reasons=${d.reasons.joinToString(",")}"); return@collect }
                 _current.value = when (d.mechanism) {
                     Mechanism.LONG_SESSION -> AlertUi.LongSession(d.reasons)
                     else -> AlertUi.Hard(d.reasons).also { pause.start() }
                 }
+                onShown(d)
                 notifyServer(d, a.trace?.features)
             }
         }
-        scope.launch { dispatcher.nudges.collect { _current.value = it.let { n -> AlertUi.Nudge(n.reasons) } } }
+        scope.launch { dispatcher.nudges.collect { if (!shadow()) _current.value = it.let { n -> AlertUi.Nudge(n.reasons) } } }
     }
 
     /** Alarm -> POST /alert (trusted-contact push) and an anonymised /signature, both queued if offline. */
@@ -69,6 +81,12 @@ class AlertController(
     fun escalateToTrustedContact() {
         (_current.value as? AlertUi.Hard)?.let { _current.value = AlertUi.TrustedContact(it.reasons) }
     }
+
+    /** "Hold payment 30 minutes": payments in Satark wait the longer pause, then the screen closes. */
+    fun holdThirtyMinutes() { pause.start(Friction.HOLD_MS); _current.value = null }
+
+    /** "Continue anyway": the person overrides the hold. The pay screen releases it through the server; the screen closes. */
+    fun continueAnyway() { onContinueAnyway(); _current.value = null }
 
     fun dismiss() { _current.value = null }
 }

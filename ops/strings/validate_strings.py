@@ -78,6 +78,20 @@ def load_strings(path: Path = SOURCE) -> dict[str, str]:
     return json.loads(path.read_text(encoding="utf-8"))["strings"]
 
 
+URL_RE = re.compile(r"(https?://|www[.]|[a-z0-9-]+[.](com|in|org|net|co|io|app|me|ly|xyz|info)([^a-z]|$))", re.I)
+# A warning must never be able to read as a request for a secret: the words themselves are banned.
+SECRET_RE = re.compile(r"(^|[^a-z])(PIN|OTP)([^a-z]|$)", re.I)
+
+
+def safety_problems(code: str, text: str) -> list[str]:
+    out = []
+    if URL_RE.search(text):
+        out.append(f"{code}: contains a URL or web address")
+    if SECRET_RE.search(text):
+        out.append(f"{code}: mentions a PIN or OTP (strings must never ask for one)")
+    return out
+
+
 def validate(codes: list[str], strings: dict[str, str], rules=RULES) -> list[str]:
     problems: list[str] = []
     for code in codes:
@@ -90,6 +104,7 @@ def validate(codes: list[str], strings: dict[str, str], rules=RULES) -> list[str
         text = strings.get(code)
         if text is None:
             continue
+        problems += safety_problems(code, text)
         if code not in rules:
             problems.append(f"{code}: no concept rule in validate_strings.py (add one when adding a code)")
             continue

@@ -115,7 +115,7 @@ components:
       properties:
         level:
           type: string
-          enum: [NONE, NUDGE, HARD, TRUSTED_CONTACT]
+          enum: [NONE, LOG, NUDGE, HARD, TRUSTED_CONTACT]  # LOG: silent, recorded only (shadow mode); never holds
         score:
           type: number
           format: float
@@ -147,6 +147,18 @@ components:
           maxLength: 128
         is_p2p:
           type: boolean
+        override:
+          type: boolean
+          default: false
+          description: >
+            "Continue anyway". With payment_id of the caller's own held payment, moves it held -> allowed_by_user and
+            returns ALLOW. Only a detector hold can be overridden (409 override_not_allowed otherwise). amount must fall in the
+            held payment's band (409 amount_mismatch). Also used by the owner to get the order after a trusted contact
+            approved a checkout payment.
+        payment_id:
+          type: string
+          maxLength: 36
+          description: Required when override is true.
 
     RiskCheckResponse:
       type: object
@@ -168,7 +180,7 @@ components:
 
     PaymentResponse:
       type: object
-      required: [id, method, state, amount, payee_hash]
+      required: [id, method, state, amount_band, payee_hash]
       properties:
         id:
           type: string
@@ -183,6 +195,7 @@ components:
             - held
             - approved
             - blocked
+            - allowed_by_user
             - allowed
             - paid
             - failed
@@ -190,15 +203,19 @@ components:
             - reported_success
             - reported_failure
             - no_result
-        amount:
-          type: number
-          format: float
+        amount_band:
+          type: string
+          enum: [lt_500, 500_2k, 2k_10k, 10k_50k, 50k_2l, gt_2l]
+          description: Coarse band of the amount in rupees. The exact amount is never stored with the payment.
         payee_hash:
           type: string
         razorpay_order_id:
           type: string
         hold_reason:
           type: string
+        user_override:
+          type: boolean
+          description: Present (true) when the owner released a detector hold with "Continue anyway".
         reported_status:
           type: string
         reported_txn_ref:

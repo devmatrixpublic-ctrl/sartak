@@ -83,11 +83,13 @@ def test_trusted_contact_approves_upi_payment_and_hand_off_starts(client, db):
     assert client.get(f"/payments/{pid}", headers=_h("owner")).json()["state"] == "handed_off"
 
 
-def test_trusted_contact_approves_checkout_and_order_is_created(client, db):
+def test_trusted_contact_approves_checkout_then_owner_fetches_the_order(client, db):
     pid = _held(client, db, method="checkout")
     r = client.post(f"/payments/{pid}/decision", json={"decision": "approve"}, headers=_h("guardian"))
     assert r.json()["state"] == "approved"
-    assert r.json()["razorpay_order_id"]
+    assert "razorpay_order_id" not in r.json()  # the contact's call has no amount, so no order yet
+    again = _override(client, "owner", pid, method="checkout", payee="p-held")
+    assert again.status_code == 200 and again.json()["order_id"]
 
 
 def test_trusted_contact_blocks_and_block_is_final(client, db):
@@ -141,3 +143,84 @@ def test_alert_push_carries_the_payment_id(client, db):
 
     send_alert(db, owner_device_id="owner3", alert_type="alarm", reasons=["x"], fcm_client=Spy(), payment_id="pay-1")
     assert sent[0]["payment_id"] == "pay-1"
+
+
+# ---- "Continue anyway": held -> allowed_by_user ----
+
+def _override(client, device, pid, method="upi_intent", payee="p-ov", amount=500.0):
+    return client.post(
+        "/risk-check",
+        json={"decision": HARD, "method": method, "amount": amount, "payee_hash": payee, "override": True, "payment_id": pid},
+        headers=_h(device),
+    )
+
+
+def test_override_releases_a_detector_hold_and_is_recorded(client):
+    pid = _risk(client, "ov-1", payee="p-ov", decision=HARD).json()["payment_id"]
+    r = _override(client, "ov-1", pid)
+    assert r.status_code == 200 and r.json()["decision"] == "ALLOW" and r.json()["payment_id"] == pid
+    p = client.get(f"/payments/{pid}", headers=_h("ov-1")).json()
+    assert p["state"] == "handed_off" and p["user_override"] is True
+
+
+def test_override_on_checkout_creates_an_order(client):
+    pid = _risk(client, "ov-2", payee="p-ov", method="checkout", decision=HARD).json()["payment_id"]
+    r = _override(client, "ov-2", pid, method="checkout")
+    assert r.json()["decision"] == "ALLOW" and r.json()["order_id"]
+
+
+def test_override_needs_a_payment_id_and_the_owner(client):
+    pid = _risk(client, "ov-3", payee="p-ov", decision=HARD).json()["payment_id"]
+    body = {"decision": HARD, "method": "upi_intent", "amount": 5.0, "payee_hash": "x", "override": True}
+    assert client.post("/risk-check", json=body, headers=_h("ov-3")).status_code == 404
+    assert _override(client, "someone-else", pid).status_code == 404
+    assert client.get(f"/payments/{pid}", headers=_h("ov-3")).json()["state"] == "held"
+
+
+def test_override_cannot_be_used_twice_or_on_a_fan_in_hold(client):
+    pid = _risk(client, "ov-4", payee="p-ov", decision=HARD).json()["payment_id"]
+    assert _override(client, "ov-4", pid).status_code == 200
+    assert _override(client, "ov-4", pid).status_code == 409
+    for i in range(3):
+        _risk(client, f"ov-v{i}", payee="mule-ov")
+    fan = _risk(client, "ov-5", payee="mule-ov")
+    assert fan.json()["hold_reason"] == "payee_fan_in"
+    body = {"decision": NONE, "method": "upi_intent", "amount": 500.0, "payee_hash": "mule-ov",
+            "override": True, "payment_id": fan.json()["payment_id"]}
+    r = client.post("/risk-check", json=body, headers=_h("ov-5"))
+    assert r.status_code == 409 and r.json()["code"] == "override_not_allowed"
+
+
+def test_override_with_wrong_method_is_refused(client):
+    pid = _risk(client, "ov-6", payee="p-ov", decision=HARD).json()["payment_id"]
+    assert _override(client, "ov-6", pid, method="checkout").status_code == 409
+
+
+# ---- amount band: the rupee amount is never stored ----
+
+def test_payment_shows_a_band_not_an_amount(client, db):
+    from app.db.models import Payment
+    pid = _risk(client, "band-1", payee="p-band").json()["payment_id"]  # amount 500.0
+    p = client.get(f"/payments/{pid}", headers=_h("band-1")).json()
+    assert p["amount_band"] == "500_2k" and "amount" not in p
+    assert not hasattr(Payment, "amount")
+    assert "amount" not in Payment.__table__.columns
+
+
+def test_amount_band_edges():
+    from app.payments.bands import amount_band
+    assert [amount_band(a) for a in (0.01, 499.99, 500, 1999, 2000, 9999, 10000, 49999, 50000, 199999, 200000, 1e7)] == [
+        "lt_500", "lt_500", "500_2k", "500_2k", "2k_10k", "2k_10k", "10k_50k", "10k_50k", "50k_2l", "50k_2l", "gt_2l", "gt_2l"]
+
+
+def test_override_with_an_amount_outside_the_held_band_is_refused(client):
+    pid = _risk(client, "band-2", payee="p-band", decision=HARD).json()["payment_id"]
+    r = _override(client, "band-2", pid, payee="p-band", amount=900000.0)
+    assert r.status_code == 409 and r.json()["code"] == "amount_mismatch"
+
+
+# ---- silent LOG level (shadow mode) ----
+
+def test_log_level_is_allowed_never_held(client):
+    r = _risk(client, "log-1", payee="p-log", decision={"level": "LOG", "score": 9.0, "reasons": ["F_NEW_PAYEE"]})
+    assert r.status_code == 200 and r.json()["decision"] == "ALLOW"

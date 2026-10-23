@@ -36,11 +36,19 @@ import androidx.compose.ui.unit.dp
 
 /** Picks the screen from the AlertUi. Nudge is a dismissible banner; the rest take over the screen. */
 @Composable
-fun AlertHost(alert: AlertUi?, controller: AlertController) {
+fun AlertHost(alert: AlertUi?, controller: AlertController, dialContactUri: String? = null) {
+    val ctx = androidx.compose.ui.platform.LocalContext.current
     when (alert) {
         null -> Unit
         is AlertUi.Nudge -> NudgeBanner(alert, controller::dismiss)
-        is AlertUi.Hard -> HardIntervention(alert, controller::escalateToTrustedContact, controller::dismiss)
+        is AlertUi.Hard -> HardIntervention(
+            alert,
+            onCallContact = {
+                runCatching { ctx.startActivity(ContactDialer.intent(ctx, dialContactUri)) } // no dialler: still tell the contact
+                controller.escalateToTrustedContact()
+            },
+            onHold30 = controller::holdThirtyMinutes, onContinue = controller::continueAnyway,
+        )
         is AlertUi.LongSession -> LongSessionAlert(alert, controller::dismiss)
         is AlertUi.TrustedContact -> TrustedContactAlert(alert, controller::dismiss)
     }
@@ -134,7 +142,7 @@ fun NudgeBanner(a: AlertUi.Nudge, onDismiss: () -> Unit) {
 
 /** Forced pause. The held payment cannot be continued from here: the only ways out are cancel or tell someone. */
 @Composable
-fun HardIntervention(a: AlertUi.Hard, onTellContact: () -> Unit, onCancel: () -> Unit) {
+fun HardIntervention(a: AlertUi.Hard, onCallContact: () -> Unit, onHold30: () -> Unit, onContinue: () -> Unit) {
     val on = MaterialTheme.colorScheme.onErrorContainer
     FullScreen(MaterialTheme.colorScheme.errorContainer) {
         AlertTitle("Stop. This looks like a scam.", on)
@@ -142,15 +150,17 @@ fun HardIntervention(a: AlertUi.Hard, onTellContact: () -> Unit, onCancel: () ->
             style = MaterialTheme.typography.titleMedium, color = on)
         Text("Why Satark stopped this", style = MaterialTheme.typography.labelLarge, color = on)
         Reasons(a.reasons, on)
+        ReadAloudButton("Stop. This looks like a scam.", "Hang up. A real bank or police officer will never ask you to move money or install an app.", a.reasons, on)
         PlaybookCard(a.reasons)
         PurposeQuestion()
         Text("Payments in Satark are paused for ${Friction.PAUSE_MS / 60_000} minutes so you can talk to someone you trust.",
             style = MaterialTheme.typography.bodyMedium, color = on)
         Button(
-            onClick = onTellContact, modifier = Modifier.fillMaxWidth(),
+            onClick = onCallContact, modifier = Modifier.fillMaxWidth(),
             colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error, contentColor = MaterialTheme.colorScheme.onError),
-        ) { Text("Tell my trusted contact") }
-        OutlinedButton(onClick = onCancel, modifier = Modifier.fillMaxWidth()) { Text("Cancel this payment", color = on) }
+        ) { Text("Call trusted contact") }
+        OutlinedButton(onClick = onHold30, modifier = Modifier.fillMaxWidth()) { Text("Hold payment 30 minutes", color = on) }
+        TextButton(onClick = onContinue, modifier = Modifier.fillMaxWidth()) { Text("Continue anyway", color = on) }
     }
 }
 
@@ -161,6 +171,7 @@ fun TrustedContactAlert(a: AlertUi.TrustedContact, onDone: () -> Unit) {
         Text("They will see that Satark was worried. Call them now on a number you know, and do not continue the other call.",
             style = MaterialTheme.typography.titleMedium)
         Reasons(a.reasons)
+        ReadAloudButton("Your trusted contact has been told", "Call them now on a number you know, and do not continue the other call.", a.reasons)
         PlaybookCard(a.reasons)
         Button(onClick = onDone, modifier = Modifier.fillMaxWidth()) { Text("OK") }
     }
@@ -174,6 +185,7 @@ fun LongSessionAlert(a: AlertUi.LongSession, onDone: () -> Unit) {
         Text("Scammers keep people on a video call for a long time so they can't think or ask anyone. Take a break and talk to someone you trust.",
             style = MaterialTheme.typography.titleMedium, color = on)
         Reasons(a.reasons, on)
+        ReadAloudButton("This video call has been going on for hours", "Take a break and talk to someone you trust.", a.reasons, on)
         PlaybookCard(a.reasons)
         Button(onClick = onDone, modifier = Modifier.fillMaxWidth()) { Text("OK") }
     }

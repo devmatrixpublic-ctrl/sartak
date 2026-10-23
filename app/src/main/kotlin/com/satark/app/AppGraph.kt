@@ -40,7 +40,8 @@ class AppGraph(private val app: Application) {
             m.copy(constants = m.constants.copy(longSessionH = BuildConfig.LONG_SESSION_TEST_MIN / 60.0))
         else m
     }
-    private val dao = SatarkDb.create(app).dao()
+    private val db = SatarkDb.create(app)
+    private val dao = db.dao()
 
     private val host = URI(BuildConfig.BASE_URL).host ?: "localhost"
     val session: DeviceSession by lazy { DeviceSession(app, store) { bareApi } }
@@ -52,19 +53,38 @@ class AppGraph(private val app: Application) {
     val dispatcher = EventDispatcher(dao, model, store.ageBand, scope)
     val hub = SignalHub(app)
     val queue = OfflineQueue(dao) { api }
-    val payments = PaymentRepository({ api }, dao, dispatcher, PayeeHasher(store.payeeSalt))
+    val payments = PaymentRepository({ api }, dao, dispatcher, PayeeHasher(store.payeeSalt), shadow = { store.shadowMode })
     val pause = com.satark.app.ui.alerts.PaymentPause(object : com.satark.app.ui.alerts.PaymentPause.Store {
         override var untilMs: Long by store::pauseUntilMs
         override var phraseOwed: Boolean by store::pausePhraseOwed
     })
-    val alerts = AlertController(dispatcher, queue, store, model, scope, pause)
+    private val alarmNotifier by lazy { com.satark.app.ui.alerts.AlarmNotifier(app) }
+    val alerts = AlertController(dispatcher, queue, store, model, scope, pause, onContinueAnyway = { payments.requestOverride() }, shadow = { store.shadowMode },
+        merger = com.satark.app.ui.alerts.AlertMerger(object : com.satark.app.ui.alerts.AlertMerger.Store {
+            override suspend fun get(key: String) = dao.alertStat(key)
+            override suspend fun put(stat: com.satark.app.events.AlertStat) = dao.putAlertStat(stat)
+        }),
+        onShown = { alarmNotifier.show(it.mechanism) })
+
+
+    /**
+     * "Delete my data": stops protection, empties every local table and forgets tokens, ids and the payee salt. The server
+     * keeps its own device record (it holds no phone numbers, names or raw amounts); there is no server delete yet.
+     */
+    suspend fun deleteAllData() {
+        com.satark.app.signals.SignalService.stop(app)
+        kotlinx.coroutines.withContext(Dispatchers.IO) { runCatching { db.clearAllTables() } }
+        store.wipe()
+    }
+
+    /** Called by [com.satark.app.events.EventPurgeWorker]: delete event_queue rows older than 7 days. */
+    suspend fun purgeOldEvents(nowMs: Long) = dao.pruneEvents(com.satark.app.events.EventPurgeWorker.cutoff(nowMs))
 
     fun start() {
+        com.satark.app.events.EventPurgeWorker.schedule(app)
         dispatcher.start()
         alerts.start()
         com.satark.app.push.ContactAlertNotifier.ensureChannel(app) // must exist before a background push arrives
-        val notifier = com.satark.app.ui.alerts.AlarmNotifier(app)
-        scope.launch { dispatcher.alarms.collect { notifier.show(it.decision.mechanism) } }
         scope.launch { runCatching { session.ensureRegistered(); queue.flush() } }
         flushWhenOnline()
     }

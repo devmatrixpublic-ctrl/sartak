@@ -7,6 +7,7 @@ import com.satark.detector.Detector
 import com.satark.detector.Event
 import com.satark.detector.EventType
 import com.satark.detector.Level
+import com.satark.detector.showsScreen
 import com.satark.detector.ModelConfig
 import com.satark.detector.PaymentTrace
 import kotlinx.coroutines.CoroutineScope
@@ -109,7 +110,7 @@ class EventDispatcher(
             if (d.level != Level.NONE || e.type == EventType.PAYMENT_ATTEMPT) {
                 dao.insertDecision(DecisionRow(tMs = e.tMs, level = d.level.name, score = d.score, reasons = d.reasons.joinToString(","), mechanism = d.mechanism))
             }
-            if (d.level != Level.NONE) {
+            if (d.level.showsScreen) {
                 _alarms.tryEmit(Alarm(d, lastTrace, unknownCallActive))
                 if (worst.level == Level.NONE) worst = d
             } else if (e.type == EventType.PAYMENT_ATTEMPT && unknownCallActive && e.payeeIsNew == true) {
@@ -118,10 +119,10 @@ class EventDispatcher(
             } else if (e.type == EventType.PAYMENT_ATTEMPT && worst.level == Level.NONE) worst = d
         }
         if (flushAll) detector.onTick(maxOf(policy.lastEventTMs, now()))
-            .takeIf { it.level != Level.NONE && worst.level == Level.NONE }?.let {
+            .takeIf { it.level.showsScreen && worst.level == Level.NONE }?.let {
                 _alarms.tryEmit(Alarm(it, null, unknownCallActive)); worst = it
             }
-        else detector.onTick(now()).takeIf { it.level != Level.NONE }?.let { _alarms.tryEmit(Alarm(it, null, unknownCallActive)) }
+        else detector.onTick(now()).takeIf { it.level.showsScreen }?.let { _alarms.tryEmit(Alarm(it, null, unknownCallActive)) }
         worst
     }
 

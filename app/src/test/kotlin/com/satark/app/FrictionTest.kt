@@ -53,7 +53,7 @@ class FrictionTest {
         assertEquals("0:01", Friction.clock(1))
         assertEquals("0:00", Friction.clock(0))
         assertEquals(0, Friction.remainingMs(1_000, 5_000))
-        assertEquals(Friction.PAUSE_MS, Friction.remainingMs(10 * Friction.PAUSE_MS, 0))
+        assertEquals(Friction.HOLD_MS, Friction.remainingMs(10 * Friction.PAUSE_MS, 0))
     }
 
     private class MemStore : PaymentPause.Store {
@@ -91,7 +91,14 @@ class FrictionTest {
         p.start()
         now = 0 // clock set back by hours
         p.refresh()
-        assertEquals(PaymentPause.State.Waiting(Friction.PAUSE_MS), p.state.value)
+        assertEquals(PaymentPause.State.Waiting(Friction.HOLD_MS), p.state.value)
+    }
+
+    @Test fun holdThirtyMinutesLastsThirty() {
+        val now = 1_000L
+        val p = PaymentPause(MemStore()) { now }
+        p.start(Friction.HOLD_MS)
+        assertEquals(PaymentPause.State.Waiting(now + Friction.HOLD_MS), p.state.value)
     }
 
     @Test fun debugClearEndsEverything() {

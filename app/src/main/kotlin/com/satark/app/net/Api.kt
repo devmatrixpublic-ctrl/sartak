@@ -39,6 +39,9 @@ import retrofit2.http.Path
     val amount: Double,
     @SerialName("payee_hash") val payeeHash: String,
     @SerialName("is_p2p") val isP2p: Boolean,
+    /** "Continue anyway": release the caller's own held [paymentId] (server: held -> allowed_by_user). */
+    val override: Boolean = false,
+    @SerialName("payment_id") val paymentId: String? = null,
 )
 @Serializable data class RiskCheckResponse(
     val decision: String, // HOLD | ALLOW
@@ -50,10 +53,12 @@ import retrofit2.http.Path
     val id: String,
     val method: String,
     val state: String,
-    val amount: Double,
+    /** Coarse band (lt_500 .. gt_2l); the server no longer keeps the rupee amount. */
+    @SerialName("amount_band") val amountBand: String,
     @SerialName("payee_hash") val payeeHash: String,
     @SerialName("razorpay_order_id") val razorpayOrderId: String? = null,
     @SerialName("hold_reason") val holdReason: String? = null,
+    @SerialName("user_override") val userOverride: Boolean? = null,
     @SerialName("reported_status") val reportedStatus: String? = null,
     @SerialName("reported_txn_ref") val reportedTxnRef: String? = null,
 )

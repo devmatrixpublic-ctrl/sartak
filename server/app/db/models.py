@@ -71,7 +71,8 @@ class Payment(Base):
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
     device_id: Mapped[str] = mapped_column(ForeignKey("devices.id"), nullable=False, index=True)
     method: Mapped[str] = mapped_column(String(16), nullable=False)
-    amount: Mapped[float] = mapped_column(Float, nullable=False)
+    # Coarse band only (payments/bands.py): the rupee amount is never stored against a device.
+    amount_band: Mapped[str] = mapped_column(String(16), nullable=False)
     payee_hash: Mapped[str] = mapped_column(String, nullable=False, index=True)
     state: Mapped[str] = mapped_column(String(32), nullable=False, default="created")
     razorpay_order_id: Mapped[str | None] = mapped_column(String, nullable=True, index=True)
@@ -85,6 +86,8 @@ class Payment(Base):
     hold_reason: Mapped[str | None] = mapped_column(String(32), nullable=True)
     decided_by_device_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
     decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # Set when the owner chose "Continue anyway" on a detector hold (held -> allowed_by_user).
+    user_override_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     device: Mapped["Device"] = relationship(back_populates="payments")
 

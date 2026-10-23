@@ -37,6 +37,18 @@ data class KnownPayee(@PrimaryKey val hash: String)
 @Entity(tableName = "completed_payment")
 data class CompletedPayment(@PrimaryKey(autoGenerate = true) val id: Long = 0, val amountInr: Double)
 
+/**
+ * Simple local alert counters, one row per kind of alert (mechanism + reason set). Counts only: no numbers, names or
+ * amounts. [count] alerts were shown, [mergedCount] repeats within the merge window were folded into them.
+ */
+@Entity(tableName = "alert_stat")
+data class AlertStat(
+    @PrimaryKey val alertKey: String,
+    val count: Int,
+    val mergedCount: Int,
+    val lastShownMs: Long,
+)
+
 /** Calls that failed offline and are retried later (/alert, /signature). */
 @Entity(tableName = "queued_call")
 data class QueuedCall(
@@ -62,6 +74,11 @@ interface SatarkDao {
     @Insert suspend fun addCompleted(p: CompletedPayment)
     @Query("SELECT amountInr FROM completed_payment ORDER BY id DESC LIMIT :n") suspend fun lastAmounts(n: Int): List<Double>
 
+    @Query("SELECT * FROM alert_stat WHERE alertKey = :key") suspend fun alertStat(key: String): AlertStat?
+    @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun putAlertStat(s: AlertStat)
+    @Query("SELECT COALESCE(SUM(count), 0) FROM alert_stat") suspend fun alertsShown(): Int
+    @Query("SELECT COALESCE(SUM(mergedCount), 0) FROM alert_stat") suspend fun alertsMerged(): Int
+
     @Insert suspend fun enqueue(q: QueuedCall)
     @Query("SELECT * FROM queued_call ORDER BY id") suspend fun queued(): List<QueuedCall>
     @Query("DELETE FROM queued_call WHERE id = :id") suspend fun dequeue(id: Long)
@@ -69,14 +86,24 @@ interface SatarkDao {
 }
 
 @Database(
-    entities = [EventRow::class, DecisionRow::class, KnownPayee::class, CompletedPayment::class, QueuedCall::class],
-    version = 1,
+    entities = [EventRow::class, DecisionRow::class, KnownPayee::class, CompletedPayment::class, QueuedCall::class, AlertStat::class],
+    version = 2,
     exportSchema = false,
 )
 abstract class SatarkDb : RoomDatabase() {
     abstract fun dao(): SatarkDao
 
     companion object {
-        fun create(ctx: Context) = Room.databaseBuilder(ctx, SatarkDb::class.java, "satark.db").build()
+        /** v1 -> v2: adds alert_stat. Nothing else changes, so no data is lost on update. */
+        val MIGRATION_1_2 = object : androidx.room.migration.Migration(1, 2) {
+            override fun migrate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `alert_stat` (`alertKey` TEXT NOT NULL, `count` INTEGER NOT NULL, " +
+                        "`mergedCount` INTEGER NOT NULL, `lastShownMs` INTEGER NOT NULL, PRIMARY KEY(`alertKey`))",
+                )
+            }
+        }
+
+        fun create(ctx: Context) = Room.databaseBuilder(ctx, SatarkDb::class.java, "satark.db").addMigrations(MIGRATION_1_2).build()
     }
 }

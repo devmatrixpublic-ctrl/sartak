@@ -77,7 +77,7 @@ class HeldPaymentDecisionTest {
     private val uuid = "6abf5a43-0cc2-4520-a433-3156d87d55ac"
 
     private fun payment(method: String, state: String, order: String? = null) =
-        com.satark.app.net.PaymentResponse(uuid, method, state, 500.0, "h", razorpayOrderId = order)
+        com.satark.app.net.PaymentResponse(uuid, method, state, "500_2k", "h", razorpayOrderId = order)
 
     @Test fun pushWithAPaymentIdAsksTheContactToDecide() {
         val a = ContactAlert.from(mapOf("type" to "alarm", "payment_id" to uuid))
@@ -111,7 +111,8 @@ class HeldPaymentDecisionTest {
             com.satark.app.payments.HoldResolution.ApprovedCheckout("order_1"),
             com.satark.app.payments.HoldResolution.of(payment("checkout", "approved", "order_1")),
         )
-        assertEquals(com.satark.app.payments.HoldResolution.Unknown, com.satark.app.payments.HoldResolution.of(payment("checkout", "approved")))
+        // Approved by the contact but no order yet: the owner's app must fetch it.
+        assertEquals(com.satark.app.payments.HoldResolution.ApprovedCheckout(null), com.satark.app.payments.HoldResolution.of(payment("checkout", "approved")))
     }
 
     @Test fun anythingElseDoesNothingAutomatic() {

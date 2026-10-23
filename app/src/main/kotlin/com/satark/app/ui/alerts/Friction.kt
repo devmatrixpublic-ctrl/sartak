@@ -82,6 +82,8 @@ object Friction {
 
     /** Rung 3. */
     const val PAUSE_MS = 15 * 60_000L
+    /** "Hold payment 30 minutes" on the Hard screen; also the longest any pause can be. */
+    const val HOLD_MS = 30 * 60_000L
     const val PHRASE = "No one is telling me to make this payment"
 
     /** Case, punctuation and spacing do not matter; the words do. */
@@ -90,10 +92,10 @@ object Friction {
     private fun normalise(s: String) = s.lowercase().replace(Regex("[^a-z ]"), " ").split(' ').filter(String::isNotEmpty)
 
     /**
-     * Time left on a pause that ends at [untilMs]. A clock moved backwards cannot stretch it beyond [PAUSE_MS], and a
+     * Time left on a pause that ends at [untilMs]. A clock moved backwards cannot stretch it beyond [HOLD_MS], and a
      * clock moved forwards just ends it (the phrase is still asked for).
      */
-    fun remainingMs(untilMs: Long, nowMs: Long): Long = (untilMs - nowMs).coerceIn(0, PAUSE_MS)
+    fun remainingMs(untilMs: Long, nowMs: Long): Long = (untilMs - nowMs).coerceIn(0, HOLD_MS)
 
     /** "14:05" for the countdown. */
     fun clock(ms: Long): String {
@@ -123,8 +125,8 @@ class PaymentPause(private val store: Store, private val now: () -> Long = Syste
     val state: kotlinx.coroutines.flow.StateFlow<State> = _state
 
     /** A new warning (re)starts the full pause. */
-    fun start() {
-        store.untilMs = now() + Friction.PAUSE_MS
+    fun start(durationMs: Long = Friction.PAUSE_MS) {
+        store.untilMs = now() + durationMs.coerceIn(0, Friction.HOLD_MS)
         store.phraseOwed = true
         refresh()
     }
@@ -149,7 +151,7 @@ class PaymentPause(private val store: Store, private val now: () -> Long = Syste
     private fun read(): State {
         val t = now()
         var until = store.untilMs
-        if (until - t > Friction.PAUSE_MS) { until = t + Friction.PAUSE_MS; store.untilMs = until } // clock moved back
+        if (until - t > Friction.HOLD_MS) { until = t + Friction.HOLD_MS; store.untilMs = until } // clock moved back
         return when {
             until > t -> State.Waiting(until)
             store.phraseOwed -> State.PhraseOwed
