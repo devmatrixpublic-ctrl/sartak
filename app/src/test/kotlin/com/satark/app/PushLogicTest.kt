@@ -71,3 +71,52 @@ class PushLogicTest {
         assertNotEquals(h, Push.hash(token + "x"))
     }
 }
+
+/** Held-payment approval: what the trusted contact's phone does with a payment id, and how the owner reads the server state. */
+class HeldPaymentDecisionTest {
+    private val uuid = "6abf5a43-0cc2-4520-a433-3156d87d55ac"
+
+    private fun payment(method: String, state: String, order: String? = null) =
+        com.satark.app.net.PaymentResponse(uuid, method, state, 500.0, "h", razorpayOrderId = order)
+
+    @Test fun pushWithAPaymentIdAsksTheContactToDecide() {
+        val a = ContactAlert.from(mapOf("type" to "alarm", "payment_id" to uuid))
+        assertTrue(a.canDecide)
+        assertEquals(uuid, a.paymentId)
+    }
+
+    @Test fun pushWithoutAPaymentIdOrWithABadOneStaysAPlainWarning() {
+        assertFalse(ContactAlert.from(mapOf("type" to "alarm")).canDecide)
+        assertFalse(ContactAlert.from(mapOf("type" to "alarm", "payment_id" to "")).canDecide)
+        assertFalse(ContactAlert.from(mapOf("type" to "alarm", "payment_id" to "x".repeat(37))).canDecide)
+        assertFalse(ContactAlert.from(mapOf("type" to "long_session", "payment_id" to uuid)).canDecide)
+    }
+
+    @Test fun contactNotificationNeverShowsAmountOrPayee() {
+        val text = ContactAlert.from(mapOf("type" to "alarm", "payment_id" to uuid)).text()
+        assertFalse(text.contains("₹")); assertFalse(text.contains("@"))
+    }
+
+    @Test fun ownerWaitsWhileHeld() =
+        assertEquals(com.satark.app.payments.HoldResolution.Waiting, com.satark.app.payments.HoldResolution.of(payment("upi_intent", "held")))
+
+    @Test fun blockedIsFinal() =
+        assertEquals(com.satark.app.payments.HoldResolution.Blocked, com.satark.app.payments.HoldResolution.of(payment("checkout", "blocked")))
+
+    @Test fun approvedUpiStartsTheHandOff() =
+        assertEquals(com.satark.app.payments.HoldResolution.ApprovedUpi, com.satark.app.payments.HoldResolution.of(payment("upi_intent", "handed_off")))
+
+    @Test fun approvedCheckoutNeedsItsOrder() {
+        assertEquals(
+            com.satark.app.payments.HoldResolution.ApprovedCheckout("order_1"),
+            com.satark.app.payments.HoldResolution.of(payment("checkout", "approved", "order_1")),
+        )
+        assertEquals(com.satark.app.payments.HoldResolution.Unknown, com.satark.app.payments.HoldResolution.of(payment("checkout", "approved")))
+    }
+
+    @Test fun anythingElseDoesNothingAutomatic() {
+        listOf("paid", "failed", "allowed", "created").forEach {
+            assertEquals(com.satark.app.payments.HoldResolution.Unknown, com.satark.app.payments.HoldResolution.of(payment("checkout", it)), it)
+        }
+    }
+}

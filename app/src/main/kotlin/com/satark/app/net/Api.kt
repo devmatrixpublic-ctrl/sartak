@@ -44,6 +44,7 @@ import retrofit2.http.Path
     val decision: String, // HOLD | ALLOW
     @SerialName("payment_id") val paymentId: String,
     @SerialName("order_id") val orderId: String? = null,
+    @SerialName("hold_reason") val holdReason: String? = null,
 )
 @Serializable data class PaymentResponse(
     val id: String,
@@ -52,14 +53,18 @@ import retrofit2.http.Path
     val amount: Double,
     @SerialName("payee_hash") val payeeHash: String,
     @SerialName("razorpay_order_id") val razorpayOrderId: String? = null,
+    @SerialName("hold_reason") val holdReason: String? = null,
     @SerialName("reported_status") val reportedStatus: String? = null,
     @SerialName("reported_txn_ref") val reportedTxnRef: String? = null,
 )
 @Serializable data class PaymentResultRequest(val status: String, @SerialName("txn_ref") val txnRef: String? = null)
+@Serializable data class PaymentDecisionRequest(val decision: String) // approve | block
 @Serializable data class AlertRequest(
     @SerialName("device_id") val deviceId: String,
     val type: String, // alarm | long_session
     val reasons: List<String> = emptyList(),
+    /** A held payment the trusted contact may approve or block. */
+    @SerialName("payment_id") val paymentId: String? = null,
 )
 @Serializable data class Accepted(val accepted: Boolean)
 @Serializable data class SignatureRequest(@SerialName("pattern_id") val patternId: String, val features: Map<String, Double>)
@@ -79,6 +84,7 @@ interface SatarkApi {
     @POST("risk-check") suspend fun riskCheck(@Body b: RiskCheckRequest): RiskCheckResponse
     @GET("payments/{id}") suspend fun payment(@Path("id") id: String, @Header(RETRY_HEADER) retry: String = "1"): PaymentResponse
     @POST("payments/{id}/result") suspend fun paymentResult(@Path("id") id: String, @Body b: PaymentResultRequest): PaymentResponse
+    @POST("payments/{id}/decision") suspend fun paymentDecision(@Path("id") id: String, @Body b: PaymentDecisionRequest): PaymentResponse
     @POST("alert") suspend fun alert(@Body b: AlertRequest, @Header(RETRY_HEADER) retry: String = "1"): Accepted
     @POST("signature") suspend fun signature(@Body b: SignatureRequest, @Header(RETRY_HEADER) retry: String = "1"): Accepted
 }

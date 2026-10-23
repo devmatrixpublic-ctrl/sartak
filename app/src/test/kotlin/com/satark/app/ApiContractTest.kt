@@ -6,6 +6,7 @@ import com.satark.app.net.ChallengeResponse
 import com.satark.app.net.DecisionDto
 import com.satark.app.net.DeviceAuthRequest
 import com.satark.app.net.NetJson
+import com.satark.app.net.PaymentDecisionRequest
 import com.satark.app.net.PaymentResponse
 import com.satark.app.net.PaymentResultRequest
 import com.satark.app.net.RefreshRequest
@@ -161,7 +162,13 @@ class ApiContractTest {
         checkRequest("/payments/{id}/result", "post", PaymentResultRequest("failure"))
     }
 
+    @Test fun paymentDecisionRequestMatches() {
+        checkRequest("/payments/{id}/decision", "post", PaymentDecisionRequest("approve"))
+        checkRequest("/payments/{id}/decision", "post", PaymentDecisionRequest("block"))
+    }
+
     @Test fun alertSignatureAndTrustedContactRequestsMatch() {
+        checkRequest("/alert", "post", AlertRequest(uuid, "alarm", listOf("F_NEW_PAYEE"), paymentId = uuid))
         checkRequest("/alert", "post", AlertRequest(uuid, "alarm", listOf("RULE_SIDELOAD_DURING_CALL")))
         checkRequest("/alert", "post", AlertRequest(uuid, "long_session"))
         checkRequest("/signature", "post", SignatureRequest("payment_score", mapOf("new_payee" to 1.0, "is_p2p" to 0.0)))
@@ -176,6 +183,7 @@ class ApiContractTest {
         checkResponse("/risk-check", "post", RiskCheckResponse.serializer())
         checkResponse("/payments/{id}", "get", PaymentResponse.serializer())
         checkResponse("/payments/{id}/result", "post", PaymentResponse.serializer())
+        checkResponse("/payments/{id}/decision", "post", PaymentResponse.serializer())
         checkResponse("/alert", "post", Accepted.serializer())
         checkResponse("/signature", "post", Accepted.serializer())
     }

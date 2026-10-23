@@ -60,6 +60,12 @@ class AlertController(
         if (f.isNotEmpty()) queue.signature(SignatureRequest(d.mechanism ?: "payment_score", f))
     }
 
+    /** A payment is held: tell the trusted contact which one, so they can approve or block it (queued if offline). */
+    suspend fun requestApproval(paymentId: String, reasons: List<String>) {
+        val id = store.deviceId ?: return
+        queue.alert(AlertRequest(id, "alarm", reasons.take(3), paymentId))
+    }
+
     fun escalateToTrustedContact() {
         (_current.value as? AlertUi.Hard)?.let { _current.value = AlertUi.TrustedContact(it.reasons) }
     }
