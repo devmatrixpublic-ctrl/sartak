@@ -20,6 +20,7 @@ def send_alert(
     alert_type: str,
     reasons: list[str],
     fcm_client: FcmClient,
+    payment_id: str | None = None,
 ) -> Alert:
     link = (
         db.query(TrustedLink)
@@ -55,7 +56,11 @@ def send_alert(
             trusted_device.fcm_token,
             title=title,
             body=body,
-            data={"type": alert_type, "owner_device_id": owner_device_id},
+            data={
+                "type": alert_type,
+                "owner_device_id": owner_device_id,
+                **({"payment_id": payment_id} if payment_id else {}),
+            },
         )
         alert.delivered = True
     except FcmTokenInvalid as exc:

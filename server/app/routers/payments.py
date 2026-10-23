@@ -8,7 +8,9 @@ from app.core.errors import ApiError
 from app.core.schemas import StrictInput
 from app.db.models import Payment
 from app.db.session import get_db
-from app.payments.service import report_result, sweep_if_stale
+from app.core.settings import get_settings
+from app.payments.order_client import get_order_client
+from app.payments.service import decide_held_payment, report_result, sweep_if_stale
 
 router = APIRouter(tags=["payments"])
 
@@ -20,6 +22,7 @@ class PaymentOut(BaseModel):
     amount: float
     payee_hash: str
     razorpay_order_id: Optional[str] = None
+    hold_reason: Optional[str] = None
     reported_status: Optional[str] = None
     reported_txn_ref: Optional[str] = None
 
@@ -32,6 +35,7 @@ class PaymentOut(BaseModel):
             amount=payment.amount,
             payee_hash=payment.payee_hash,
             razorpay_order_id=payment.razorpay_order_id,
+            hold_reason=payment.hold_reason,
             reported_status=payment.reported_status,
             reported_txn_ref=payment.reported_txn_ref,
         )
@@ -40,6 +44,10 @@ class PaymentOut(BaseModel):
 class PaymentResultIn(StrictInput):
     status: Literal["success", "failure"]
     txn_ref: Optional[str] = Field(default=None, max_length=128)
+
+
+class PaymentDecisionIn(StrictInput):
+    decision: Literal["approve", "block"]
 
 
 def _get_owned_payment(db: Session, payment_id: str, device_id: str) -> Payment:
@@ -70,4 +78,25 @@ async def post_payment_result(
 ) -> PaymentOut:
     payment = _get_owned_payment(db, payment_id, device_id)
     payment = report_result(db, payment, body.status, body.txn_ref)
+    return PaymentOut.from_model(payment)
+
+
+@router.post("/payments/{payment_id}/decision", response_model=PaymentOut, response_model_exclude_none=True)
+async def post_payment_decision(
+    payment_id: str,
+    body: PaymentDecisionIn,
+    device_id: str = Depends(require_device),
+    db: Session = Depends(get_db),
+) -> PaymentOut:
+    """Trusted-contact approve/block of a held payment (dual custody)."""
+    payment = db.get(Payment, payment_id)
+    if payment is None:
+        raise ApiError(404, "not_found", "Payment not found")
+    payment = decide_held_payment(
+        db,
+        payment,
+        decider_device_id=device_id,
+        decision=body.decision,
+        order_client=get_order_client(get_settings()),
+    )
     return PaymentOut.from_model(payment)

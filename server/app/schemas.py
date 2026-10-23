@@ -29,3 +29,4 @@ class RiskCheckResponse(BaseModel):
     decision: Literal["HOLD", "ALLOW"]
     payment_id: str
     order_id: Optional[str] = None
+    hold_reason: Optional[Literal["detector", "payee_fan_in"]] = None

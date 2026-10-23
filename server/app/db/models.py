@@ -72,7 +72,7 @@ class Payment(Base):
     device_id: Mapped[str] = mapped_column(ForeignKey("devices.id"), nullable=False, index=True)
     method: Mapped[str] = mapped_column(String(16), nullable=False)
     amount: Mapped[float] = mapped_column(Float, nullable=False)
-    payee_hash: Mapped[str] = mapped_column(String, nullable=False)
+    payee_hash: Mapped[str] = mapped_column(String, nullable=False, index=True)
     state: Mapped[str] = mapped_column(String(32), nullable=False, default="created")
     razorpay_order_id: Mapped[str | None] = mapped_column(String, nullable=True, index=True)
     reported_status: Mapped[str | None] = mapped_column(String(16), nullable=True)
@@ -81,6 +81,10 @@ class Payment(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, onupdate=_now)
     handed_off_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     last_webhook_event_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # Why a payment was held, and who released or blocked it (trusted-contact approve/block).
+    hold_reason: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    decided_by_device_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     device: Mapped["Device"] = relationship(back_populates="payments")
 

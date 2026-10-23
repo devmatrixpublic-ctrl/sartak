@@ -4,7 +4,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.errors import ApiError
-from app.db.models import Payment
+from app.db.models import Payment, TrustedLink
 from app.payments.order_client import OrderClient
 from app.payments.state_machine import require_transition
 
@@ -20,6 +20,7 @@ def create_payment(
     payee_hash: str,
     risk_decision: str,
     order_client: OrderClient,
+    hold_reason: str | None = None,
 ) -> Payment:
     """Create a payment from a risk-check decision (HOLD or ALLOW)."""
     state = "held" if risk_decision == "HOLD" else "allowed"
@@ -31,6 +32,7 @@ def create_payment(
         amount=amount,
         payee_hash=payee_hash,
         state=state,
+        hold_reason=(hold_reason or "detector") if state == "held" else None,
     )
 
     if state == "allowed" and method == "checkout":
@@ -46,6 +48,46 @@ def create_payment(
         payment.handed_off_at = datetime.now(timezone.utc)
 
     db.add(payment)
+    db.commit()
+    db.refresh(payment)
+    return payment
+
+
+def decide_held_payment(
+    db: Session,
+    payment: Payment,
+    *,
+    decider_device_id: str,
+    decision: str,
+    order_client: OrderClient,
+) -> Payment:
+    """Dual custody: a held payment is released or blocked only by a device its owner linked as a trusted contact.
+
+    A caller who is not the owner's trusted contact gets the same 404 as an unknown payment (no existence leak).
+    Approving a checkout payment creates its order now; approving a upi_intent payment starts the hand-off, as ALLOW does.
+    """
+    linked = db.query(TrustedLink).filter(
+        TrustedLink.owner_device_id == payment.device_id,
+        TrustedLink.trusted_device_id == decider_device_id,
+    ).first()
+    if linked is None:
+        raise ApiError(404, "not_found", "Payment not found")
+
+    target = "approved" if decision == "approve" else "blocked"
+    require_transition(payment.method, payment.state, target)
+    payment.state = target
+    payment.decided_by_device_id = decider_device_id
+    payment.decided_at = datetime.now(timezone.utc)
+
+    if target == "approved" and payment.method == "checkout":
+        payment.razorpay_order_id = order_client.create_order(
+            amount=payment.amount, currency="INR", receipt=f"satark_{payment.device_id[:8]}"
+        )
+    elif target == "approved" and payment.method == "upi_intent":
+        require_transition(payment.method, "approved", "handed_off")
+        payment.state = "handed_off"
+        payment.handed_off_at = datetime.now(timezone.utc)
+
     db.commit()
     db.refresh(payment)
     return payment

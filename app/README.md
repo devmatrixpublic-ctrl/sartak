@@ -69,8 +69,8 @@ lowers a score or sends data anywhere.
    stored or sent.
 3. **Payment pause** (`PaymentPause`): after a Hard alarm or a held payment, **Check and pay** is locked for 15 minutes, then
    the person types one sentence. State is in the encrypted `TokenStore`, so it survives a restart; a clock set back cannot
-   stretch it. Debug builds have an "End pause" button. Rung 4 (trusted contact approves or blocks) needs server work (M3)
-   and is not built.
+   stretch it. Debug builds have an "End pause" button. Rung 4 (trusted contact approves or blocks): the server side exists (`POST /payments/{id}/decision`); the app screens for it
+   are not built.
 
 ## Stubs (`@SatarkStub`, release build must fail while any remain)
 - Debug builds fall back to M4's `/auth/dev-token` when Key Attestation is refused (`net/Network.kt`). Remove it,

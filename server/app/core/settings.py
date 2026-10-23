@@ -30,6 +30,10 @@ class Settings(BaseSettings):
     firebase_credentials_json: str = ""
 
     rate_limit_per_minute: int = 60
+    # Mule fan-in: hold a payment when this many OTHER devices paid the same payee within the window. 0 disables.
+    mule_fanin_threshold: int = 3
+    mule_fanin_window_minutes: int = 60
+
     # Number of proxies (e.g. Render's load balancer) that append to X-Forwarded-For. 0 = ignore the header (safe default). Set it only
     # after checking how many hops the platform adds; a value that is too high lets callers choose their own rate-limit bucket.
     trusted_proxy_hops: int = 0
