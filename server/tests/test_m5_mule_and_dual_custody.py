@@ -10,10 +10,10 @@ def _h(device_id):
     return {"Authorization": f"Bearer {device_id}"}
 
 
-def _risk(client, device_id, payee="mule-payee", method="upi_intent", decision=NONE):
+def _risk(client, device_id, payee="mule-payee", method="upi_intent", decision=NONE, is_p2p=True):
     return client.post(
         "/risk-check",
-        json={"decision": decision, "method": method, "amount": 500.0, "payee_hash": payee},
+        json={"decision": decision, "method": method, "amount": 500.0, "payee_hash": payee, "is_p2p": is_p2p},
         headers=_h(device_id),
     )
 
@@ -42,6 +42,11 @@ def test_payee_paid_by_three_other_devices_is_held(client):
     assert r.json()["decision"] == "HOLD"
     assert r.json()["hold_reason"] == "payee_fan_in"
     assert client.get(f"/payments/{r.json()['payment_id']}", headers=_h("victim-new")).json()["state"] == "held"
+
+
+def test_busy_merchant_is_never_held_for_fan_in(client):
+    for i in range(6):
+        assert _risk(client, f"customer-{i}", payee="shop", is_p2p=False).json()["decision"] == "ALLOW"
 
 
 def test_same_device_repeating_a_payee_is_not_fan_in(client):

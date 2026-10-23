@@ -25,8 +25,9 @@ async def post_risk_check(
     settings = get_settings()
     hold_reason = "detector" if risk_decision == "HOLD" else None
     # Receiver side: a payee that many other devices paid within the hour looks like a collection account.
-    # This can only escalate ALLOW to HOLD, never the other way.
-    if risk_decision == "ALLOW" and is_mule_fan_in(
+    # This can only escalate ALLOW to HOLD, never the other way. Merchants (P2M) legitimately receive from many
+    # customers, so only a person-to-person payee counts; an unknown is_p2p is not treated as P2P.
+    if risk_decision == "ALLOW" and body.is_p2p is True and is_mule_fan_in(
         db,
         payee_hash=body.payee_hash,
         device_id=device_id,
