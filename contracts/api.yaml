@@ -500,6 +500,16 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
 
+  /device:
+    delete:
+      summary: Delete everything the server holds for the calling device ("Delete my data")
+      operationId: deleteDevice
+      security:
+        - bearerAuth: []
+      responses:
+        '204':
+          description: Payments, alerts, trusted links, refresh tokens and the device record were deleted.
+
   /webhooks/razorpay:
     post:
       summary: Razorpay webhook receiver

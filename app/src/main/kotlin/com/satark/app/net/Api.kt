@@ -3,6 +3,7 @@ package com.satark.app.net
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import retrofit2.http.Body
+import retrofit2.http.DELETE
 import retrofit2.http.GET
 import retrofit2.http.Header
 import retrofit2.http.POST
@@ -90,6 +91,7 @@ interface SatarkApi {
     @GET("payments/{id}") suspend fun payment(@Path("id") id: String, @Header(RETRY_HEADER) retry: String = "1"): PaymentResponse
     @POST("payments/{id}/result") suspend fun paymentResult(@Path("id") id: String, @Body b: PaymentResultRequest): PaymentResponse
     @POST("payments/{id}/decision") suspend fun paymentDecision(@Path("id") id: String, @Body b: PaymentDecisionRequest): PaymentResponse
+    @DELETE("device") suspend fun deleteDevice(): retrofit2.Response<Unit>
     @POST("alert") suspend fun alert(@Body b: AlertRequest, @Header(RETRY_HEADER) retry: String = "1"): Accepted
     @POST("signature") suspend fun signature(@Body b: SignatureRequest, @Header(RETRY_HEADER) retry: String = "1"): Accepted
 }

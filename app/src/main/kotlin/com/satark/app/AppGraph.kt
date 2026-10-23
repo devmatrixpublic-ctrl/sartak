@@ -68,14 +68,19 @@ class AppGraph(private val app: Application) {
 
 
     /**
-     * "Delete my data": stops protection, empties every local table and forgets tokens, ids and the payee salt. The server
-     * keeps its own device record (it holds no phone numbers, names or raw amounts); there is no server delete yet.
+     * "Delete my data": stops protection, asks the server to erase this phone's rows (if it can be reached), empties every
+     * local table and forgets tokens, ids and the payee salt.
      */
     suspend fun deleteAllData() {
         com.satark.app.signals.SignalService.stop(app)
+        // Best effort, while the sign-in still exists: DELETE /device erases the server's rows for this phone.
+        kotlinx.coroutines.withContext(Dispatchers.IO) { runCatching { api.deleteDevice() } }
         kotlinx.coroutines.withContext(Dispatchers.IO) { runCatching { db.clearAllTables() } }
         store.wipe()
     }
+
+    /** (alerts shown, repeats merged) since install: simple local counters, nothing leaves the phone. */
+    suspend fun alertCounts(): Pair<Int, Int> = dao.alertsShown() to dao.alertsMerged()
 
     /** Called by [com.satark.app.events.EventPurgeWorker]: delete event_queue rows older than 7 days. */
     suspend fun purgeOldEvents(nowMs: Long) = dao.pruneEvents(com.satark.app.events.EventPurgeWorker.cutoff(nowMs))
