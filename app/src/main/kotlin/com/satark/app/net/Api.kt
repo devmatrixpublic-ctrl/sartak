@@ -53,7 +53,8 @@ import retrofit2.http.Path
     val id: String,
     val method: String,
     val state: String,
-    val amount: Double,
+    /** Coarse band (lt_500 .. gt_2l); the server no longer keeps the rupee amount. */
+    @SerialName("amount_band") val amountBand: String,
     @SerialName("payee_hash") val payeeHash: String,
     @SerialName("razorpay_order_id") val razorpayOrderId: String? = null,
     @SerialName("hold_reason") val holdReason: String? = null,

@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.core.errors import ApiError
 from app.db.models import Payment, TrustedLink
+from app.payments.bands import amount_band
 from app.payments.order_client import OrderClient
 from app.payments.state_machine import require_transition
 
@@ -29,7 +30,7 @@ def create_payment(
     payment = Payment(
         device_id=device_id,
         method=method,
-        amount=amount,
+        amount_band=amount_band(amount),
         payee_hash=payee_hash,
         state=state,
         hold_reason=(hold_reason or "detector") if state == "held" else None,
@@ -64,7 +65,7 @@ def decide_held_payment(
     """Dual custody: a held payment is released or blocked only by a device its owner linked as a trusted contact.
 
     A caller who is not the owner's trusted contact gets the same 404 as an unknown payment (no existence leak).
-    Approving a checkout payment creates its order now; approving a upi_intent payment starts the hand-off, as ALLOW does.
+    Approving a upi_intent payment starts the hand-off, as ALLOW does; approving a checkout leaves the order to the owner.
     """
     linked = db.query(TrustedLink).filter(
         TrustedLink.owner_device_id == payment.device_id,
@@ -79,11 +80,9 @@ def decide_held_payment(
     payment.decided_by_device_id = decider_device_id
     payment.decided_at = datetime.now(timezone.utc)
 
-    if target == "approved" and payment.method == "checkout":
-        payment.razorpay_order_id = order_client.create_order(
-            amount=payment.amount, currency="INR", receipt=f"satark_{payment.device_id[:8]}"
-        )
-    elif target == "approved" and payment.method == "upi_intent":
+    # A checkout approval creates no order here: the amount is not stored, so the owner's app asks for the order
+    # (POST /risk-check override) and sends the amount again. A upi_intent approval starts the hand-off.
+    if target == "approved" and payment.method == "upi_intent":
         require_transition(payment.method, "approved", "handed_off")
         payment.state = "handed_off"
         payment.handed_off_at = datetime.now(timezone.utc)
@@ -93,12 +92,22 @@ def decide_held_payment(
     return payment
 
 
-def override_hold(db: Session, payment: Payment, *, order_client: OrderClient) -> Payment:
+def override_hold(db: Session, payment: Payment, *, order_client: OrderClient, amount: float) -> Payment:
     """The owner chose "Continue anyway" on a detector hold: held -> allowed_by_user, recorded and persisted.
 
     Only the detector's own hold can be overridden by the person; a hold caused by other devices' payments to the
     same payee (payee_fan_in) is evidence the person's phone cannot see, so it is not theirs to waive.
     """
+    if amount_band(amount) != payment.amount_band:
+        raise ApiError(409, "amount_mismatch", "The amount does not match the held payment.")
+    if payment.method == "checkout" and payment.state == "approved" and payment.razorpay_order_id is None:
+        # Trusted contact already approved: this call only creates the order (the owner's app knows the amount).
+        payment.razorpay_order_id = order_client.create_order(
+            amount=amount, currency="INR", receipt=f"satark_{payment.device_id[:8]}"
+        )
+        db.commit()
+        db.refresh(payment)
+        return payment
     if payment.hold_reason != "detector":
         raise ApiError(409, "override_not_allowed", "This hold cannot be overridden from the app.")
     require_transition(payment.method, payment.state, "allowed_by_user")
@@ -107,7 +116,7 @@ def override_hold(db: Session, payment: Payment, *, order_client: OrderClient) -
 
     if payment.method == "checkout":
         payment.razorpay_order_id = order_client.create_order(
-            amount=payment.amount, currency="INR", receipt=f"satark_{payment.device_id[:8]}"
+            amount=amount, currency="INR", receipt=f"satark_{payment.device_id[:8]}"
         )
     else:
         require_transition(payment.method, "allowed_by_user", "handed_off")

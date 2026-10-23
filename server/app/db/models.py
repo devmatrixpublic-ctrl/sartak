@@ -71,7 +71,8 @@ class Payment(Base):
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
     device_id: Mapped[str] = mapped_column(ForeignKey("devices.id"), nullable=False, index=True)
     method: Mapped[str] = mapped_column(String(16), nullable=False)
-    amount: Mapped[float] = mapped_column(Float, nullable=False)
+    # Coarse band only (payments/bands.py): the rupee amount is never stored against a device.
+    amount_band: Mapped[str] = mapped_column(String(16), nullable=False)
     payee_hash: Mapped[str] = mapped_column(String, nullable=False, index=True)
     state: Mapped[str] = mapped_column(String(32), nullable=False, default="created")
     razorpay_order_id: Mapped[str | None] = mapped_column(String, nullable=True, index=True)

@@ -33,7 +33,8 @@ sealed interface HoldResolution {
     /** upi_intent approved: the server has started the hand-off, so the app launches the UPI chooser. */
     data object ApprovedUpi : HoldResolution
     /** checkout approved: the server created the order. */
-    data class ApprovedCheckout(val orderId: String) : HoldResolution
+    /** [orderId] is null when the contact approved but the owner's app still has to fetch the order (needs the amount). */
+    data class ApprovedCheckout(val orderId: String?) : HoldResolution
     /** Some other state (already settled, or an approval without an order): do nothing automatic. */
     data object Unknown : HoldResolution
 
@@ -42,8 +43,7 @@ sealed interface HoldResolution {
             p.state == "held" -> Waiting
             p.state == "blocked" -> Blocked
             p.method == "upi_intent" && p.state == "handed_off" -> ApprovedUpi
-            p.method == "checkout" && p.state == "approved" ->
-                p.razorpayOrderId?.let { ApprovedCheckout(it) } ?: Unknown
+            p.method == "checkout" && p.state == "approved" -> ApprovedCheckout(p.razorpayOrderId)
             else -> Unknown
         }
     }
@@ -144,7 +144,9 @@ class PaymentRepository(
             while (now() < end) {
                 if (overrideRequested.getAndSet(false) && onOverride != null) onOverride()?.let { return it }
                 val r = runCatching { api().payment(paymentId) }.getOrNull()?.let { HoldResolution.of(it) }
-                if (r != null && r != HoldResolution.Waiting) return r
+                if (r is HoldResolution.ApprovedCheckout && r.orderId == null && onOverride != null) {
+                    onOverride()?.let { return it } // approved by the contact: ask the server for the order
+                } else if (r != null && r != HoldResolution.Waiting) return r
                 delay(pollMs)
             }
             return HoldResolution.Waiting

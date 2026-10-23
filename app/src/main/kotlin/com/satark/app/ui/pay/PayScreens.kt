@@ -208,7 +208,8 @@ fun PayHome(
                                             }
                                             is HoldResolution.ApprovedCheckout -> {
                                                 holdStatus = "Your trusted contact approved this payment."
-                                                onOutcome(PayOutcome.Checkout(id, r.orderId, amt), req, amt)
+                                                r.orderId?.let { oid -> onOutcome(PayOutcome.Checkout(id, oid, amt), req, amt) }
+                                                    ?: run { holdStatus = "Could not start the checkout. Nothing was paid." }
                                             }
                                             HoldResolution.Waiting -> holdStatus = "No answer yet. The payment stays on hold; nothing was paid."
                                             HoldResolution.Unknown -> holdStatus = null

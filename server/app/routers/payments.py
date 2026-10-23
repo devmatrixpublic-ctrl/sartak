@@ -19,7 +19,7 @@ class PaymentOut(BaseModel):
     id: str
     method: str
     state: str
-    amount: float
+    amount_band: str
     payee_hash: str
     razorpay_order_id: Optional[str] = None
     hold_reason: Optional[str] = None
@@ -33,7 +33,7 @@ class PaymentOut(BaseModel):
             id=payment.id,
             method=payment.method,
             state=payment.state,
-            amount=payment.amount,
+            amount_band=payment.amount_band,
             payee_hash=payment.payee_hash,
             razorpay_order_id=payment.razorpay_order_id,
             hold_reason=payment.hold_reason,

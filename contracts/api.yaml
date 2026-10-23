@@ -152,7 +152,9 @@ components:
           default: false
           description: >
             "Continue anyway". With payment_id of the caller's own held payment, moves it held -> allowed_by_user and
-            returns ALLOW. Only a detector hold can be overridden (409 override_not_allowed otherwise).
+            returns ALLOW. Only a detector hold can be overridden (409 override_not_allowed otherwise). amount must fall in the
+            held payment's band (409 amount_mismatch). Also used by the owner to get the order after a trusted contact
+            approved a checkout payment.
         payment_id:
           type: string
           maxLength: 36
@@ -178,7 +180,7 @@ components:
 
     PaymentResponse:
       type: object
-      required: [id, method, state, amount, payee_hash]
+      required: [id, method, state, amount_band, payee_hash]
       properties:
         id:
           type: string
@@ -201,9 +203,10 @@ components:
             - reported_success
             - reported_failure
             - no_result
-        amount:
-          type: number
-          format: float
+        amount_band:
+          type: string
+          enum: [lt_500, 500_2k, 2k_10k, 10k_50k, 50k_2l, gt_2l]
+          description: Coarse band of the amount in rupees. The exact amount is never stored with the payment.
         payee_hash:
           type: string
         razorpay_order_id:
