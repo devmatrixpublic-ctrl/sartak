@@ -18,11 +18,18 @@ Earlier rounds (11 small features + closing work) are merged or pushed; see git 
 - run_e2e.py sometimes dies with a connection reset on the first run after code changes (seen twice, passes on rerun); cause not found.
 - Not run on a phone/emulator; no emulator image installed.
 
-## STOPPED at item 7 (as instructed: "if the gate fails, report the numbers and stop")
-Item 5 DONE (analyst console, audit_log, migration f7c2d8b51a94). Item 6 DONE (display-only points/band; vectors and tests unchanged).
-Item 7: fairness code, report (`ops/eval/fairness_report.md`) and gate are written and tested, and the gate FAILS on SatarkSim:
-recall max/min is 1.07 (age), 1.02 (activity tier), 1.10 (call-state availability), all under 1.5; but every dimension has a
-cohort with ZERO false alarms (60+, low activity, no call state), so the false-alarm ratio is undefined/infinite. Nothing was
-adjusted. `python ops/eval/run_eval.py` now exits 1, so the CI evaluation job would be red on this branch.
-Decision needed from the owner: keep the strict rule (CI red), gate only on recall plus a false-alarm CI-overlap test, or require a
-minimum number of false alarms per cohort before a ratio counts. Items 8-13 NOT started.
+## Medium-size features: final status (branch feat/medium-features, not pushed)
+1-6 DONE (see earlier sections). 
+7 DONE with the owner's rule: false-alarm ratio only counts when every cohort has >=5 false alarms (otherwise n/a, not a failure);
+  recall ratio gate stays strict (1.07 / 1.02 / 1.10, limit 1.5). In SatarkSim every dimension has a cohort with <5 false alarms, so the
+  false-alarm ratio is n/a everywhere: the simulation cannot show whether false alarms differ between cohorts.
+8 DONE gbt_baseline.py + report: boosted model 96.0% recall / 3 false alarms vs logistic 92.7% / 7 (payment score only); intervals overlap.
+9 DONE gen_variants.py + data/llm_variants/PROVENANCE.md. NOT RUN: no ANTHROPIC_API_KEY. data/llm_variants/ has no variants yet.
+10 DONE ops/dashboard/build.py -> dashboard.html (static, every figure labelled simulated). Alert counts need --db; none given, so that section says so.
+11 NOT IMPLEMENTED on purpose. heldout_result.md does not exist and no gate existed, but a probe (detector/experiments/signal_family_gate.md)
+  shows a 2-family gate cuts recall 93.1% -> 88.9% (below the 93% target) for 1 fewer false alarm. Not tuned around.
+12 SKIPPED (only applies if 11 was done). Note: there is no detector-freeze tag in this checkout and no heldout/ directory.
+13 DONE docs/ROADMAP.md and README limitations. (The app logs "Continue anyway" server-side; there is no separate "this was legit" tap, so the wording says so.)
+
+## Still needs a device, account or decision
+Room v1->v2 and everything else on a real phone; Sarvam/real Hindi review; an API key for item 9; a product decision on the family gate.
