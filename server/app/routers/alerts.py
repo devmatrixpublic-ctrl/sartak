@@ -23,6 +23,7 @@ class AlertIn(StrictInput):
     device_id: str = Field(min_length=1, max_length=36)
     type: Literal["alarm", "long_session"]
     reasons: Optional[list[Annotated[str, Field(max_length=64)]]] = Field(default=None, max_length=10)
+    payment_id: Optional[str] = Field(default=None, max_length=36)
 
 
 class AlertOut(BaseModel):
@@ -44,6 +45,7 @@ async def post_alert(
         owner_device_id=device_id,
         alert_type=body.type,
         reasons=body.reasons or [],
+        payment_id=body.payment_id,
         fcm_client=fcm_client,
     )
     # Always 2xx once the alert is recorded — a stale token or missing link

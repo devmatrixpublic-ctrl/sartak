@@ -161,6 +161,10 @@ components:
         order_id:
           type: string
           description: Present only when method is checkout and decision is ALLOW.
+        hold_reason:
+          type: string
+          enum: [detector, payee_fan_in]
+          description: Present only when decision is HOLD. payee_fan_in means many other devices paid this payee recently.
 
     PaymentResponse:
       type: object
@@ -177,6 +181,8 @@ components:
           enum:
             - created
             - held
+            - approved
+            - blocked
             - allowed
             - paid
             - failed
@@ -190,6 +196,8 @@ components:
         payee_hash:
           type: string
         razorpay_order_id:
+          type: string
+        hold_reason:
           type: string
         reported_status:
           type: string
@@ -207,6 +215,14 @@ components:
           type: string
           maxLength: 128
 
+    PaymentDecisionRequest:
+      type: object
+      required: [decision]
+      properties:
+        decision:
+          type: string
+          enum: [approve, block]
+
     AlertRequest:
       type: object
       required: [device_id, type]
@@ -221,6 +237,9 @@ components:
           type: array
           items:
             type: string
+        payment_id:
+          type: string
+          description: Held payment the trusted contact may approve or block.
 
     AlertResponse:
       type: object
@@ -420,6 +439,45 @@ paths:
                 $ref: '#/components/schemas/PaymentResponse'
         '409':
           description: Invalid transition (e.g. payment is held)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /payments/{id}/decision:
+    post:
+      summary: Trusted contact approves or blocks a held payment (dual custody)
+      operationId: postPaymentDecision
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PaymentDecisionRequest'
+      responses:
+        '200':
+          description: Decision recorded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentResponse'
+        '404':
+          description: Not found, or the caller is not a trusted contact of the payment's owner
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: Payment is not held
           content:
             application/json:
               schema:
