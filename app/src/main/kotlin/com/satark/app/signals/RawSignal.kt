@@ -28,7 +28,11 @@ enum class SourceName { CALL, USAGE, INSTALL, WATCHLIST }
 /** Per-source availability, shown in settings and used for banners. A missing source never crashes anything. */
 enum class SourceState { AVAILABLE, DENIED, UNSUPPORTED }
 
-data class SignalStatus(val states: Map<SourceName, SourceState>) {
+data class SignalStatus(
+    val states: Map<SourceName, SourceState>,
+    /** Informational only (Android 15+, this app's own window); not part of [allAvailable] and never a detector input. */
+    val screenRecording: SourceState = SourceState.UNSUPPORTED,
+) {
     fun of(s: SourceName) = states[s] ?: SourceState.UNSUPPORTED
     val allAvailable get() = SourceName.entries.all { of(it) == SourceState.AVAILABLE }
 }

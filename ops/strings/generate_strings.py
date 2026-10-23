@@ -14,6 +14,8 @@ ROOT = Path(__file__).resolve().parents[2]
 CODES = ROOT / "contracts" / "reason_codes.json"
 SOURCE = Path(__file__).with_name("reason_strings_en.json")
 XML_OUT = ROOT / "app" / "src" / "main" / "res" / "values" / "strings.xml"
+HI_SOURCE = Path(__file__).with_name("reason_strings_hi.json")
+HI_XML_OUT = ROOT / "app" / "src" / "main" / "res" / "values-hi" / "strings.xml"
 
 
 def resource_name(code: str) -> str:
@@ -41,6 +43,11 @@ def main() -> int:
     XML_OUT.parent.mkdir(parents=True, exist_ok=True)
     XML_OUT.write_text(render_xml(doc["strings"], source=doc.get("source", "unknown")), encoding="utf-8", newline="\n")
     print(f"wrote {XML_OUT.relative_to(ROOT)}")
+    hi = json.loads(HI_SOURCE.read_text(encoding="utf-8"))
+    HI_XML_OUT.parent.mkdir(parents=True, exist_ok=True)
+    HI_XML_OUT.write_text(render_xml(hi["strings"], source=hi.get("source", "unknown")).replace("from reason_strings_en.json", "from reason_strings_hi.json"),
+                          encoding="utf-8", newline="\n")
+    print(f"wrote {HI_XML_OUT.relative_to(ROOT)}")
     return 0
 
 

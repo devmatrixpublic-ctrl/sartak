@@ -92,6 +92,48 @@ def safety_problems(code: str, text: str) -> list[str]:
     return out
 
 
+HI_SOURCE = Path(__file__).with_name("reason_strings_hi.json")
+HI_XML_OUT = ROOT / "app" / "src" / "main" / "res" / "values-hi" / "strings.xml"
+# The Hindi spellings of PIN and OTP (and "one-time"): no string may mention them either.
+HI_SECRET_RE = re.compile(r"पिन|ओटीपी|ओ\.?\s?टी\.?\s?पी|वन[- ]?टाइम")
+
+
+def validate_hindi(codes: list[str], strings: dict[str, str]) -> list[str]:
+    """Every code needs a Hindi string; each must be Hindi, short, link-free and must never mention a PIN or OTP."""
+    problems: list[str] = []
+    for code in codes:
+        text = strings.get(code)
+        if text is None:
+            problems.append(f"{code}: no Hindi string")
+            continue
+        problems += [p.replace(": ", " (Hindi): ", 1) for p in safety_problems(code, text)]
+        if HI_SECRET_RE.search(text):
+            problems.append(f"{code} (Hindi): mentions a PIN or OTP (strings must never ask for one)")
+        if not re.search("[\u0900-\u097F]", text):
+            problems.append(f"{code} (Hindi): has no Devanagari text")
+        if not text.strip() or len(text) > MAX_LEN or "\n" in text:
+            problems.append(f"{code} (Hindi): must be 1-{MAX_LEN} characters on one line")
+        if re.search(r"\b(F_|RULE_)[A-Z0-9_]+\b", text):
+            problems.append(f"{code} (Hindi): shows a raw code name")
+    for code in strings:
+        if code not in codes:
+            problems.append(f"{code} (Hindi): string exists but the code is not in reason_codes.json")
+    return problems
+
+
+def check_hindi_xml(strings: dict[str, str]) -> list[str]:
+    from generate_strings import render_xml
+
+    if not HI_XML_OUT.is_file():
+        return [f"values-hi/{HI_XML_OUT.name} is missing: run generate_strings.py"]
+    src = json.loads(HI_SOURCE.read_text(encoding="utf-8")).get("source", "unknown")
+    want = render_xml(strings, source=src).replace("from reason_strings_en.json", "from reason_strings_hi.json")
+    if HI_XML_OUT.read_text(encoding="utf-8") != want:
+        return [f"values-hi/{HI_XML_OUT.name} is out of date: run generate_strings.py"]
+    ET.parse(HI_XML_OUT)
+    return []
+
+
 def validate(codes: list[str], strings: dict[str, str], rules=RULES) -> list[str]:
     problems: list[str] = []
     for code in codes:
@@ -138,7 +180,8 @@ def check_xml(strings: dict[str, str], xml_path: Path = XML_OUT) -> list[str]:
 def main() -> int:
     sys.path.insert(0, str(Path(__file__).parent))
     codes, strings = load_codes(), load_strings()
-    problems = validate(codes, strings) + check_xml(strings)
+    hi = json.loads(HI_SOURCE.read_text(encoding="utf-8"))["strings"]
+    problems = validate(codes, strings) + check_xml(strings) + validate_hindi(codes, hi) + check_hindi_xml(hi)
     for p in problems:
         print("FAIL", p)
     print(f"{len(codes)} codes, {len(problems)} problem(s)")

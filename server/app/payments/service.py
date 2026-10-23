@@ -70,6 +70,7 @@ def decide_held_payment(
     linked = db.query(TrustedLink).filter(
         TrustedLink.owner_device_id == payment.device_id,
         TrustedLink.trusted_device_id == decider_device_id,
+        TrustedLink.status == "accepted",
     ).first()
     if linked is None:
         raise ApiError(404, "not_found", "Payment not found")

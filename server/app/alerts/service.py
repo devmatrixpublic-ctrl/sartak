@@ -9,8 +9,11 @@ logger = logging.getLogger("satark.alerts.service")
 
 ALERT_TITLES = {
     "alarm": "Satark alert",
-    "long_session": "Long unknown-origin session",
+    "long_session": "Satark alert",
 }
+
+# ONE short line for every alert: no reasons, amounts, payees or names reach the contact's lock screen.
+ALERT_BODY = "Someone you protect may be in danger. Please call them."
 
 
 def send_alert(
@@ -22,16 +25,18 @@ def send_alert(
     fcm_client: FcmClient,
     payment_id: str | None = None,
 ) -> Alert:
+    # Only a contact who accepted gets anything; pending and revoked links receive nothing.
     link = (
         db.query(TrustedLink)
-        .filter(TrustedLink.owner_device_id == owner_device_id)
+        .filter(TrustedLink.owner_device_id == owner_device_id, TrustedLink.status == "accepted")
         .order_by(TrustedLink.created_at.desc())
         .first()
     )
     alert = Alert(device_id=owner_device_id, type=alert_type, delivered=False)
 
     if link is None:
-        alert.failure_reason = "no_trusted_contact_linked"
+        any_link = db.query(TrustedLink).filter(TrustedLink.owner_device_id == owner_device_id).first()
+        alert.failure_reason = "no_trusted_contact_linked" if any_link is None else "trusted_contact_not_accepted"
         logger.warning("alert_no_trusted_contact", extra={"owner_device_id": owner_device_id})
         db.add(alert)
         db.commit()
@@ -49,7 +54,7 @@ def send_alert(
         return alert
 
     title = ALERT_TITLES.get(alert_type, "Satark alert")
-    body = "; ".join(reasons[:3]) if reasons else "Review your device."
+    body = ALERT_BODY
 
     try:
         fcm_client.send(

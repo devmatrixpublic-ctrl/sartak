@@ -150,6 +150,7 @@ fun HardIntervention(a: AlertUi.Hard, onCallContact: () -> Unit, onHold30: () ->
             style = MaterialTheme.typography.titleMedium, color = on)
         Text("Why Satark stopped this", style = MaterialTheme.typography.labelLarge, color = on)
         Reasons(a.reasons, on)
+        ReportFraudButton(a.reasons, color = on)
         ReadAloudButton("Stop. This looks like a scam.", "Hang up. A real bank or police officer will never ask you to move money or install an app.", a.reasons, on)
         PlaybookCard(a.reasons)
         PurposeQuestion()
@@ -171,6 +172,7 @@ fun TrustedContactAlert(a: AlertUi.TrustedContact, onDone: () -> Unit) {
         Text("They will see that Satark was worried. Call them now on a number you know, and do not continue the other call.",
             style = MaterialTheme.typography.titleMedium)
         Reasons(a.reasons)
+        ReportFraudButton(a.reasons)
         ReadAloudButton("Your trusted contact has been told", "Call them now on a number you know, and do not continue the other call.", a.reasons)
         PlaybookCard(a.reasons)
         Button(onClick = onDone, modifier = Modifier.fillMaxWidth()) { Text("OK") }

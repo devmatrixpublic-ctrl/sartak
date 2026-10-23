@@ -95,3 +95,33 @@ def test_android_escaping_of_apostrophes_and_ampersands():
     xml = gen.render_xml({"F_NEW_PAYEE": "You're paying <x>"}, codes=["F_NEW_PAYEE"])
     root = ET.fromstring(xml)
     assert root.find("string").text == "You\\'re paying <x>"
+
+
+# ---- Hindi ----
+
+def _hi():
+    import json
+    return json.loads(val.HI_SOURCE.read_text(encoding="utf-8"))["strings"]
+
+
+def test_shipped_hindi_validates_cleanly():
+    assert val.validate_hindi(val.load_codes(), _hi()) == []
+    assert val.check_hindi_xml(_hi()) == []
+
+
+def test_a_code_without_hindi_fails():
+    hi = dict(_hi()); hi.pop(val.load_codes()[0])
+    assert any("no Hindi string" in p for p in val.validate_hindi(val.load_codes(), hi))
+
+
+@pytest.mark.parametrize("bad", [
+    "अपना पिन बताइए", "ओटीपी साझा करें", "अपना OTP बताइए", "अपना PIN डालें", "यहाँ देखें https://x.in", "www.bank.in पर जाएँ", "सुरक्षित रहें secure-pay.com",
+])
+def test_hindi_strings_with_a_link_pin_or_otp_fail(bad):
+    hi = dict(_hi()); code = val.load_codes()[0]; hi[code] = bad
+    assert any(code in p for p in val.validate_hindi(val.load_codes(), hi)), bad
+
+
+def test_hindi_must_actually_be_hindi():
+    hi = dict(_hi()); code = val.load_codes()[0]; hi[code] = "You are on a call."
+    assert any("no Devanagari" in p for p in val.validate_hindi(val.load_codes(), hi))

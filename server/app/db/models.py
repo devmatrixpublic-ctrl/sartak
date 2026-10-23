@@ -60,6 +60,9 @@ class TrustedLink(Base):
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
     owner_device_id: Mapped[str] = mapped_column(ForeignKey("devices.id"), nullable=False, index=True)
     trusted_device_id: Mapped[str] = mapped_column(ForeignKey("devices.id"), nullable=False, index=True)
+    # pending (asked, not answered) | accepted (the contact said yes) | revoked (declined, or removed by the owner).
+    # Only accepted links receive alerts or may approve/block a held payment.
+    status: Mapped[str] = mapped_column(String(16), nullable=False, default="pending")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
     __table_args__ = (UniqueConstraint("owner_device_id", "trusted_device_id", name="uq_trusted_link_pair"),)
@@ -109,6 +112,20 @@ class Alert(Base):
     type: Mapped[str] = mapped_column(String(32), nullable=False)
     delivered: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     failure_reason: Mapped[str | None] = mapped_column(String, nullable=True)
+    # Analyst console: open -> approved | cleared (every change is written to audit_log).
+    review_status: Mapped[str] = mapped_column(String(16), nullable=False, default="open")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+
+
+class AuditLog(Base):
+    """Who did what to which alert, and when. Ids only: no personal data, no payment details."""
+
+    __tablename__ = "audit_log"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    actor_device_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
+    action: Mapped[str] = mapped_column(String(32), nullable=False)
+    alert_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
 

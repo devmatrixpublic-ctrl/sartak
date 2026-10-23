@@ -16,7 +16,7 @@ def _link(db, owner_id="owner-device", trusted_id="trusted-device", fcm_token="t
             fcm_token=fcm_token,
         )
     )
-    db.add(TrustedLink(owner_device_id=owner_id, trusted_device_id=trusted_id))
+    db.add(TrustedLink(owner_device_id=owner_id, trusted_device_id=trusted_id, status="accepted"))
     db.commit()
 
 

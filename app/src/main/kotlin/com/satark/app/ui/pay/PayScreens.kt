@@ -72,6 +72,7 @@ import com.satark.app.payments.UpiUriParser
 import com.satark.app.ui.alerts.Friction
 import com.satark.app.ui.alerts.PaymentPause
 import com.satark.app.ui.alerts.PlaybookCard
+import com.satark.app.ui.alerts.ReportFraudButton
 import com.satark.app.ui.alerts.Reasons
 import com.satark.app.ui.onboarding.ProtectionSummary
 import com.satark.app.ui.theme.SatarkHeader
@@ -105,6 +106,7 @@ fun PayHome(
     var method by rememberSaveable { mutableStateOf("upi_intent") }
     var error by rememberSaveable { mutableStateOf<String?>(null) }
     var held by rememberSaveable { mutableStateOf<List<String>?>(null) }
+    var heldAmountInr by remember { mutableStateOf<Double?>(null) } // only to pick the coarse amount band for the fraud summary
     var holdStatus by remember { mutableStateOf<String?>(null) } // what the trusted contact has done about a hold
     var busy by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
@@ -190,6 +192,7 @@ fun PayHome(
                         when (o) {
                             is PayOutcome.Held -> {
                                 held = ArrayList(o.reasons); graph.pause.start() // saveable type
+                                heldAmountInr = amt.toDouble()
                                 holdStatus = null
                                 o.paymentId?.let { id ->
                                     // Dual custody: only the person's trusted contact can release this payment.
@@ -234,6 +237,7 @@ fun PayHome(
                     Text("Satark did not send this payment. Nothing was paid.", color = on)
                     holdStatus?.let { Text(it, color = on, style = MaterialTheme.typography.labelLarge) }
                     Reasons(reasons, on)
+                    ReportFraudButton(reasons, heldAmountInr, on)
                     PlaybookCard(reasons)
                 }
             }

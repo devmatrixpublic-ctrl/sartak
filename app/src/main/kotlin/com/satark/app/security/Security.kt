@@ -33,6 +33,8 @@ class TokenStore(ctx: Context) {
     var consent: Boolean get() = prefs.getBoolean("consent", false); set(v) = prefs.edit().putBoolean("consent", v).apply()
     /** "Delete my data": forget everything this app keeps on the phone (tokens, device id, salt, flags). */
     fun wipe() = prefs.edit().clear().apply()
+    /** Device id (not a phone number) of the trusted contact this person asked, so they can remove them later. */
+    var linkedContactId: String? get() = prefs.getString("linked_contact", null); set(v) = prefs.edit().putString("linked_contact", v).apply()
     /** Shadow mode: the detector still scores and the app logs it, but nothing is shown, paused, pushed or held. */
     var shadowMode: Boolean get() = prefs.getBoolean("shadow", false); set(v) = prefs.edit().putBoolean("shadow", v).apply()
     /** Pointer (content URI) to the phone contact "Call trusted contact" dials. Never the number itself. */

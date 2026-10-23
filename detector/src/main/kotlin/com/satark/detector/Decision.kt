@@ -27,6 +27,10 @@ data class Decision(
     val reasons: List<String>,
     val mechanism: String? = null,
     val alarmTMs: Long? = null,
+    /** DISPLAY ONLY (see PointsScale). Never read by the detector: level and score do not depend on these. Payment alarms only. */
+    val points: List<Int> = emptyList(),
+    val totalPoints: Int? = null,
+    val band: String? = null,
 ) {
     companion object {
         fun none(score: Double = 0.0) = Decision(Level.NONE, score, emptyList())

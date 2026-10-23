@@ -22,7 +22,7 @@ def _link(db, owner, trusted):
     for d in (owner, trusted):
         if db.get(Device, d) is None:
             db.add(Device(id=d, public_key=f"pk-{d}", attestation_level="TEE", verified_boot_state="verified"))
-    db.add(TrustedLink(owner_device_id=owner, trusted_device_id=trusted))
+    db.add(TrustedLink(owner_device_id=owner, trusted_device_id=trusted, status="accepted"))
     db.commit()
 
 
