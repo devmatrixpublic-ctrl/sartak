@@ -50,6 +50,25 @@ sealed interface HoldResolution {
     }
 }
 
+/**
+ * The risk call gets [MS] milliseconds. If the server has not answered by then, the on-device decision stands:
+ * an alarm holds the payment (an alarm is never auto-confirmed), a clean payment may go ahead where it can.
+ */
+object RiskTimeout {
+    const val MS = 300L
+    const val LOCAL_PREFIX = "local:"
+
+    enum class Fallback { HOLD, ALLOW_LOCAL, FAIL }
+
+    fun fallback(alarmed: Boolean, method: String): Fallback = when {
+        alarmed -> Fallback.HOLD
+        method == "checkout" -> Fallback.FAIL // a checkout needs the server's order, so there is nothing to continue with
+        else -> Fallback.ALLOW_LOCAL
+    }
+
+    fun isLocal(paymentId: String) = paymentId.startsWith(LOCAL_PREFIX)
+}
+
 object UpiIntentLauncher {
     /** Chooser over every installed UPI app; null-safe when there is none (caller shows "no UPI app"). */
     fun intent(upiUri: String): Intent =
@@ -85,7 +104,9 @@ class PaymentRepository(
         val alarmed = decision.level.showsScreen && !shadow()
         val dto = DecisionDto(if (decision.level.showsScreen && shadow()) "LOG" else decision.level.name, decision.score, decision.reasons.take(3))
         val check = try {
-            api().riskCheck(RiskCheckRequest(dto, method, amountInr.toDouble(), hash, req.isP2P))
+            kotlinx.coroutines.withTimeoutOrNull(RiskTimeout.MS) {
+                api().riskCheck(RiskCheckRequest(dto, method, amountInr.toDouble(), hash, req.isP2P))
+            }
         } catch (e: IOException) {
             return if (alarmed) PayOutcome.Held(null, decision.reasons)
             else PayOutcome.Failed("Can't reach Satark. Check your connection; no payment was made.")
@@ -97,6 +118,12 @@ class PaymentRepository(
             // Bad response body, TLS/pinning failure, etc.: same safety rule as offline, never a crash.
             return if (alarmed) PayOutcome.Held(null, decision.reasons)
             else PayOutcome.Failed("Satark could not check this payment. No payment was made.")
+        }
+        if (check == null) return when (RiskTimeout.fallback(alarmed, method)) {
+            RiskTimeout.Fallback.HOLD -> PayOutcome.Held(null, decision.reasons)
+            RiskTimeout.Fallback.ALLOW_LOCAL ->
+                PayOutcome.HandOff(RiskTimeout.LOCAL_PREFIX + java.util.UUID.randomUUID(), UpiUriParser.build(req, amountInr))
+            RiskTimeout.Fallback.FAIL -> PayOutcome.Failed("Satark was slow to answer. No payment was made. Try again.")
         }
         if (check.decision == "HOLD") return PayOutcome.Held(check.paymentId, decision.reasons)
         return when (method) {
@@ -110,7 +137,7 @@ class PaymentRepository(
     suspend fun reportUpiResult(paymentId: String, response: String?, req: UpiRequest, amountInr: BigDecimal): UpiResultParser.Result? {
         val r = UpiResultParser.parse(response) ?: return null
         // api.yaml caps txn_ref at 128 chars; a longer value from a UPI app must not cost us the whole result.
-        runCatching { api().paymentResult(paymentId, PaymentResultRequest(r.status, r.txnRef?.take(128))) }
+        if (!RiskTimeout.isLocal(paymentId)) runCatching { api().paymentResult(paymentId, PaymentResultRequest(r.status, r.txnRef?.take(128))) }
         if (r.status == "success") markCompleted(req.payeeVpa, amountInr.toDouble())
         return r
     }
