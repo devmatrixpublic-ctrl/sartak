@@ -1,27 +1,24 @@
-# Small-features progress (branch feat/small-features, stacked on feat/app-contact-approval)
+# Progress (branch feat/small-features, stacked on feat/app-contact-approval)
 
-Setup for builds: JDK 21 (`~/.gradle/jdks/eclipse_adoptium-21-amd64-windows.2`) and `ANDROID_HOME=~/AppData/Local/Android/Sdk`.
+Builds: JDK 21 (`~/.gradle/jdks/eclipse_adoptium-21-amd64-windows.2`) and `ANDROID_HOME=~/AppData/Local/Android/Sdk`.
 
-## Done (one commit each)
-1. Hard screen buttons: Call trusted contact / Hold payment 30 minutes / Continue anyway.
-2. Server override: `override` + `payment_id` on POST /risk-check, `held -> allowed_by_user`, `user_override_at` (migration c1a8f3d20e57); app "Continue anyway" calls it. Only detector holds can be overridden (not payee_fan_in).
-3. `payments.amount_band` replaces `amount` (migration d4e9b6a3c812, backfills, reversible). Because the amount is no longer stored, a contact's approval of a checkout payment no longer creates the order; the owner's app fetches it via the override call (amount must be in the same band).
-4. Call trusted contact: ACTION_DIAL; only the contact's content URI is stored (TokenStore.dialContactUri), the number is read at dial time. "Choose the person to call" button in Protection settings.
-5. `Level.LOG` (silent, never shows a screen; server treats as ALLOW) and shadow mode (`TokenStore.shadowMode`, no UI toggle yet): score and log only.
-6. validate_strings.py fails on URLs and on PIN/OTP.
-7. WorkManager `EventPurgeWorker` (daily, deletes event_queue rows older than 7 days).
-8. 300 ms timeout on the risk call: alarm -> Held; clean upi_intent -> proceeds with a `local:` id; clean checkout -> fails (needs the server's order).
+## Done
+1-11 as listed in the earlier summary (Hard-screen buttons, override, amount_band, dial contact, LOG + shadow mode,
+string validator, 7-day purge, 300 ms timeout, consent + delete, read-aloud, repeat-alert merging).
+Closing work: `DELETE /device` (server erases its rows; the app's Delete my data calls it), alert counters and a debug-only
+shadow switch in Protection settings, item 14 timing test (max 0.2 ms per event), item 12 as a red-team masking test and
+report (`detector/experiments/red_team_masking.md`).
 
-## In progress
-(none)
+## Not done, on purpose
+- Item 13, hard-negative vectors: adding vectors changes the frozen 36 and needs the detector re-freeze (tag, held-out
+  hash). The existing SatarkSim hard negatives are already reported in `detector/detector_report.md`. Needs your decision.
+- Item 12 as written ("red-team masking in sensitivity.py"): that script needs the raw Kaggle/NPCI files, which are not in
+  the repo. The masking analysis was done on the golden sessions instead.
+- Roadmap detector-side pillars (Hawkes/GBDT, new sensors, adaptive conformal, federated updates): they change the frozen model.
 
-## Remaining (only the on-hold items)
-9. DONE: consent screen (first run, revocable switch in Protection settings, gates SignalService) + "Delete my data" (clears Room and the encrypted store; the server keeps its device record, no server delete yet).
-10. DONE: Read aloud / Stop reading button on the Hard, trusted-contact and long-session screens (phone TextToSpeech).
-11. DONE: AlertMerger folds repeat alerts (same mechanism + reasons) within 60 min: no screen, notification, pause or contact push. Counters in Room table alert_stat (Room v2, Migration 1->2). Not shown in any UI yet.
-Items 12-14 need a vector re-freeze; not started, on hold until asked.
+## Needs a device or account (cannot be done here)
+- Room v1 -> v2 upgrade on a phone/emulator (no emulator image is installed).
+- Everything on real phones, Firebase push, Razorpay, Render, real attestation chains (see README "Status").
 
-## Not verified
-Nothing here ran on a phone or emulator. Item 8's 300 ms budget will often be missed on a cold Render instance.
-
-Room migration 1->2 is only unit-untested: it needs one run on a device/emulator (an update install from v1).
+## Merge order
+`feat/app-contact-approval` first, then `feat/small-features`. `gh` is not installed here, so PRs are opened from the GitHub links.
