@@ -17,3 +17,12 @@ Earlier rounds (11 small features + closing work) are merged or pushed; see git 
 ## Notes
 - run_e2e.py sometimes dies with a connection reset on the first run after code changes (seen twice, passes on rerun); cause not found.
 - Not run on a phone/emulator; no emulator image installed.
+
+## STOPPED at item 7 (as instructed: "if the gate fails, report the numbers and stop")
+Item 5 DONE (analyst console, audit_log, migration f7c2d8b51a94). Item 6 DONE (display-only points/band; vectors and tests unchanged).
+Item 7: fairness code, report (`ops/eval/fairness_report.md`) and gate are written and tested, and the gate FAILS on SatarkSim:
+recall max/min is 1.07 (age), 1.02 (activity tier), 1.10 (call-state availability), all under 1.5; but every dimension has a
+cohort with ZERO false alarms (60+, low activity, no call state), so the false-alarm ratio is undefined/infinite. Nothing was
+adjusted. `python ops/eval/run_eval.py` now exits 1, so the CI evaluation job would be red on this branch.
+Decision needed from the owner: keep the strict rule (CI red), gate only on recall plus a false-alarm CI-overlap test, or require a
+minimum number of false alarms per cohort before a ratio counts. Items 8-13 NOT started.

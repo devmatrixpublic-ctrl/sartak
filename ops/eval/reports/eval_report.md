@@ -2,9 +2,11 @@
 
 Simulated data: this shows the logic separates the simulated playbooks, not real-world accuracy.
 
-**Gate: PASS** (recall >= 93% and false alarms <= 0.1%, point estimates; thresholds calibrated at alpha = 0.08%)
+**Gate: FAIL** (recall >= 93% and false alarms <= 0.1%, point estimates; thresholds calibrated at alpha = 0.08%)
 
-- both targets met
+- FAIL: fairness: false-alarm rate max/min across age band is undefined (a cohort has none) (limit 1.5)
+- FAIL: fairness: false-alarm rate max/min across activity tier is undefined (a cohort has none) (limit 1.5)
+- FAIL: fairness: false-alarm rate max/min across call-state availability is undefined (a cohort has none) (limit 1.5)
 
 | Metric | Result | 95% CI |
 |---|---|---|

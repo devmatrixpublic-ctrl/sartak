@@ -28,6 +28,7 @@ ROOT = Path(__file__).resolve().parents[2]
 REF = ROOT / "detector" / "reference"
 SHIPPED_REPORT = ROOT / "detector" / "detector_report.md"   # has counts; data/satarksim/ copy is rounded
 RECALL_MIN = 0.93
+FAIRNESS_RATIO_MAX = 1.5   # max/min of a rate across the cohorts of one dimension; applied to point estimates as written
 FALSE_ALARM_MAX = 0.001
 
 
@@ -75,6 +76,73 @@ def parse_shipped_report(path: Path) -> dict:
     num = lambda s: int(s.replace(",", ""))
     return {"scam_alarmed": num(rec.group(1)), "scam_sessions": num(rec.group(2)),
             "legit_false_alarms": num(fa.group(1)), "legit_sessions": num(fa.group(2))}
+
+
+# Cohort dimensions that exist as columns in SatarkSim. No device-tier column exists, so call-state availability (a
+# device-capability flag) stands in for it. Language is skipped: SatarkSim has no language field.
+COHORT_DIMENSIONS = {
+    "age band": "age_band",
+    "activity tier": "activity_tier",
+    "call-state availability": "call_state_available",
+}
+
+
+def ratio(values: list[float]) -> float:
+    """max/min. All zero means the cohorts are equal (1.0); a zero minimum under a non-zero maximum is infinite."""
+    mx, mn = max(values), min(values)
+    if mx == 0:
+        return 1.0
+    return float("inf") if mn == 0 else mx / mn
+
+
+def fairness(res) -> dict:
+    """Recall and false-alarm rate on the validation split for every cohort, and the max/min ratio per dimension."""
+    v = res[res.split == "validation"]
+    out = {}
+    for name, col in COHORT_DIMENSIONS.items():
+        if col not in v.columns:
+            continue
+        rows = []
+        for g, d in v.groupby(col):
+            scam, legit = d[d.label == "scam"], d[d.label == "legit"]
+            s_n, s_k, l_n, l_k = len(scam), int(scam.alarm.sum()), len(legit), int(legit.alarm.sum())
+            rows.append({"cohort": str(g), "scam_n": s_n, "scam_alarmed": s_k, "recall": s_k / s_n if s_n else float("nan"),
+                         "recall_ci95": clopper_pearson(s_k, s_n) if s_n else (0.0, 1.0),
+                         "legit_n": l_n, "false_alarms": l_k, "false_alarm_rate": l_k / l_n if l_n else float("nan"),
+                         "false_alarm_ci95": clopper_pearson(l_k, l_n) if l_n else (0.0, 1.0)})
+        out[name] = {"rows": rows, "recall_ratio": ratio([r["recall"] for r in rows]),
+                     "false_alarm_ratio": ratio([r["false_alarm_rate"] for r in rows])}
+    return out
+
+
+def fairness_gate(f: dict, limit: float = FAIRNESS_RATIO_MAX) -> list[str]:
+    fails = []
+    for name, d in f.items():
+        for key, label in (("recall_ratio", "recall"), ("false_alarm_ratio", "false-alarm rate")):
+            if d[key] > limit:
+                shown = "undefined (a cohort has none)" if d[key] == float("inf") else f"{d[key]:.2f}"
+                fails.append(f"fairness: {label} max/min across {name} is {shown} (limit {limit})")
+    return fails
+
+
+def render_fairness(f: dict, failures: list[str]) -> str:
+    L = ["# Fairness report (simulated data)", "",
+         "Validation split of SatarkSim, per cohort. **All numbers are from a simulator, not real users.** Language is skipped "
+         "(SatarkSim has no language field) and there is no device-tier column, so call-state availability, a device-capability "
+         "flag, is shown instead. The gate is the ratio max/min of a rate across the cohorts of one dimension, on point "
+         f"estimates, and fails above {FAIRNESS_RATIO_MAX}. A cohort with zero false alarms makes the false-alarm ratio "
+         "undefined (infinite), which fails the gate as written. Per-cohort false-alarm counts are 0 to 5, so these ratios are noisy.", "",
+         f"**Gate: {'PASS' if not failures else 'FAIL'}**", ""]
+    for name, d in f.items():
+        L += [f"## {name}", "", "| cohort | scam sessions | recall (95% CI) | legit sessions | false alarms | false-alarm rate (95% CI) |", "|---|---|---|---|---|---|"]
+        for r in d["rows"]:
+            L.append(f"| {r['cohort']} | {r['scam_n']} | {r['recall']:.1%} ({r['recall_ci95'][0]:.1%}-{r['recall_ci95'][1]:.1%}) | {r['legit_n']} | "
+                     f"{r['false_alarms']} | {r['false_alarm_rate']:.3%} ({r['false_alarm_ci95'][0]:.3%}-{r['false_alarm_ci95'][1]:.3%}) |")
+        far = d["false_alarm_ratio"]
+        L += ["", f"Recall max/min: **{d['recall_ratio']:.2f}**. False-alarm max/min: **{'undefined (a cohort has zero)' if far == float('inf') else f'{far:.2f}'}**.", ""]
+    if failures:
+        L += ["## Gate failures", ""] + [f"- {x}" for x in failures] + [""]
+    return "\n".join(L) + "\n"
 
 
 def gate(h: dict, recall_min: float = RECALL_MIN, fa_max: float = FALSE_ALARM_MAX) -> list[str]:
@@ -125,10 +193,12 @@ def run(data: Path, alpha: float, out_dir: Path, shipped_report: Path = SHIPPED_
     t0 = time.time()
     _, res, _ = sd.evaluate(data, alpha, wl)
     h = headline(res)
+    fair = fairness(res)
     shipped = parse_shipped_report(shipped_report)
     matches = all(h[k] == shipped[k] for k in shipped)
-    failures = gate(h)
+    failures = gate(h) + fairness_gate(fair)
     out_dir.mkdir(parents=True, exist_ok=True)
+    (out_dir.parent / "fairness_report.md").write_text(render_fairness(fair, fairness_gate(fair)), encoding="utf-8", newline="\n")
     (out_dir / "eval_report.md").write_text(
         render_report(h, failures, matches, shipped, input_hashes(data), alpha), encoding="utf-8", newline="\n")
     (out_dir / "eval_result.json").write_text(json.dumps(
