@@ -1,0 +1,127 @@
+week,pattern,n
+0,app:(random sideloaded apk),76
+0,app:com.anydesk.anydeskandroid,24
+0,app:com.google.chromeremotedesktop,25
+0,app:com.skype.raider,9
+0,app:com.teamviewer.quicksupport.market,22
+0,app:com.whatsapp,29
+0,app:us.zoom.videomeetings,15
+0,mechanism:long_session,33
+0,mechanism:payment_score,125
+0,mechanism:sideload_during_call,73
+1,app:(random sideloaded apk),73
+1,app:com.anydesk.anydeskandroid,25
+1,app:com.google.chromeremotedesktop,32
+1,app:com.skype.raider,8
+1,app:com.teamviewer.quicksupport.market,23
+1,app:com.whatsapp,39
+1,app:us.zoom.videomeetings,13
+1,mechanism:long_session,34
+1,mechanism:payment_score,134
+1,mechanism:sideload_during_call,66
+2,app:(random sideloaded apk),57
+2,app:com.anydesk.anydeskandroid,20
+2,app:com.google.chromeremotedesktop,30
+2,app:com.skype.raider,21
+2,app:com.teamviewer.quicksupport.market,23
+2,app:com.whatsapp,35
+2,app:us.zoom.videomeetings,14
+2,mechanism:long_session,48
+2,mechanism:payment_score,123
+2,mechanism:sideload_during_call,49
+3,app:(random sideloaded apk),77
+3,app:com.anydesk.anydeskandroid,28
+3,app:com.google.chromeremotedesktop,27
+3,app:com.skype.raider,13
+3,app:com.teamviewer.quicksupport.market,19
+3,app:com.whatsapp,39
+3,app:us.zoom.videomeetings,14
+3,mechanism:long_session,40
+3,mechanism:payment_score,124
+3,mechanism:sideload_during_call,73
+4,app:(random sideloaded apk),62
+4,app:com.anydesk.anydeskandroid,33
+4,app:com.google.chromeremotedesktop,28
+4,app:com.skype.raider,17
+4,app:com.teamviewer.quicksupport.market,30
+4,app:com.whatsapp,38
+4,app:us.zoom.videomeetings,11
+4,mechanism:long_session,43
+4,mechanism:payment_score,139
+4,mechanism:sideload_during_call,59
+5,app:(random sideloaded apk),57
+5,app:com.anydesk.anydeskandroid,29
+5,app:com.google.chromeremotedesktop,25
+5,app:com.skype.raider,16
+5,app:com.teamviewer.quicksupport.market,29
+5,app:com.whatsapp,28
+5,app:us.zoom.videomeetings,20
+5,mechanism:long_session,43
+5,mechanism:payment_score,131
+5,mechanism:sideload_during_call,48
+6,app:(random sideloaded apk),99
+6,app:com.anydesk.anydeskandroid,10
+6,app:com.google.chromeremotedesktop,7
+6,app:com.remotehelp.newtool,34
+6,app:com.skype.raider,14
+6,app:com.teamviewer.quicksupport.market,7
+6,app:com.whatsapp,42
+6,app:us.zoom.videomeetings,11
+6,mechanism:long_session,39
+6,mechanism:payment_score,116
+6,mechanism:sideload_during_call,92
+7,app:(random sideloaded apk),92
+7,app:com.anydesk.anydeskandroid,11
+7,app:com.google.chromeremotedesktop,11
+7,app:com.remotehelp.newtool,15
+7,app:com.skype.raider,11
+7,app:com.teamviewer.quicksupport.market,7
+7,app:com.whatsapp,44
+7,app:us.zoom.videomeetings,16
+7,mechanism:long_session,39
+7,mechanism:payment_score,101
+7,mechanism:sideload_during_call,87
+8,app:(random sideloaded apk),84
+8,app:com.anydesk.anydeskandroid,9
+8,app:com.google.chromeremotedesktop,10
+8,app:com.remotehelp.newtool,38
+8,app:com.skype.raider,17
+8,app:com.teamviewer.quicksupport.market,10
+8,app:com.whatsapp,24
+8,app:us.zoom.videomeetings,20
+8,mechanism:long_session,46
+8,mechanism:payment_score,109
+8,mechanism:sideload_during_call,79
+9,app:(random sideloaded apk),82
+9,app:com.anydesk.anydeskandroid,13
+9,app:com.google.chromeremotedesktop,13
+9,app:com.remotehelp.newtool,39
+9,app:com.skype.raider,14
+9,app:com.teamviewer.quicksupport.market,10
+9,app:com.whatsapp,41
+9,app:us.zoom.videomeetings,15
+9,mechanism:long_session,46
+9,mechanism:payment_score,133
+9,mechanism:sideload_during_call,69
+10,app:(random sideloaded apk),78
+10,app:com.anydesk.anydeskandroid,6
+10,app:com.google.chromeremotedesktop,13
+10,app:com.remotehelp.newtool,35
+10,app:com.skype.raider,11
+10,app:com.teamviewer.quicksupport.market,7
+10,app:com.whatsapp,33
+10,app:us.zoom.videomeetings,17
+10,mechanism:long_session,38
+10,mechanism:payment_score,102
+10,mechanism:sideload_during_call,76
+11,app:(random sideloaded apk),79
+11,app:com.anydesk.anydeskandroid,13
+11,app:com.google.chromeremotedesktop,13
+11,app:com.remotehelp.newtool,29
+11,app:com.skype.raider,16
+11,app:com.teamviewer.quicksupport.market,14
+11,app:com.whatsapp,37
+11,app:us.zoom.videomeetings,16
+11,mechanism:long_session,45
+11,mechanism:payment_score,115
+11,mechanism:sideload_during_call,74

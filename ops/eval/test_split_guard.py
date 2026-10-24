@@ -1,79 +1,145 @@
 import sys
 from pathlib import Path
 
+import numpy as np
+import pandas as pd
 import pytest
 
 sys.path.insert(0, str(Path(__file__).parent))
 
-pd = pytest.importorskip("pandas")
-pytest.importorskip("sklearn")
-
 import split_guard as sg  # noqa: E402
 
-MIN = 60
+
+def events(rows):
+    """rows: (session, t, type, payee, amount)"""
+    return pd.DataFrame([{"session_id": s, "t_sec": t, "ts_abs": 1000 + t, "event_type": et, "payee_id": p, "amount_inr": a}
+                         for s, t, et, p, a in rows])
 
 
-def frame(rows):
-    base = dict(session_id="S", event_type="PAYMENT_ATTEMPT", payee_id="P", payee_is_new=False, amount_inr=0.0)
-    return pd.DataFrame([{**base, **r} for r in rows])
+PAY = "PAYMENT_ATTEMPT"
 
 
-def amounts(rows):
-    return [float(x) for x in sg.apply_guard(frame(rows)).amount_inr]
+def test_k_equal_one_changes_nothing():
+    ev = events([("S1", 0, PAY, "P", 1000.0)])
+    assert sg.split_payments(ev, 1, 30, {"S1"}).equals(ev)
 
 
-# These cases are the same as the Kotlin ones in app/src/test/.../PaymentPolicyTest.kt: the two copies must agree.
-
-def test_three_small_payments_to_a_new_payee_become_one_running_total():
-    out = sg.apply_guard(frame([dict(t_sec=0, amount_inr=1000, payee_is_new=True),
-                                dict(t_sec=3 * MIN, amount_inr=1000), dict(t_sec=6 * MIN, amount_inr=1500)]))
-    assert list(out.amount_inr) == [1000, 2000, 3500]
-    assert list(out.payee_is_new)[1:] == [True, True]
-
-
-def test_a_retry_of_the_same_payment_is_not_counted_twice():
-    assert amounts([dict(t_sec=0, amount_inr=1000, payee_is_new=True), dict(t_sec=3 * MIN, amount_inr=1000),
-                    dict(t_sec=3 * MIN + 20, amount_inr=1000)]) == [1000, 2000, 2000]
+def test_splitting_keeps_the_total_the_payee_and_spaces_the_pieces():
+    ev = events([("S1", 100, "CALL_START", None, None), ("S1", 200, PAY, "P", 1000.0), ("S2", 200, PAY, "Q", 500.0)])
+    out = sg.split_payments(ev, 4, 30, {"S1"})
+    p = out[(out.session_id == "S1") & (out.event_type == PAY)]
+    assert len(p) == 4 and p.amount_inr.sum() == pytest.approx(1000.0) and set(p.payee_id) == {"P"}
+    assert list(p.t_sec) == [200, 230, 260, 290]
+    assert len(out[out.event_type == "CALL_START"]) == 1                                   # other events untouched
+    other = out[out.session_id == "S2"]
+    assert len(other) == 1 and other.amount_inr.iloc[0] == 500.0                           # sessions not attacked are left alone
 
 
-def test_a_known_payee_or_one_past_the_hour_is_left_alone():
-    assert amounts([dict(t_sec=0, payee_id="K", amount_inr=500), dict(t_sec=2 * MIN, payee_id="K", amount_inr=500)]) == [500, 500]
-    out = sg.apply_guard(frame([dict(t_sec=0, amount_inr=1000, payee_is_new=True), dict(t_sec=61 * MIN, amount_inr=1000)]))
-    assert list(out.amount_inr) == [1000, 1000] and list(out.payee_is_new) == [True, False]
+def test_guard_sums_per_payee_inside_the_window_only():
+    ev = events([("S1", 0, PAY, "P", 100.0), ("S1", 30, PAY, "P", 100.0), ("S1", 40, PAY, "Q", 50.0),
+                 ("S1", 5000, PAY, "P", 100.0)])
+    g = sg.apply_guard(ev, 1800).set_index("t_sec").amount_inr
+    assert g[0] == 100.0 and g[30] == 200.0                                                # a running total to the same payee
+    assert g[40] == 50.0                                                                   # another payee is separate
+    assert g[5000] == 100.0                                                                # outside the window: the history has expired
 
 
-def test_different_payees_are_kept_apart():
-    assert amounts([dict(t_sec=0, payee_id="A", amount_inr=1000, payee_is_new=True),
-                    dict(t_sec=MIN, payee_id="B", amount_inr=700, payee_is_new=True),
-                    dict(t_sec=3 * MIN, payee_id="A", amount_inr=1000), dict(t_sec=4 * MIN, payee_id="B", amount_inr=700)]) == [1000, 700, 2000, 1400]
+def test_guard_never_touches_other_event_types_or_other_sessions():
+    ev = events([("S1", 0, "CALL_START", None, np.nan), ("S1", 10, PAY, "P", 100.0), ("S2", 11, PAY, "P", 100.0)])
+    g = sg.apply_guard(ev, 1800)
+    assert g[g.event_type == "CALL_START"].amount_inr.isna().all()
+    assert sorted(g[g.event_type == PAY].amount_inr) == [100.0, 100.0]                    # S2 does not inherit S1's history
 
 
-def test_sessions_do_not_share_a_running_total():
-    rows = [dict(session_id="S1", t_sec=0, amount_inr=1000, payee_is_new=True), dict(session_id="S2", t_sec=MIN, amount_inr=1000)]
-    assert amounts(rows) == [1000, 1000]
+def test_guard_makes_a_split_payment_look_like_the_original_at_its_last_piece():
+    whole = events([("S1", 0, PAY, "P", 1000.0)])
+    split = sg.split_payments(whole, 5, 30, {"S1"})
+    g = sg.apply_guard(split, 1800)
+    assert g[g.event_type == PAY].amount_inr.max() == pytest.approx(1000.0)               # the detector sees the real size again
 
 
-def test_other_events_and_missing_amounts_pass_through():
-    df = pd.DataFrame([dict(session_id="S", event_type="APP_INSTALL", t_sec=0, payee_id=None, payee_is_new=None, amount_inr=float("nan")),
-                       dict(session_id="S", event_type="PAYMENT_ATTEMPT", t_sec=5, payee_id="P", payee_is_new=True, amount_inr=float("nan"))])
-    out = sg.apply_guard(df)
-    assert out.amount_inr.isna().all()
+def test_exposure_counts_only_what_was_sent_before_the_alarm():
+    ev = events([("S1", 0, PAY, "P", 100.0), ("S1", 30, PAY, "P", 100.0), ("S1", 60, PAY, "P", 100.0),
+                 ("S2", 0, PAY, "P", 100.0)])
+    dec = pd.DataFrame({"session_id": ["S1", "S2"], "alarm_t": [60.0, np.nan]})
+    e = sg.exposure(ev, dec).set_index("session_id")
+    assert e.loc["S1", "total"] == 300.0 and e.loc["S1", "sent"] == 200.0                  # the attempt the alarm fires on is held
+    assert e.loc["S2", "sent"] == 100.0                                                    # never alarmed: everything went out
 
 
-def test_sessions_changed_ignores_rows_with_no_amount():
-    original = pd.DataFrame([dict(session_id="S", t_sec=0, amount_inr=float("nan")), dict(session_id="S", t_sec=1, amount_inr=5.0),
-                             dict(session_id="T", t_sec=0, amount_inr=9.0)])
-    guarded = original.copy()
-    guarded.loc[1, "amount_inr"] = 12.0
-    assert sg.sessions_changed(original, guarded) == 1
+def test_alarm_on_the_first_attempt_protects_everything():
+    ev = events([("S1", 0, PAY, "P", 100.0), ("S1", 30, PAY, "P", 100.0)])
+    e = sg.exposure(ev, pd.DataFrame({"session_id": ["S1"], "alarm_t": [0.0]}))
+    assert e.sent.iloc[0] == 0.0
 
 
-def test_combine_alarms_if_either_copy_does_and_keeps_the_earlier_time():
-    main = pd.DataFrame(dict(session_id=["a", "b", "c"], alarm=[False, True, False], alarm_t=[float("nan"), 100.0, float("nan")],
-                             mechanism=["none", "payment_score", "none"], first_pay_t=[50.0, 50.0, 50.0]))
-    guard = pd.DataFrame(dict(session_id=["a", "b", "c"], alarm=[True, True, False], alarm_t=[40.0, 80.0, float("nan")],
-                              mechanism=["payment_score"] * 3))
-    out = sg.combine(main, guard).set_index("session_id")
-    assert list(out.alarm) == [True, True, False]
-    assert out.loc["a", "alarm_t"] == 40.0 and out.loc["b", "alarm_t"] == 80.0
-    assert bool(out.loc["a", "interdicted"]) is True   # 40 is before the first payment at 50
+def test_measure_counts_evasion_only_among_scams_caught_unattacked():
+    dec = pd.DataFrame({"session_id": ["a", "b", "c"], "label": ["scam"] * 3, "alarm": [True, False, False],
+                        "interdicted": [True, False, False], "alarm_t": [0.0, np.nan, np.nan], "mechanism": ["payment_score", "none", "none"]})
+    ev = events([("a", 0, PAY, "P", 10.0), ("b", 0, PAY, "P", 10.0), ("c", 0, PAY, "P", 10.0)])
+    m = sg.measure(dec, ev, baseline_caught={"a", "b"}, payscore_only={"a", "b"})
+    assert (m["n"], m["hit"], m["evaded"], m["baseline_caught"]) == (3, 1, 1, 2)         # b was caught before and is evaded now; c never was
+    assert m["total"] == 30.0 and m["sent"] == 20.0 and (m["ps_n"], m["ps_hit"]) == (2, 1)
+
+
+def test_the_report_states_what_it_is_and_what_it_cannot_show():
+    rows = {(k, g): {"n": 10, "hit": 9, "interdicted": 8, "total": 100.0, "sent": 10.0, "evaded": 0, "baseline_caught": 9, "ps_n": 4, "ps_hit": 3}
+            for k in sg.ROWS for g in (False, True)}
+    text = sg.render(rows, {"guard off (shipped)": (7, 9887), "guard on, shipped thresholds": (7, 9887), "guard on, thresholds re-calibrated": (7, 9887)}, (538, 578), 1800, 30)
+    assert "Simulated data" in text and "not the sealed held-out set" in text.replace("Not the", "not the")
+    assert "mule" in text and "needs a new freeze" in text
+
+
+def test_adaptive_split_cuts_each_payment_to_pieces_no_larger_than_the_users_median():
+    ev = events([("S1", 100, PAY, "P", 10_000.0), ("S1", 500, PAY, "Q", 300.0), ("S2", 100, PAY, "R", 10_000.0)])
+    ev["user_id"] = ["U1", "U1", "U2"]
+    users = pd.DataFrame({"user_id": ["U1", "U2"], "hist_median_inr": [1000.0, 1000.0]})
+    out = sg.split_below_baseline(ev, users, 30, {"S1"})
+    big = out[(out.session_id == "S1") & (out.payee_id == "P")]
+    assert len(big) == 10 and big.amount_inr.max() <= 1000.0 and big.amount_inr.sum() == pytest.approx(10_000.0)
+    assert list(big.t_sec)[:3] == [100, 130, 160]
+    small = out[(out.session_id == "S1") & (out.payee_id == "Q")]
+    assert len(small) == 1 and small.amount_inr.iloc[0] == 300.0                       # already under the median: left alone
+    assert len(out[out.session_id == "S2"]) == 1                                       # other sessions are not attacked
+
+
+def test_adaptive_split_is_capped_so_a_huge_payment_is_not_exploded_into_thousands():
+    ev = events([("S1", 0, PAY, "P", 1_000_000.0)])
+    ev["user_id"] = "U1"
+    users = pd.DataFrame({"user_id": ["U1"], "hist_median_inr": [100.0]})
+    out = sg.split_below_baseline(ev, users, 30, {"S1"}, max_pieces=20)
+    assert len(out) == 20 and out.amount_inr.sum() == pytest.approx(1_000_000.0)
+
+
+def _rows(adaptive_interdicted=5, guard_interdicted=5):
+    rows = {(k, g): {"n": 10, "hit": 10, "interdicted": 8, "total": 100.0, "sent": 1.0, "evaded": 0, "baseline_caught": 9, "ps_n": 4, "ps_hit": 4}
+            for k in sg.ROWS for g in (False, True)}
+    rows[(sg.ADAPTIVE, False)] = dict(rows[(sg.ADAPTIVE, False)], interdicted=adaptive_interdicted)
+    rows[(sg.ADAPTIVE, True)] = dict(rows[(sg.ADAPTIVE, True)], interdicted=guard_interdicted)
+    return rows
+
+
+def test_the_reading_is_computed_from_the_numbers_not_written_in_advance():
+    fa = {"guard off (shipped)": (7, 9887), "guard on, shipped thresholds": (7, 9887)}
+    text = "\n".join(sg.reading(_rows(5, 5), fa))
+    assert "did not evade" in text and "80.0% unattacked to 50.0%" in text and "unchanged" in text
+    worse = "\n".join(sg.reading(_rows(5, 5), fa))
+    better = "\n".join(sg.reading(_rows(5, 9), fa))
+    assert "changed by 4 sessions" in better and worse != better
+
+
+def test_a_split_that_does_hide_scams_is_reported_as_evasion():
+    rows = _rows()
+    rows[(5, False)] = dict(rows[(5, False)], hit=6, evaded=3)
+    text = "\n".join(sg.reading(rows, {"guard off (shipped)": (7, 9887), "guard on, shipped thresholds": (7, 9887)}))
+    assert "worst case is 6/10" in text and "3 scams caught unattacked were missed" in text
+
+
+def test_rerender_rebuilds_the_same_report_from_the_saved_json(tmp_path):
+    import json
+    rows, fa = _rows(), {"guard off (shipped)": (7, 9887), "guard on, shipped thresholds": (7, 9887), "guard on, thresholds re-calibrated": (7, 9887)}
+    saved = {"window_s": 1800, "gap_s": 30, "rows": {f"k={k},guard={g}": v for (k, g), v in rows.items()},
+             "false_alarms": {k: list(v) for k, v in fa.items()}, "recalibrated_recall": [550, 578]}
+    (tmp_path / "r.json").write_text(json.dumps(saved))
+    sg.rerender(tmp_path / "r.json", tmp_path / "r.md")
+    assert (tmp_path / "r.md").read_text(encoding="utf-8") == sg.render(rows, fa, (550, 578), 1800, 30)

@@ -1,0 +1,156 @@
+{
+ "window_s": 1800,
+ "gap_s": 30,
+ "rows": {
+  "k=1,guard=False": {
+   "n": 578,
+   "hit": 538,
+   "interdicted": 485,
+   "total": 1187512993.77,
+   "sent": 16724521.110000001,
+   "evaded": 0,
+   "baseline_caught": 538,
+   "ps_n": 281,
+   "ps_hit": 281
+  },
+  "k=1,guard=True": {
+   "n": 578,
+   "hit": 550,
+   "interdicted": 485,
+   "total": 1187512993.77,
+   "sent": 16282769.51,
+   "evaded": 0,
+   "baseline_caught": 538,
+   "ps_n": 281,
+   "ps_hit": 281
+  },
+  "k=2,guard=False": {
+   "n": 578,
+   "hit": 553,
+   "interdicted": 452,
+   "total": 1187512993.77,
+   "sent": 11966551.645,
+   "evaded": 0,
+   "baseline_caught": 538,
+   "ps_n": 281,
+   "ps_hit": 281
+  },
+  "k=2,guard=True": {
+   "n": 578,
+   "hit": 561,
+   "interdicted": 452,
+   "total": 1187512993.77,
+   "sent": 10987901.59,
+   "evaded": 0,
+   "baseline_caught": 538,
+   "ps_n": 281,
+   "ps_hit": 281
+  },
+  "k=3,guard=False": {
+   "n": 578,
+   "hit": 558,
+   "interdicted": 439,
+   "total": 1187512993.77,
+   "sent": 9894363.986666666,
+   "evaded": 0,
+   "baseline_caught": 538,
+   "ps_n": 281,
+   "ps_hit": 281
+  },
+  "k=3,guard=True": {
+   "n": 578,
+   "hit": 567,
+   "interdicted": 439,
+   "total": 1187512993.77,
+   "sent": 8784633.723333333,
+   "evaded": 0,
+   "baseline_caught": 538,
+   "ps_n": 281,
+   "ps_hit": 281
+  },
+  "k=5,guard=False": {
+   "n": 578,
+   "hit": 567,
+   "interdicted": 422,
+   "total": 1187512993.77,
+   "sent": 6771531.413999999,
+   "evaded": 0,
+   "baseline_caught": 538,
+   "ps_n": 281,
+   "ps_hit": 281
+  },
+  "k=5,guard=True": {
+   "n": 578,
+   "hit": 578,
+   "interdicted": 422,
+   "total": 1187512993.77,
+   "sent": 5627829.993999999,
+   "evaded": 0,
+   "baseline_caught": 538,
+   "ps_n": 281,
+   "ps_hit": 281
+  },
+  "k=10,guard=False": {
+   "n": 578,
+   "hit": 578,
+   "interdicted": 397,
+   "total": 1187512993.77,
+   "sent": 4578784.006,
+   "evaded": 0,
+   "baseline_caught": 538,
+   "ps_n": 281,
+   "ps_hit": 281
+  },
+  "k=10,guard=True": {
+   "n": 578,
+   "hit": 578,
+   "interdicted": 397,
+   "total": 1187512993.77,
+   "sent": 3235862.4899999998,
+   "evaded": 0,
+   "baseline_caught": 538,
+   "ps_n": 281,
+   "ps_hit": 281
+  },
+  "k=adaptive,guard=False": {
+   "n": 578,
+   "hit": 578,
+   "interdicted": 333,
+   "total": 1187512993.77,
+   "sent": 1514851.2154964288,
+   "evaded": 0,
+   "baseline_caught": 538,
+   "ps_n": 281,
+   "ps_hit": 281
+  },
+  "k=adaptive,guard=True": {
+   "n": 578,
+   "hit": 578,
+   "interdicted": 333,
+   "total": 1187512993.77,
+   "sent": 1027564.3399908947,
+   "evaded": 0,
+   "baseline_caught": 538,
+   "ps_n": 281,
+   "ps_hit": 281
+  }
+ },
+ "false_alarms": {
+  "guard off (shipped)": [
+   7,
+   9887
+  ],
+  "guard on, shipped thresholds": [
+   7,
+   9887
+  ],
+  "guard on, thresholds re-calibrated": [
+   7,
+   9887
+  ]
+ },
+ "recalibrated_recall": [
+  550,
+  578
+ ]
+}
