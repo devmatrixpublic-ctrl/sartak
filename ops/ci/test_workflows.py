@@ -99,7 +99,7 @@ def test_release_secrets_are_only_passed_through_env():
 
 def test_every_script_a_step_calls_exists(wf):
     text = run_lines(wf)
-    for rel in set(re.findall(r"(?:python|pytest)\s+(ops/[\w./-]+\.py|detector/tools/[\w./-]+\.py)", text)):
+    for rel in set(re.findall(r"(?:python3?|pytest)\s+(ops/[\w./-]+\.py|detector/tools/[\w./-]+\.py)", text)):
         assert (ROOT / rel).is_file(), rel
     assert (ROOT / "server" / "Dockerfile").is_file() and (ROOT / "ops" / "requirements-eval.txt").is_file()
 
@@ -150,3 +150,95 @@ def test_integration_job_uses_real_postgres_and_redis_and_cannot_pass_by_skippin
     text = run_lines({"jobs": {"i": job}})
     assert "tests/test_it_postgres.py" in text and "tests/test_it_redis.py" in text and "tests/test_it_stores.py" in text
     assert "SATARK_TEST_" in text and "exit 1" in text                              # skip detection
+
+
+
+# --- release.yml: the signed-APK and GitHub Release path ---------------------------------------------------------------------
+def _release():
+    return load("release.yml")
+
+
+def _apk_steps():
+    return _release()["jobs"]["android-release"]["steps"]
+
+
+def _step_index(substring):
+    hits = [i for i, s in enumerate(_apk_steps()) if substring in (s.get("name", "") + s.get("run", "") + s.get("uses", ""))]
+    assert hits, f"no step mentions {substring!r}"
+    return hits[0]
+
+
+def test_release_scripts_contain_no_expression_text_at_all():
+    """`${{ ... }}` inside a script body is how CI injection happens (a tag or branch name becomes shell). Everything must arrive via env."""
+    for name, job in _release()["jobs"].items():
+        for s in job.get("steps", []):
+            assert "${{" not in s.get("run", ""), f"{name}: step {s.get('name')!r} interpolates an expression into its script"
+
+
+def test_server_deploys_from_branches_only_and_the_apk_builds_from_tags_or_manual_runs_only():
+    jobs = _release()["jobs"]
+    assert jobs["server-image"]["if"] == "github.ref_type == 'branch'"                   # a version tag must not redeploy the server
+    cond = jobs["android-release"]["if"]
+    assert "github.ref_type == 'tag'" in cond and "workflow_dispatch" in cond and "'branch'" not in cond   # not on every push to main
+    triggers = _release().get("on", _release().get(True))
+    assert triggers["push"]["tags"] == ["v*"] and triggers["push"]["branches"] == ["main"]
+
+
+def test_write_permission_exists_only_on_the_apk_job():
+    rel = _release()
+    assert rel["permissions"] == {"contents": "read"}
+    with_perms = {n: j["permissions"] for n, j in rel["jobs"].items() if "permissions" in j}
+    assert with_perms == {"android-release": {"contents": "write"}}
+
+
+def test_apk_job_takes_its_configuration_from_the_SATARK_variables_through_env():
+    job = _release()["jobs"]["android-release"]
+    assert job["env"]["SERVER_URL"] == "${{ vars.SATARK_SERVER_URL }}"
+    assert job["env"]["CERT_PINS"] == "${{ vars.SATARK_CERT_PINS }}"
+    assert job["env"]["RAZORPAY_KEY_ID"] == "${{ vars.SATARK_RAZORPAY_KEY_ID }}"
+    assert job["env"]["EXPECTED_SIGNING_SHA256"] == "${{ vars.SATARK_EXPECTED_SIGNING_SHA256 }}"
+    build = next(s for s in job["steps"] if "assembleRelease" in s.get("run", ""))["run"]
+    for flag in ('-PsatarkBaseUrl="$SERVER_URL"', '-PsatarkPins="$CERT_PINS"', '-PsatarkRazorpayKey="$RAZORPAY_KEY_ID"'):
+        assert flag in build, flag
+
+
+def test_the_gradle_property_and_env_names_the_workflow_uses_are_the_ones_the_app_reads():
+    gradle = (ROOT / "app" / "build.gradle.kts").read_text(encoding="utf-8")
+    for prop in ("satarkBaseUrl", "satarkPins", "satarkRazorpayKey"):
+        assert f'gradleProperty("{prop}")' in gradle, f"app/build.gradle.kts does not read -P{prop}: the workflow flag would be silently ignored"
+    for name in ("KEYSTORE_PATH", "KEYSTORE_PASSWORD", "KEY_ALIAS", "KEY_PASSWORD"):
+        assert f'"{name}"' in gradle, f"the app's signing config does not read {name}"
+    assert "google-services.json" in gradle
+
+
+def test_apk_job_checks_before_it_builds_and_verifies_before_it_publishes():
+    config_check = _step_index("check_release_config.py")
+    keystore = _step_index("ANDROID_KEYSTORE_BASE64")
+    services = _step_index("check_google_services.py")
+    build = _step_index("assembleRelease")
+    verify = _step_index("check_apk_signature.py --certs")
+    upload = _step_index("actions/upload-artifact")
+    publish = _step_index("gh release create")
+    assert config_check < build and keystore < build and services < build                  # nothing is built from a bad configuration
+    assert build < verify < upload < publish                                              # nothing is uploaded or published unverified
+
+
+def test_the_signature_check_uses_apksigner_and_the_expected_digest_variable():
+    verify = next(s for s in _apk_steps() if "check_apk_signature.py --certs" in s.get("run", ""))["run"]
+    assert "apksigner" in verify and "verify --print-certs" in verify and '--expected "$EXPECTED_SIGNING_SHA256"' in verify
+
+
+def test_github_release_is_published_only_for_tags_verified_and_marked_prerelease():
+    step = next(s for s in _apk_steps() if "gh release create" in s.get("run", ""))
+    assert step["if"] == "github.ref_type == 'tag'"
+    assert step["env"]["GH_TOKEN"] == "${{ github.token }}"
+    run = step["run"]
+    assert "--verify-tag" in run and "--prerelease" in run and '"$RELEASE_TAG"' in run
+    assert ".sha256" in run                                                              # the checksum is attached next to the APK
+
+
+def test_the_release_tag_is_validated_before_use():
+    """RELEASE_TAG comes from a tag name anyone with push access can choose; check_release_config rejects anything but v1.2.3 forms."""
+    env = _release()["jobs"]["android-release"]["env"]
+    assert env["RELEASE_TAG"] == "${{ github.ref_type == 'tag' && github.ref_name || '' }}"
+    assert _step_index("check_release_config.py") == min(i for i, s in enumerate(_apk_steps()) if "run" in s)   # the very first script step

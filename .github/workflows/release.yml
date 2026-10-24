@@ -1,12 +1,15 @@
 name: Release
 
-# On main (plan 4.2): refuse to ship while stubs remain or the evaluation gate fails, then build the
-# server image, deploy to Render, and build the signed APK when an Android project exists.
-# Needs secrets/variables listed in ops/ci/README.md.
+# 1. Every run starts with the release gate: no temporary stubs, evaluation gate enforced, strings valid.
+# 2. Push to main: build the server image and trigger the Render deploy.
+# 3. Push of a version tag (v1.2.3) or a manual run: build the SIGNED release APK with the production server URL, certificate pins and
+#    google-services.json, check the APK carries the certificate the server expects, and on a tag publish it as a GitHub Release.
+# Setup (keystore, secrets, variables): ops/release/README.md. Nothing here is interpolated into script text: values come through env.
 
 on:
   push:
     branches: [main]
+    tags: ["v*"]
   workflow_dispatch:
 
 permissions:
@@ -38,56 +41,96 @@ jobs:
   server-image:
     name: Build server image and deploy to Render
     needs: gate
+    # A version tag must not redeploy the server: the server ships from main.
+    if: github.ref_type == 'branch'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - name: Build image
-        run: docker build -t satark-server:${{ github.sha }} server
+        env:
+          SHA: ${{ github.sha }}
+        run: docker build -t "satark-server:$SHA" server
       - name: Trigger Render deploy
         env:
           RENDER_DEPLOY_HOOK_URL: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
+          SHA: ${{ github.sha }}
         run: |
           if [ -z "$RENDER_DEPLOY_HOOK_URL" ]; then
             echo "::error::RENDER_DEPLOY_HOOK_URL secret is not set; cannot deploy"
             exit 1
           fi
           curl -fsS -X POST "$RENDER_DEPLOY_HOOK_URL" > /dev/null
-          echo "deploy triggered for ${{ github.sha }}"
+          echo "deploy triggered for $SHA"
 
   android-release:
-    name: Signed release APK (skipped until app/ exists)
+    name: Signed release APK (and a GitHub Release on a version tag)
     needs: gate
+    if: github.ref_type == 'tag' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
+    permissions:
+      contents: write   # this job only, and only to publish the GitHub Release on a tag
+    env:
+      SERVER_URL: ${{ vars.SATARK_SERVER_URL }}
+      CERT_PINS: ${{ vars.SATARK_CERT_PINS }}
+      RAZORPAY_KEY_ID: ${{ vars.SATARK_RAZORPAY_KEY_ID }}
+      EXPECTED_SIGNING_SHA256: ${{ vars.SATARK_EXPECTED_SIGNING_SHA256 }}
+      RELEASE_TAG: ${{ github.ref_type == 'tag' && github.ref_name || '' }}
     steps:
       - uses: actions/checkout@v4
-      - name: Is there an Android project yet?
-        id: has_app
-        run: |
-          if [ -f app/build.gradle.kts ] || [ -f app/build.gradle ]; then echo "present=true" >> "$GITHUB_OUTPUT"; else echo "present=false" >> "$GITHUB_OUTPUT"; echo "::notice::no app/ Gradle project yet; APK build skipped"; fi
+      - name: Check the release configuration (https URL, pins, test-mode key, signing digest, tag name)
+        run: python3 ops/release/check_release_config.py
       - uses: actions/setup-java@v4
-        if: steps.has_app.outputs.present == 'true'
         with:
           distribution: temurin
           java-version: "21"
       - uses: gradle/actions/setup-gradle@v4
-        if: steps.has_app.outputs.present == 'true'
-      - name: Decode keystore from secrets (never written into the repo)
-        if: steps.has_app.outputs.present == 'true'
+      - name: Decode the keystore from secrets (never written into the repo)
         env:
           ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
         run: |
           if [ -z "$ANDROID_KEYSTORE_BASE64" ]; then echo "::error::ANDROID_KEYSTORE_BASE64 secret is not set"; exit 1; fi
           echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/release.keystore"
           echo "KEYSTORE_PATH=$RUNNER_TEMP/release.keystore" >> "$GITHUB_ENV"
-      - name: Build signed release APK
-        if: steps.has_app.outputs.present == 'true'
+      - name: Decode google-services.json from secrets and check it is for this app
+        env:
+          GOOGLE_SERVICES_JSON_BASE64: ${{ secrets.GOOGLE_SERVICES_JSON_BASE64 }}
+        run: |
+          if [ -z "$GOOGLE_SERVICES_JSON_BASE64" ]; then echo "::error::GOOGLE_SERVICES_JSON_BASE64 secret is not set: a release without it cannot receive push alerts"; exit 1; fi
+          echo "$GOOGLE_SERVICES_JSON_BASE64" | base64 -d > app/google-services.json
+          python3 ops/release/check_google_services.py app/google-services.json
+      - name: Build the signed release APK
         env:
           KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
-        run: ./gradlew :app:assembleRelease
+        run: ./gradlew :app:assembleRelease -PsatarkBaseUrl="$SERVER_URL" -PsatarkPins="$CERT_PINS" -PsatarkRazorpayKey="$RAZORPAY_KEY_ID"
+      - name: Verify the APK is signed with the certificate the server expects
+        run: |
+          APK=$(python3 ops/release/check_apk_signature.py --find-apk app/build/outputs/apk/release)
+          APKSIGNER=$(ls -d "$ANDROID_HOME"/build-tools/*/apksigner | sort -V | tail -1)
+          "$APKSIGNER" verify --print-certs "$APK" | tee apk-certs.txt
+          python3 ops/release/check_apk_signature.py --certs apk-certs.txt --expected "$EXPECTED_SIGNING_SHA256"
+          NAME="satark-${RELEASE_TAG:-manual}.apk"
+          cp "$APK" "$NAME"
+          sha256sum "$NAME" > "$NAME.sha256"
+          echo "APK_NAME=$NAME" >> "$GITHUB_ENV"
       - uses: actions/upload-artifact@v4
-        if: steps.has_app.outputs.present == 'true'
         with:
           name: satark-release-apk
-          path: app/build/outputs/apk/release/*.apk
+          path: |
+            satark-*.apk
+            satark-*.apk.sha256
+      - name: Publish the GitHub Release (version tags only)
+        if: github.ref_type == 'tag'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          APK_SHA256=$(cut -d' ' -f1 "$APK_NAME.sha256")
+          {
+            echo "Signed Android build of Satark ($RELEASE_TAG)."
+            echo
+            echo "- Payments run in Razorpay TEST mode: no real money moves."
+            echo "- To install, allow installs from this source on the phone, then open the APK."
+            echo "- APK SHA-256: $APK_SHA256"
+          } > release-notes.md
+          gh release create "$RELEASE_TAG" "$APK_NAME" "$APK_NAME.sha256" --title "Satark $RELEASE_TAG" --notes-file release-notes.md --prerelease --verify-tag

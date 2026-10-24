@@ -51,7 +51,7 @@ job reports (step summary + artifact) and does not block PRs; set the repository
 `gate` runs first and nothing ships unless it passes: no stub markers anywhere, evaluation gate, strings valid. Today it fails on the
 dev-token stub only. That is the intended release behaviour; it means **no automated deploy until the dev-token stub is removed.** (Render can still deploy from the repo on its own, independent of Actions.)
 
-Then `server-image` builds the image and POSTs the Render deploy hook, and `android-release` builds the signed APK (when `app/` exists).
+Then `server-image` builds the image and POSTs the Render deploy hook, and `android-release` builds the signed APK on a version tag (`v*`) or a manual run and publishes it as a GitHub Release (`ops/release/README.md`). A tag does not redeploy the server.
 
 ### Secrets and variables to configure (Settings -> Secrets and variables -> Actions)
 
@@ -60,6 +60,8 @@ Then `server-image` builds the image and POSTs the Render deploy hook, and `andr
 | `RENDER_DEPLOY_HOOK_URL` | secret | `server-image` (Render service -> Settings -> Deploy Hook) |
 | `ANDROID_KEYSTORE_BASE64` | secret | `android-release`: `base64 -w0 release.keystore` |
 | `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD` | secrets | `android-release` |
+| `GOOGLE_SERVICES_JSON_BASE64` | secret | `android-release`: `app/google-services.json`, checked to be for `com.satark.app` |
+| `SATARK_SERVER_URL`, `SATARK_CERT_PINS`, `SATARK_RAZORPAY_KEY_ID`, `SATARK_EXPECTED_SIGNING_SHA256` | variables | `android-release`: build properties and the signature check (validated first by `ops/release/check_release_config.py`) |
 | `EVAL_GATE_ENFORCED` | variable | `ci.yml` evaluation job (optional) |
 
 **For M1:** the release job exports `KEYSTORE_PATH`, `KEYSTORE_PASSWORD`, `KEY_ALIAS`, `KEY_PASSWORD` as environment variables; the
