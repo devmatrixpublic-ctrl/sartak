@@ -10,7 +10,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
-import androidx.compose.material3.Card
+import com.satark.app.ui.theme.Card
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Switch
@@ -55,10 +55,18 @@ fun ConsentScreen(onChoice: (agreed: Boolean) -> Unit) {
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         SatarkHeader("Before we start", "Satark needs your OK to watch for signs of a scam on this phone.")
-        Text("Satark will look at", style = MaterialTheme.typography.titleSmall)
-        ConsentText.watches.forEach { Text("• $it") }
-        Text("Satark never reads", style = MaterialTheme.typography.titleSmall)
-        ConsentText.never.forEach { Text("• $it") }
+        Card(Modifier.fillMaxWidth()) {
+            Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("Satark will look at", style = MaterialTheme.typography.titleMedium)
+                ConsentText.watches.forEach { Text("• $it", color = MaterialTheme.colorScheme.onSurfaceVariant) }
+            }
+        }
+        Card(Modifier.fillMaxWidth(), colors = androidx.compose.material3.CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)) {
+            Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("Satark never reads", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onPrimaryContainer)
+                ConsentText.never.forEach { Text("• $it", color = MaterialTheme.colorScheme.onPrimaryContainer) }
+            }
+        }
         Text(
             "The checks run on your phone. You can turn this off, or delete everything Satark keeps, at any time in Protection settings.",
             style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,

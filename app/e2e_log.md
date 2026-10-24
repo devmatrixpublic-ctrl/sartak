@@ -177,6 +177,7 @@ These are JVM unit tests. They pass on JDK 21 (`./gradlew :app:testDebugUnitTest
 | 43 | Why this alert | Nudge banner reasons (`NudgePolicy.REASONS`) | The nudge now lists three plain-language reasons (English and Hindi strings already exist), like an alarm |
 | 44 | Scenarios | `ScenarioTest` (3 tests) | Cloned-voice family emergency is warned; a split payment is no quieter than the whole one; an ordinary call with a known payee stays quiet |
 | 45 | Funnel | History screen | Adds "payments held in the last 30 days" beside warnings, folded repeats and nudges |
+| 46 | Re-theme (blue, lavender wash, white rounded cards) | Emulator, cleared app data, fresh install | Consent, setup, pay, settings and history screens render in the new theme; the nudge (amber) with 3 reasons, the full hold screen (rose) with Report fraud, Read aloud, Call trusted contact, Hold 30 minutes and Continue anyway, and a completed UPI payment all still work; history shows held 1 and nudge 1 | Pass |
 
 Still to run on a device: reboot the emulator and check the protection notice returns without opening Satark; the same
 after `adb install -r`; a 3-part split to a new payee during an unknown call (`app/tools/phone_check.py` is the place to add it).

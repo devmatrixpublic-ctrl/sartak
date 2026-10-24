@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <!-- Same values as ui/theme/Theme.kt. -->
-    <color name="satark_brand">#0B5D59</color>
-    <color name="satark_window">#F5FAF8</color>
+    <color name="satark_brand">#2563EB</color>
+    <color name="satark_window">#F8FAFC</color>
 </resources>

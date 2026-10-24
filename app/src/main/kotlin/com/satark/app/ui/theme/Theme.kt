@@ -1,6 +1,13 @@
 package com.satark.app.ui.theme
 
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Shapes
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -25,56 +32,85 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 
-/** Satark colours: a deep teal for trust, amber for "take a moment", red only for a real stop. */
+/**
+ * Satark look (from the Stitch "Sarvam-inspired" screens): a soft lavender-white canvas, white rounded cards, one confident
+ * blue for actions, slate text, and rose only for a real stop. Amber stays for "take a moment" (the nudge).
+ */
 private val Light = lightColorScheme(
-    primary = Color(0xFF0B5D59), onPrimary = Color.White,
-    primaryContainer = Color(0xFFA7F0E8), onPrimaryContainer = Color(0xFF00201E),
-    secondary = Color(0xFF4A6360), onSecondary = Color.White,
-    secondaryContainer = Color(0xFFCCE8E3), onSecondaryContainer = Color(0xFF05201D),
-    tertiary = Color(0xFF7A5900), onTertiary = Color.White,
-    tertiaryContainer = Color(0xFFFFDEA6), onTertiaryContainer = Color(0xFF261900),
-    error = Color(0xFFBA1A1A), onError = Color.White,
-    errorContainer = Color(0xFFFFDAD6), onErrorContainer = Color(0xFF410002),
-    background = Color(0xFFF5FAF8), onBackground = Color(0xFF171D1C),
-    surface = Color(0xFFF5FAF8), onSurface = Color(0xFF171D1C),
-    surfaceVariant = Color(0xFFDAE5E2), onSurfaceVariant = Color(0xFF3F4947),
-    surfaceContainerLowest = Color.White, surfaceContainerLow = Color(0xFFEFF5F3),
-    surfaceContainer = Color(0xFFE9EFED), surfaceContainerHigh = Color(0xFFE4E9E7),
-    surfaceContainerHighest = Color(0xFFDEE4E2),
-    outline = Color(0xFF6F7977), outlineVariant = Color(0xFFBEC9C6),
+    primary = Color(0xFF2563EB), onPrimary = Color.White,
+    primaryContainer = Color(0xFFE9EFFD), onPrimaryContainer = Color(0xFF1E3A8A),
+    secondary = Color(0xFF475569), onSecondary = Color.White,
+    secondaryContainer = Color(0xFFEDF2FE), onSecondaryContainer = Color(0xFF1E293B),
+    tertiary = Color(0xFF9A6700), onTertiary = Color.White,
+    tertiaryContainer = Color(0xFFFFF1CC), onTertiaryContainer = Color(0xFF3B2A00),
+    error = Color(0xFFE11D48), onError = Color.White,
+    errorContainer = Color(0xFFFFF1F2), onErrorContainer = Color(0xFF9F1239),
+    background = Color(0xFFF8FAFC), onBackground = Color(0xFF161C28),
+    surface = Color(0xFFF8FAFC), onSurface = Color(0xFF161C28),
+    surfaceVariant = Color(0xFFEDF0F7), onSurfaceVariant = Color(0xFF6E7B8F),
+    surfaceContainerLowest = Color.White, surfaceContainerLow = Color(0xFFF4F7FB),
+    surfaceContainer = Color(0xFFEFF3F9), surfaceContainerHigh = Color(0xFFE9EEF5),
+    surfaceContainerHighest = Color(0xFFE2E8F0),
+    outline = Color(0xFF8E9AA8), outlineVariant = Color(0xFFDBE1EA),
 )
 
 private val Dark = darkColorScheme(
-    primary = Color(0xFF8BD4CC), onPrimary = Color(0xFF003735),
-    primaryContainer = Color(0xFF00504D), onPrimaryContainer = Color(0xFFA7F0E8),
-    secondary = Color(0xFFB0CCC7), onSecondary = Color(0xFF1B3532),
-    secondaryContainer = Color(0xFF324B48), onSecondaryContainer = Color(0xFFCCE8E3),
+    primary = Color(0xFF7BA4FF), onPrimary = Color(0xFF0B1F57),
+    primaryContainer = Color(0xFF1E3A8A), onPrimaryContainer = Color(0xFFDCE6FF),
+    secondary = Color(0xFFB7C3D6), onSecondary = Color(0xFF1E293B),
+    secondaryContainer = Color(0xFF2B3548), onSecondaryContainer = Color(0xFFDDE5F2),
     tertiary = Color(0xFFF0BF48), onTertiary = Color(0xFF402D00),
-    tertiaryContainer = Color(0xFF5C4300), onTertiaryContainer = Color(0xFFFFDEA6),
-    error = Color(0xFFFFB4AB), onError = Color(0xFF690005),
-    errorContainer = Color(0xFF93000A), onErrorContainer = Color(0xFFFFDAD6),
-    background = Color(0xFF0F1514), onBackground = Color(0xFFDEE4E2),
-    surface = Color(0xFF0F1514), onSurface = Color(0xFFDEE4E2),
-    surfaceVariant = Color(0xFF3F4947), onSurfaceVariant = Color(0xFFBEC9C6),
-    surfaceContainerLowest = Color(0xFF0A0F0E), surfaceContainerLow = Color(0xFF171D1C),
-    surfaceContainer = Color(0xFF1B2120), surfaceContainerHigh = Color(0xFF252B2A),
-    surfaceContainerHighest = Color(0xFF303635),
-    outline = Color(0xFF899390), outlineVariant = Color(0xFF3F4947),
+    tertiaryContainer = Color(0xFF5C4300), onTertiaryContainer = Color(0xFFFFE9B0),
+    error = Color(0xFFFF8FA6), onError = Color(0xFF5C0020),
+    errorContainer = Color(0xFF7A1232), onErrorContainer = Color(0xFFFFD9E0),
+    background = Color(0xFF0E131C), onBackground = Color(0xFFE4E9F2),
+    surface = Color(0xFF0E131C), onSurface = Color(0xFFE4E9F2),
+    surfaceVariant = Color(0xFF2A3342), onSurfaceVariant = Color(0xFFA9B4C4),
+    surfaceContainerLowest = Color(0xFF0A0E15), surfaceContainerLow = Color(0xFF151B26),
+    surfaceContainer = Color(0xFF1A2130), surfaceContainerHigh = Color(0xFF232B3B),
+    surfaceContainerHighest = Color(0xFF2E3748),
+    outline = Color(0xFF8793A6), outlineVariant = Color(0xFF2E3748),
 )
 
 private val Base = Typography()
 private val SatarkType = Base.copy(
-    headlineMedium = Base.headlineMedium.copy(fontWeight = FontWeight.SemiBold),
-    headlineSmall = Base.headlineSmall.copy(fontWeight = FontWeight.SemiBold),
-    titleLarge = Base.titleLarge.copy(fontWeight = FontWeight.SemiBold),
+    headlineLarge = Base.headlineLarge.copy(fontWeight = FontWeight.Bold),
+    headlineMedium = Base.headlineMedium.copy(fontWeight = FontWeight.Bold, letterSpacing = (-0.5).sp),
+    headlineSmall = Base.headlineSmall.copy(fontWeight = FontWeight.Bold),
+    titleLarge = Base.titleLarge.copy(fontWeight = FontWeight.Bold),
     titleMedium = Base.titleMedium.copy(fontWeight = FontWeight.SemiBold),
     titleSmall = Base.titleSmall.copy(fontWeight = FontWeight.SemiBold),
+    labelLarge = Base.labelLarge.copy(fontWeight = FontWeight.SemiBold),
+)
+
+/** Big soft corners on cards and sheets, as in the reference screens. Buttons are already pills. */
+private val SatarkShapes = Shapes(
+    extraSmall = RoundedCornerShape(10.dp),
+    small = RoundedCornerShape(14.dp),
+    medium = RoundedCornerShape(22.dp),
+    large = RoundedCornerShape(26.dp),
+    extraLarge = RoundedCornerShape(32.dp),
 )
 
 @Composable
 fun SatarkTheme(content: @Composable () -> Unit) {
-    MaterialTheme(colorScheme = if (isSystemInDarkTheme()) Dark else Light, typography = SatarkType) {
-        Surface(color = MaterialTheme.colorScheme.background, content = content)
+    val dark = isSystemInDarkTheme()
+    val scheme = if (dark) Dark else Light
+    // A faint lavender bloom from the top-right corner, fading to the plain canvas.
+    val bloom = if (dark) Color(0x33645AA8) else Color(0x73CEBEF5)
+    MaterialTheme(colorScheme = scheme, typography = SatarkType, shapes = SatarkShapes) {
+        Surface(color = scheme.background) {
+            Box(
+                Modifier.fillMaxSize().background(
+                    Brush.radialGradient(
+                        colors = listOf(bloom, Color.Transparent),
+                        center = Offset(Float.POSITIVE_INFINITY, 0f),
+                        radius = 1400f,
+                    ),
+                ),
+                content = { content() },
+            )
+        }
     }
 }
 
@@ -108,3 +144,31 @@ fun SatarkHeader(title: String, subtitle: String? = null, trailing: (@Composable
         subtitle?.let { Text(it, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant) }
     }
 }
+
+/**
+ * The card used on every screen: white, large soft corners, a hairline edge and no shadow, as in the reference screens.
+ * A caller can still pass its own colours (the amber nudge, the red hold) or a different border.
+ */
+@Composable
+fun Card(
+    modifier: Modifier = Modifier,
+    colors: androidx.compose.material3.CardColors = androidx.compose.material3.CardDefaults.cardColors(
+        containerColor = MaterialTheme.colorScheme.surfaceContainerLowest,
+    ),
+    elevation: androidx.compose.material3.CardElevation = androidx.compose.material3.CardDefaults.cardElevation(),
+    border: androidx.compose.foundation.BorderStroke? = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+    content: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit,
+) = androidx.compose.material3.Card(modifier, MaterialTheme.shapes.medium, colors, elevation, border, content)
+
+/** The tappable version, same look. */
+@Composable
+fun Card(
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    colors: androidx.compose.material3.CardColors = androidx.compose.material3.CardDefaults.cardColors(
+        containerColor = MaterialTheme.colorScheme.surfaceContainerLowest,
+    ),
+    elevation: androidx.compose.material3.CardElevation = androidx.compose.material3.CardDefaults.cardElevation(),
+    border: androidx.compose.foundation.BorderStroke? = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+    content: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit,
+) = androidx.compose.material3.Card(onClick, modifier, shape = MaterialTheme.shapes.medium, colors = colors, elevation = elevation, border = border, content = content)
