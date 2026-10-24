@@ -50,3 +50,12 @@ def test_headline_numbers_come_from_the_eval_result_file():
     page = b.build(None)
     m = re.search(r"Scam recall</td><td>([\d.]+)%", page)
     assert m and 80 < float(m.group(1)) <= 100
+
+
+def test_the_new_pattern_view_is_on_the_page_and_labelled_as_seed_data():
+    page = b.build(None)
+    assert "New patterns this week" in page
+    import rising_patterns as rp
+    if rp.SEED.is_file():
+        assert "not real traffic" in page and "com.remotehelp.newtool" in page          # the simulator's week-6 app is what the view finds
+        assert "NEW" in page

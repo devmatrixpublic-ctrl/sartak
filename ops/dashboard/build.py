@@ -22,6 +22,8 @@ SIM = "simulated data"
 
 REPORTS = [
     ("Detector report", ROOT / "detector" / "detector_report.md"),
+    ("Out-of-sample check on fresh simulator draws", ROOT / "ops" / "eval" / "reports" / "fresh_seed_report.md"),
+    ("Split-payment evasion and the split guard", ROOT / "ops" / "eval" / "reports" / "split_guard_report.md"),
     ("Fairness by cohort", ROOT / "ops" / "eval" / "fairness_report.md"),
     ("Gradient-boosted baseline", ROOT / "ops" / "eval" / "gbt_baseline_report.md"),
 ]
@@ -95,9 +97,21 @@ def headline(path: Path) -> str:
             f"<tr><td>Evaluation gate</td><td>{html.escape(str(d['gate']))}</td></tr></tbody></table>")
 
 
+def patterns_section() -> str:
+    """New and rising patterns from the labelled seed counts (ops/dashboard/rising_patterns.py)."""
+    import pandas as pd
+    import rising_patterns as rp
+
+    if not rp.SEED.is_file():
+        return "<p>No seed counts found. Run <code>python ops/dashboard/rising_patterns.py --make-seed</code>.</p>"
+    counts = pd.read_csv(rp.SEED)
+    return md_to_html(rp.report(counts, (6, int(counts.week.max())), with_heading=False))
+
+
 def build(db: Path | None = None) -> str:
     parts = ["<h2>Headline</h2><p class='sim'>All figures are " + SIM + ": a simulator, not real users or real traffic.</p>",
-             headline(ROOT / "ops" / "eval" / "reports" / "eval_result.json")]
+             headline(ROOT / "ops" / "eval" / "reports" / "eval_result.json"),
+             f"<h2>New patterns this week <small>({SIM})</small></h2>", patterns_section()]
     counts = alert_counts(db)
     parts.append("<h2>Alerts in the test database</h2><p class='sim'>Test data from a development database, not real alerts.</p>")
     if counts is None:
