@@ -154,8 +154,20 @@ class UsageSignalSource(
     override fun state(): SourceState {
         val ops = ctx.getSystemService(AppOpsManager::class.java)
         val mode = ops.unsafeCheckOpNoThrow(AppOpsManager.OPSTR_GET_USAGE_STATS, Process.myUid(), ctx.packageName)
-        return if (mode == AppOpsManager.MODE_ALLOWED) SourceState.AVAILABLE else SourceState.DENIED
+        // Some phones (iQOO/Vivo among them) report MODE_DEFAULT after the person has switched Satark on in Settings. The
+        // permission alone can read "granted" even when it is off, so in that case ask Android for real usage data: it
+        // returns nothing unless usage access is on.
+        val on = mode == AppOpsManager.MODE_ALLOWED ||
+            (mode == AppOpsManager.MODE_DEFAULT &&
+                ctx.checkCallingOrSelfPermission(Manifest.permission.PACKAGE_USAGE_STATS) == PackageManager.PERMISSION_GRANTED &&
+                returnsUsageData())
+        return if (on) SourceState.AVAILABLE else SourceState.DENIED
     }
+
+    private fun returnsUsageData(): Boolean = runCatching {
+        val t = now()
+        ctx.getSystemService(UsageStatsManager::class.java).queryUsageStats(UsageStatsManager.INTERVAL_DAILY, t - 24 * 3600_000L, t).isNotEmpty()
+    }.getOrDefault(false)
 
     override fun start(emit: (RawSignal) -> Unit) {
         if (state() != SourceState.AVAILABLE || running) return
