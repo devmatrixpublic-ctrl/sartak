@@ -30,6 +30,9 @@ class NudgeLimiter(
         return true
     }
 
+    /** Nudges shown in the current window, for the history screen. */
+    fun shownInWindow(): Int { val t = now(); return store.times.count { it in (t - windowMs)..t } }
+
     companion object {
         const val MAX_PER_WINDOW = 1
         const val WINDOW_MS = 30L * 24 * 3600_000

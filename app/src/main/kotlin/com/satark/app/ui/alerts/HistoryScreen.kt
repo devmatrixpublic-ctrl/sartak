@@ -37,10 +37,12 @@ fun HistoryScreen(graph: AppGraph, onBack: () -> Unit) {
     var rows by remember { mutableStateOf<List<DecisionRow>?>(null) }
     var counts by remember { mutableStateOf<Pair<Int, Int>?>(null) }
     var kept by remember { mutableStateOf<Int?>(null) }
+    var nudges by remember { mutableStateOf<Int?>(null) }
     LaunchedEffect(Unit) {
         rows = runCatching { graph.recentDecisions(30) }.getOrDefault(emptyList())
         counts = runCatching { graph.alertCounts() }.getOrNull()
         kept = runCatching { graph.eventCount() }.getOrNull()
+        nudges = runCatching { graph.dispatcher.nudgesThisMonth() }.getOrNull()
     }
 
     Column(
@@ -68,6 +70,7 @@ fun HistoryScreen(graph: AppGraph, onBack: () -> Unit) {
         Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)) {
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text("How often Satark interrupts", style = MaterialTheme.typography.titleSmall)
+                nudges?.let { Text("• Gentle nudges in the last 30 days: $it (Satark shows at most 1 a month).") }
                 Text("• Goal: at most 1 alarm a quarter and 1 nudge a month for a genuine user.")
                 Text("• Simulated users (not real people): about 0.08 alarms a quarter and 0.5 nudges a month.")
                 Text("• Busy users can still see slightly more than 1 nudge a month. See ops/eval/reports/alert_budget.md.")

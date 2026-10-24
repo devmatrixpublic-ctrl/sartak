@@ -44,6 +44,8 @@ class EventDispatcher(
     private val baseline = Baseline.coldStart(model)
     private var lastTrace: PaymentTrace? = null
     private val detector = Detector.create(ageBand, baseline, model).also { it.traceSink = { t -> lastTrace = t } }
+    fun nudgesThisMonth(): Int = nudgeLimiter.shownInWindow()
+
     private val splitGuard = SplitGuard(model, ageBand, baseline)
 
     private val policy = SessionPolicy()
