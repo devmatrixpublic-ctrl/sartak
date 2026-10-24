@@ -10,6 +10,7 @@ object EventMapper {
     fun map(s: RawSignal): Event = when (s) {
         is RawSignal.CallStarted -> Event(s.tMs, EventType.CALL_START, callerKnown = s.callerKnown)
         is RawSignal.CallEnded -> Event(s.tMs, EventType.CALL_END)
+        is RawSignal.UnknownMessage -> Event(s.tMs, EventType.CALL_START, callerKnown = false)
         is RawSignal.VideoStarted -> Event(s.tMs, EventType.VIDEO_SESSION_START, callerKnown = s.callerKnown, appPackage = s.appPackage)
         is RawSignal.VideoEnded -> Event(s.tMs, EventType.VIDEO_SESSION_END, appPackage = s.appPackage)
         is RawSignal.AppInstalled -> Event(s.tMs, EventType.APP_INSTALL, appPackage = s.appPackage, installSource = s.source)
@@ -21,6 +22,13 @@ object EventMapper {
             paymentType = if (s.isP2P) PaymentType.P2P else PaymentType.P2M,
         )
     }
+
+    /**
+     * One signal -> the detector events it stands for. A message from a stranger is an instant unknown contact: the
+     * detector sees "an unknown person got in touch" (so later unsafe installs and new payees count) but no call stays open.
+     */
+    fun mapAll(s: RawSignal): List<Event> =
+        if (s is RawSignal.UnknownMessage) listOf(map(s), Event(s.tMs + 1, EventType.CALL_END)) else listOf(map(s))
 
     /** Map in the exact shape of contracts/schema.json (used for the queue, logs and the schema test). */
     /** Inverse of [toSchemaMap] for rows read back from event_queue; null if the row is unreadable. */

@@ -60,12 +60,17 @@ class AppGraph(private val app: Application) {
         override var phraseOwed: Boolean by store::pausePhraseOwed
     })
     private val alarmNotifier by lazy { com.satark.app.ui.alerts.AlarmNotifier(app) }
+    val evidence = com.satark.app.signals.Evidence(labelOf = { pkg ->
+        runCatching { app.packageManager.getApplicationLabel(app.packageManager.getApplicationInfo(pkg, 0)).toString() }.getOrNull()
+    })
+    val alarmOverlay by lazy { com.satark.app.ui.alerts.AlarmOverlay(app, { evidence.lines() }, { evidence.lastRisky() }) }
     val alerts = AlertController(dispatcher, queue, store, model, scope, pause, onContinueAnyway = { payments.requestOverride() }, shadow = { store.shadowMode },
         merger = com.satark.app.ui.alerts.AlertMerger(object : com.satark.app.ui.alerts.AlertMerger.Store {
             override suspend fun get(key: String) = dao.alertStat(key)
             override suspend fun put(stat: com.satark.app.events.AlertStat) = dao.putAlertStat(stat)
         }),
-        onShown = { alarmNotifier.show(it.mechanism) })
+        onShown = { alarmNotifier.show(it.mechanism); alarmOverlay.show(it.reasons) },
+        onPaymentAppOpened = { alarmOverlay.show(it) })
 
 
     /**
@@ -106,6 +111,16 @@ class AppGraph(private val app: Application) {
     }
 
     /** Begin signal capture (called by SignalService once permissions allow). */
-    fun startCapture() = hub.start { dispatcher.submit(it) }
-    fun stopCapture() = hub.stop()
+    @Volatile var capturing = false
+        private set
+    private val upiApps = com.satark.app.ui.alerts.AlertController.UPI_APPS + if (BuildConfig.DEBUG) setOf("t.fakeupi") else emptySet()
+    fun startCapture() {
+        capturing = true
+        hub.start { s ->
+            evidence.record(s)
+            dispatcher.submit(s)
+            if (s is com.satark.app.signals.RawSignal.AppForeground && s.appPackage in upiApps) alerts.paymentAppOpened()
+        }
+    }
+    fun stopCapture() { capturing = false; hub.stop() }
 }

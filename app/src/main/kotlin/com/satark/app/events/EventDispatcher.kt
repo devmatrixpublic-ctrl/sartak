@@ -74,11 +74,14 @@ class EventDispatcher(
 
     fun submit(s: RawSignal, source: String? = null) {
         scope.launch {
-            val e = EventMapper.map(s)
+            val events = EventMapper.mapAll(s)
             lock.withLock {
-                if (dedup.isDuplicate(e)) return@withLock
-                dao.insertEvent(EventRow(tMs = e.tMs, json = JSONObject(EventMapper.toSchemaMap(e, source)).toString()))
-                sequencer.add(e)
+                if (s is RawSignal.UnknownMessage && policy.callIsOpen) return@withLock // a call is already in progress: leave it alone
+                for (e in events) {
+                    if (dedup.isDuplicate(e)) continue
+                    dao.insertEvent(EventRow(tMs = e.tMs, json = JSONObject(EventMapper.toSchemaMap(e, source)).toString()))
+                    sequencer.add(e)
+                }
             }
             pump(flushAll = false)
             // The sequencer holds new events briefly for reordering; release this one as soon as the hold ends,
@@ -91,8 +94,7 @@ class EventDispatcher(
     /** Submit already-mapped events and return the worst Decision they produced (used right before a risk check). */
     suspend fun submitAndDecide(signals: List<RawSignal>, source: String): Decision {
         lock.withLock {
-            for (s in signals) {
-                val e = EventMapper.map(s)
+            for (e in signals.flatMap(EventMapper::mapAll)) {
                 if (dedup.isDuplicate(e)) continue
                 dao.insertEvent(EventRow(tMs = e.tMs, json = JSONObject(EventMapper.toSchemaMap(e, source)).toString()))
                 sequencer.add(e)
