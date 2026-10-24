@@ -68,7 +68,7 @@ class AppGraph(private val app: Application) {
         runCatching { app.packageManager.getApplicationLabel(app.packageManager.getApplicationInfo(pkg, 0)).toString() }.getOrNull()
     })
     val alarmOverlay by lazy { com.satark.app.ui.alerts.AlarmOverlay(app, { evidence.lines() }, { evidence.lastRisky() }) }
-    val alerts = AlertController(dispatcher, queue, store, model, scope, pause, onContinueAnyway = { payments.requestOverride() }, shadow = { store.shadowMode },
+    val alerts = AlertController(dispatcher, queue, store, model, scope, pause, onContinueAnyway = { scope.launch { payments.continueAnyway() } }, shadow = { store.shadowMode },
         merger = com.satark.app.ui.alerts.AlertMerger(object : com.satark.app.ui.alerts.AlertMerger.Store {
             override suspend fun get(key: String) = dao.alertStat(key)
             override suspend fun put(stat: com.satark.app.events.AlertStat) = dao.putAlertStat(stat)

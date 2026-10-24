@@ -231,6 +231,12 @@ fun PayHome(
             }
         }
 
+        androidx.compose.runtime.LaunchedEffect(Unit) {
+            graph.payments.released.collect { r ->
+                held = null; holdStatus = null; error = null
+                onOutcome(r.outcome, r.req, r.amountInr)
+            }
+        }
         error?.let { Notice(it, MaterialTheme.colorScheme.errorContainer, MaterialTheme.colorScheme.onErrorContainer) }
         held?.let { reasons ->
             val on = MaterialTheme.colorScheme.onErrorContainer
