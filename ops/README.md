@@ -38,4 +38,11 @@ python ops/eval/run_eval.py          # evaluation + gate (about 80 s)
 python ops/strings/validate_strings.py
 python ops/heldout/run_heldout.py --check   # run every held-out guard; changes nothing
 python ops/ci/check_stubs.py .       # lists stub markers (expect the 2 dev-token ones)
+python ops/eval/alert_budget.py      # alert fatigue: Pauses and Nudges per user, against the deck's budget (about 80 s)
+python ops/eval/rising_patterns.py   # emerging scams: CUSUM on pattern counts, with a simulated new-scam experiment
+python ops/eval/ai_variants.py       # AI-era scam workflows and genuine look-alikes through the reference detector (about 80 s)
 ```
+
+The last three write `ops/eval/reports/{alert_budget,rising_patterns,ai_variants}.md` and `.json`. They run on simulated data and
+say so in the report; none of them touches the detector, its model or its thresholds. `SATARK_SLOW=1 pytest ops/eval/test_ai_variants.py`
+also runs the end-to-end check (about 50 s).

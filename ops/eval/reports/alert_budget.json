@@ -1,0 +1,62 @@
+{
+  "legit_sessions": 9887,
+  "pause": {
+    "false_alarms": 7,
+    "rate": 0.0007080004045716598,
+    "ci95": [
+      0.0003429983408310478,
+      0.001460852203090311
+    ],
+    "mean_per_user": 0.07780216445837969,
+    "mean_per_user_upper95": 0.16053304859759426,
+    "worst_tier_per_user": 0.16992009709719835,
+    "share_with_one_or_more": 0.07276762544468922,
+    "budget": 1.0,
+    "within_budget_mean": true,
+    "within_budget_upper95": true,
+    "within_budget_worst_tier": true,
+    "unit": "Pauses per user per quarter"
+  },
+  "nudge": {
+    "sessions": 229,
+    "rate": 0.023161727520987156,
+    "ci95": [
+      0.020376755344866732,
+      0.026317107389726053
+    ],
+    "mean_per_user": 0.8484140790937594,
+    "mean_per_user_upper95": 0.9639956436856654,
+    "worst_tier_per_user": 1.8529382016789726,
+    "share_with_one_or_more": 0.4631063864392427,
+    "budget": 1.0,
+    "within_budget_mean": true,
+    "within_budget_upper95": true,
+    "within_budget_worst_tier": false,
+    "unit": "Nudges per user per month"
+  },
+  "nudge_tight": {
+    "sessions": 139,
+    "rate": 0.014058865176494387,
+    "ci95": [
+      0.011919662595592104,
+      0.01657554654818794
+    ],
+    "mean_per_user": 0.5149762314149894,
+    "mean_per_user_upper95": 0.6071622700601242,
+    "worst_tier_per_user": 1.124709214119551,
+    "share_with_one_or_more": 0.3459088450826801,
+    "budget": 1.0,
+    "within_budget_mean": true,
+    "within_budget_upper95": true,
+    "within_budget_worst_tier": false,
+    "unit": "Nudges per user per month",
+    "min_ratio": 2.0
+  },
+  "legit_with_unknown_call_share": 0.06624860928491959,
+  "users": 3000,
+  "payments_per_month": {
+    "min": 5.0,
+    "median": 25.0,
+    "max": 80.0
+  }
+}
