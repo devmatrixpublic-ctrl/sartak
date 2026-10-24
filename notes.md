@@ -29,6 +29,17 @@
   (push is the stub client; real push still needs Firebase). To confirm on the iQOO: that Funtouch OS also blocks uninstall while the guard is on.
 - Not covered: revoking permissions or force-stopping Satark; the delete-data alert is sent once, directly (lost if the phone is offline at that moment).
 
+## Found testing on the iQOO (fixed)
+- The nudge was a banner drawn in Satark while the payment handed off to the UPI app in the same second, so on a real phone the chooser
+  covered it. It is now a step before the server check and the hand-off (`PayOutcome.Nudged`).
+- A repeat of the same kind of alert within an hour was folded away completely, so a second Stop on the same day showed only the small
+  "Payment on hold" card. A held payment the person has just tried now always shows the full Stop screen; only the notification and the
+  trusted-contact push stay once per hour.
+- **Open question:** after a Stop on a new payee, a smaller amount to the SAME payee is also stopped, because the stopped amount counts in the
+  running total (split-payment guard) and the detector's own repeat-to-payee signal. Letting it through would need stopped, unpaid attempts to
+  stop counting; that weakens the guard against "try a smaller amount". Not changed; decide.
+- The iQOO drops off USB often; the tunnel to the laptop server goes with it ("can't reach Satark"). Wireless debugging would avoid that.
+
 ## Decisions waiting
 - **No server on a real phone.** `BASE_URL` defaults to `10.0.2.2:8000` (emulator only). On the iQOO every payment check falls
   back to offline, trusted-contact alerts are only queued, and the test checkout cannot work. Deploy the server and build with

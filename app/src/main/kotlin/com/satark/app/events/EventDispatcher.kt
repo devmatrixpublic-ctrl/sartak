@@ -21,10 +21,13 @@ import kotlinx.coroutines.sync.withLock
 import org.json.JSONObject
 
 /** An alarm the UI must show, with the features behind it (for the anonymised /signature). */
-data class Alarm(val decision: Decision, val trace: PaymentTrace?, val unknownCallActive: Boolean)
+data class Alarm(val decision: Decision, val trace: PaymentTrace?, val unknownCallActive: Boolean, val fromPayment: Boolean = false)
 
 /** A payment attempt to a new payee during an unknown call that did not reach an alarm: shown as a nudge. */
 data class Nudge(val reasons: List<String>)
+
+/** What the checks said about one payment: the decision, and a nudge when it is allowed but worth a pause. */
+data class Decided(val decision: Decision, val nudge: Nudge?)
 
 /**
  * signal -> EventMapper -> Deduplicator -> store -> EventSequencer -> Detector.onEvent() -> store Decision.
@@ -107,7 +110,10 @@ class EventDispatcher(
     }
 
     /** Submit already-mapped events and return the worst Decision they produced (used right before a risk check). */
-    suspend fun submitAndDecide(signals: List<RawSignal>, source: String): Decision {
+    suspend fun submitAndDecide(signals: List<RawSignal>, source: String): Decision = submitAndDecideFull(signals, source).decision
+
+    /** Like [submitAndDecide], plus the nudge to show before the payment goes on (returned, not broadcast, so the person sees it first). */
+    suspend fun submitAndDecideFull(signals: List<RawSignal>, source: String): Decided {
         lock.withLock {
             for (e in signals.flatMap(EventMapper::mapAll)) {
                 if (dedup.isDuplicate(e)) continue
@@ -115,11 +121,14 @@ class EventDispatcher(
                 sequencer.add(e)
             }
         }
-        return pump(flushAll = true)
+        return pumpFull(flushAll = true)
     }
 
-    private suspend fun pump(flushAll: Boolean): Decision = lock.withLock {
-        if (!ready) return@withLock Decision.none()
+    private suspend fun pump(flushAll: Boolean): Decision = pumpFull(flushAll).decision
+
+    private suspend fun pumpFull(flushAll: Boolean): Decided = lock.withLock {
+        if (!ready) return@withLock Decided(Decision.none(), null)
+        var nudged: Nudge? = null
         val batch = if (flushAll) sequencer.flush() else sequencer.drain(now())
         var worst = Decision.none()
         for (e in batch) {
@@ -128,10 +137,12 @@ class EventDispatcher(
                 dao.insertDecision(DecisionRow(tMs = e.tMs, level = d.level.name, score = d.score, reasons = d.reasons.joinToString(","), mechanism = d.mechanism))
             }
             if (d.level.showsScreen) {
-                _alarms.tryEmit(Alarm(d, lastTrace, unknownCallActive))
+                _alarms.tryEmit(Alarm(d, lastTrace, unknownCallActive, fromPayment = e.type == EventType.PAYMENT_ATTEMPT))
                 if (worst.level == Level.NONE) worst = d
             } else if (e.type == EventType.PAYMENT_ATTEMPT && NudgePolicy.shouldNudge(policy.unknownContactRecent(e.tMs), e.payeeIsNew, e.amountInr, baseline.median)) {
-                _nudges.tryEmit(Nudge(NudgePolicy.REASONS))
+                // A payment started in Satark waits for the person (returned to the caller); anything else is shown as a banner.
+                val n = Nudge(NudgePolicy.reasons(policy.unknownCallActive))
+                if (flushAll) nudged = n else _nudges.tryEmit(n)
                 worst = d
             } else if (e.type == EventType.PAYMENT_ATTEMPT && worst.level == Level.NONE) worst = d
         }
@@ -140,7 +151,7 @@ class EventDispatcher(
                 _alarms.tryEmit(Alarm(it, null, unknownCallActive)); worst = it
             }
         else detector.onTick(now()).takeIf { it.level.showsScreen }?.let { _alarms.tryEmit(Alarm(it, null, unknownCallActive)) }
-        worst
+        Decided(worst, nudged)
     }
 
     /** One event into the detector, with the app's session policy. Null when the event is ignored. Call under [lock]. */

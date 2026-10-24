@@ -14,6 +14,10 @@ object NudgePolicy {
     /** The reasons shown under the nudge, in the same reason-code language as an alarm (strings in values/ and values-hi/). */
     val REASONS = listOf("F_UNK_CALL_ACTIVE", "F_NEW_PAYEE", "F_LOG_AMT_RATIO")
 
+    /** The call itself while it is open; afterwards, that someone the person does not know reached them recently. */
+    fun reasons(callActive: Boolean): List<String> =
+        if (callActive) REASONS else listOf("F_UNK_CONTACT_RECENT", "F_NEW_PAYEE", "F_LOG_AMT_RATIO")
+
     fun shouldNudge(unknownContactRecent: Boolean, payeeIsNew: Boolean?, amountInr: Double?, usualPaymentInr: Double): Boolean {
         if (!unknownContactRecent || payeeIsNew != true) return false
         val amount = amountInr ?: return false

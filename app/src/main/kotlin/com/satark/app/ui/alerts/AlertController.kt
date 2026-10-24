@@ -56,15 +56,21 @@ class AlertController(
         scope.launch {
             dispatcher.alarms.collect { a ->
                 val d = a.decision
-                if (!shadow() && merger != null && !merger.admit(AlertMerger.keyOf(d.mechanism, d.reasons), now())) return@collect
+                val first = shadow() || merger == null || merger.admit(AlertMerger.keyOf(d.mechanism, d.reasons), now())
+                // A repeat of a background alert stays folded. A payment the person has just tried to make is always explained on the
+                // Stop screen: they are acting right now and must be told why it did not go through.
+                if (!first && !a.fromPayment) return@collect
                 if (shadow()) { log("level=${d.level} score=${"%.3f".format(d.score)} mechanism=${d.mechanism} reasons=${d.reasons.joinToString(",")}"); return@collect }
                 _current.value = when (d.mechanism) {
                     Mechanism.LONG_SESSION -> AlertUi.LongSession(d.reasons)
                     else -> AlertUi.Hard(d.reasons)
                 }
-                reminder.alarmed(d.reasons)
-                onShown(d)
-                notifyServer(d, a.trace?.features)
+                // The notification, the reminder over the UPI app and the push to the trusted contact go out once per incident.
+                if (first) {
+                    reminder.alarmed(d.reasons)
+                    onShown(d)
+                    notifyServer(d, a.trace?.features)
+                }
             }
         }
         scope.launch { dispatcher.nudges.collect { if (!shadow()) _current.value = it.let { n -> AlertUi.Nudge(n.reasons) } } }

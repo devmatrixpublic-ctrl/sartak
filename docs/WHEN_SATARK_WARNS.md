@@ -5,7 +5,10 @@ split guard and the nudge rule, fed the same events the phone's signals produce.
 about Rs 160). "60+" is the older age band, which is less sensitive. The tables are for a person who gave no age or is 22 or
 older; people under 22 have their own table below. This is the decision logic, not the on-screen text, which is checked on a phone.
 
-**Quiet** = nothing shown. **Nudge** = amber "Take a moment". **Hold** = red "Stop. This looks like a scam."
+**Quiet** = nothing shown. **Nudge** = a "Take a moment" step before anything is sent: the reasons, then "I'm sure, continue" or
+"Go back" (nothing reaches the server or the UPI app until the person continues, so the warning is never hidden behind the UPI app).
+**Hold** = red "Stop. This looks like a scam.", shown every time a payment the person tries is held (the notification and the
+trusted-contact push for the same kind of alert are sent once an hour, so repeats do not pile up).
 
 ## Payments during an unknown call
 | Situation | 36-59 | 60+ |

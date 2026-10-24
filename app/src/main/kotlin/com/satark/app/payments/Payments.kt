@@ -25,6 +25,11 @@ sealed interface PayOutcome {
     data class HandOff(val paymentId: String, val upiUri: String) : PayOutcome
     data class Checkout(val paymentId: String, val orderId: String, val amountInr: BigDecimal) : PayOutcome
     data class Failed(val message: String) : PayOutcome
+    /**
+     * Allowed, but worth a pause: the person reads [reasons] and chooses. Nothing has gone to the server or the UPI app yet; [proceed]
+     * does the server check and the hand-off (its result is never another Nudged), and "Go back" simply does not call it.
+     */
+    data class Nudged(val reasons: List<String>, val proceed: suspend () -> PayOutcome) : PayOutcome
 }
 
 /** Where a held payment stands once the owner's trusted contact may have answered (server state, GET /payments/{id}). */
@@ -100,9 +105,17 @@ class PaymentRepository(
      * If the server cannot be reached nothing is launched, and an alarmed payment is reported as held.
      */
     suspend fun start(req: UpiRequest, amountInr: BigDecimal, source: String, method: String): PayOutcome =
-        checkAndStart(req, amountInr, source, method).also {
-            pendingHold = (it as? PayOutcome.Held)?.let { h -> HeldPayment(req, amountInr, method, h.paymentId) }
+        rememberHold(req, amountInr, method, checkAndStart(req, amountInr, source, method))
+
+    /** A held payment is remembered so that "Continue anyway" knows what to go on with; a nudged one is remembered once it is held. */
+    private fun rememberHold(req: UpiRequest, amountInr: BigDecimal, method: String, o: PayOutcome): PayOutcome {
+        if (o is PayOutcome.Nudged) {
+            pendingHold = null
+            return PayOutcome.Nudged(o.reasons) { rememberHold(req, amountInr, method, o.proceed()) }
         }
+        pendingHold = (o as? PayOutcome.Held)?.let { h -> HeldPayment(req, amountInr, method, h.paymentId) }
+        return o
+    }
 
     private suspend fun checkAndStart(req: UpiRequest, amountInr: BigDecimal, source: String, method: String): PayOutcome {
         if (amountInr.signum() <= 0 || amountInr > MAX_AMOUNT_INR) return PayOutcome.Failed("Enter an amount between ₹0.01 and ₹1,00,00,000.")
@@ -113,8 +126,18 @@ class PaymentRepository(
             if (isNew) add(RawSignal.PayeeAdded(t, hash))
             add(RawSignal.PaymentAttempt(t, hash, amountInr.toDouble(), req.isP2P, isNew, source))
         }
-        val decision: Decision = dispatcher.submitAndDecide(signals, source)
+        val decided = dispatcher.submitAndDecideFull(signals, source)
+        val decision: Decision = decided.decision
         val alarmed = decision.level.showsScreen && !shadow()
+        val nudge = decided.nudge?.takeIf { !alarmed && !shadow() }
+        // Allowed, but worth a pause: the person reads why and chooses BEFORE the server check and the UPI hand-off, so the warning
+        // is never hidden behind the UPI app that opens next.
+        if (nudge != null) return PayOutcome.Nudged(nudge.reasons) { riskCheckAndStart(req, amountInr, method, hash, decision, alarmed) }
+        return riskCheckAndStart(req, amountInr, method, hash, decision, alarmed)
+    }
+
+    /** The server's check, then the hand-off or the hold. */
+    private suspend fun riskCheckAndStart(req: UpiRequest, amountInr: BigDecimal, method: String, hash: String, decision: Decision, alarmed: Boolean): PayOutcome {
         val dto = DecisionDto(if (decision.level.showsScreen && shadow()) "LOG" else decision.level.name, decision.score, decision.reasons.take(3))
         kotlinx.coroutines.withTimeoutOrNull(RiskTimeout.SIGN_IN_MS) { ready() }
         val check = try {
