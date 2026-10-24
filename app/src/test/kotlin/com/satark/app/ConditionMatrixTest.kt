@@ -1,5 +1,6 @@
 package com.satark.app
 
+import com.satark.app.events.HighValueNewPayee
 import com.satark.app.events.NudgePolicy
 import com.satark.app.events.SessionPolicy
 import com.satark.app.events.SplitGuard
@@ -40,14 +41,18 @@ class ConditionMatrixTest {
         val baseline = Baseline.coldStart(model)
         val main = Detector.create(age, baseline, model)
         val guard = SplitGuard(model, age, baseline)
+        val big = HighValueNewPayee()
         val policy = SessionPolicy()
         var hold = false
         var nudge = false
         for (raw in events) {
             val step = policy.prepare(raw) ?: continue
-            if (step.resetFirst) { main.reset(); guard.reset() }
-            if (main.onEvent(step.event).level == Level.HARD || guard.onEvent(step.event).level == Level.HARD) hold = true
-            if (raw.type == EventType.PAYMENT_ATTEMPT && NudgePolicy.shouldNudge(policy.unknownCallActive, raw.payeeIsNew, raw.amountInr, 161.57)) nudge = true
+            if (step.resetFirst) { main.reset(); guard.reset(); big.reset() }
+            val m = main.onEvent(step.event).level == Level.HARD
+            val g = guard.onEvent(step.event).level == Level.HARD
+            val h = big.onEvent(step.event, policy.unknownCallActive, policy.unknownContactRecent(step.event.tMs)).level == Level.HARD
+            if (m || g || h) hold = true
+            if (raw.type == EventType.PAYMENT_ATTEMPT && NudgePolicy.shouldNudge(policy.unknownContactRecent(raw.tMs), raw.payeeIsNew, raw.amountInr, 161.57)) nudge = true
         }
         if (tickAt != null && !hold && main.onTick(tickAt).level == Level.HARD) hold = true
         return if (hold) Out.HOLD else if (nudge) Out.NUDGE else Out.QUIET
@@ -70,13 +75,19 @@ class ConditionMatrixTest {
         check("Rs 300 is under twice the usual", case(300.0), Out.QUIET)
         check("Rs 5,000", case(5_000.0), Out.NUDGE)
         check("Rs 20,000", case(20_000.0), Out.NUDGE)
-        check("Rs 50,000", case(50_000.0), Out.HOLD, Out.NUDGE)
+        check("Rs 25,000 is the hold threshold, for every age", case(25_000.0), Out.HOLD)
+        check("Rs 24,999 is just under it", case(24_999.0), Out.NUDGE)
+        check("Rs 50,000", case(50_000.0), Out.HOLD)
         check("Rs 100,000", case(100_000.0), Out.HOLD)
     }
 
-    @Test fun anUnknownCallThatHasEndedDoesNotTriggerThePaymentChecks() {
-        check("call ended 5 min ago, new payee, Rs 50,000",
-            listOf(call(0), end(min), payee(6 * min - 1), pay(6 * min, 50_000.0, true)), Out.QUIET)
+    @Test fun aPaymentSoonAfterAnUnknownCallEndedIsStillChecked() {
+        fun after(gapMin: Long, amount: Double) = listOf(call(0), end(min), payee((1 + gapMin) * min - 1), pay((1 + gapMin) * min, amount, true))
+        check("call ended 5 min ago, new payee, Rs 50,000", after(5, 50_000.0), Out.HOLD)
+        check("call ended 29 min ago, new payee, Rs 25,000", after(29, 25_000.0), Out.HOLD)
+        check("call ended 5 min ago, new payee, Rs 5,000", after(5, 5_000.0), Out.NUDGE)
+        check("call ended 45 min ago, new payee, Rs 50,000: too long ago", after(45, 50_000.0), Out.QUIET)
+        check("known caller ended 5 min ago, new payee, Rs 50,000", listOf(call(0, known = true), end(min), payee(6 * min - 1), pay(6 * min, 50_000.0, true)), Out.QUIET)
     }
 
     @Test fun installsDuringAnUnknownCall() {
@@ -102,18 +113,16 @@ class ConditionMatrixTest {
     }
 
     @Test fun paymentsSplitIntoPiecesAreAddedUp() {
-        fun split(piece: Double) = listOf(call(0), payee(2 * min - 1), pay(2 * min, piece, true), pay(4 * min, piece, false), pay(6 * min, piece, false))
-        check("3 x Rs 3,000", split(3_000.0), Out.NUDGE)
-        check("3 x Rs 10,000", split(10_000.0), Out.HOLD, Out.NUDGE)
+        // 3 minutes apart: the same amount again within 2 minutes is counted as a retry of one payment, not a second piece
+        fun split(piece: Double) = listOf(call(0), payee(2 * min - 1), pay(2 * min, piece, true), pay(5 * min, piece, false), pay(8 * min, piece, false))
+        check("3 x Rs 1,000", split(1_000.0), Out.NUDGE)
+        check("3 x Rs 3,000 (Rs 9,000 in all)", split(3_000.0), Out.HOLD, Out.NUDGE)
+        check("3 x Rs 10,000 (Rs 30,000 in all)", split(10_000.0), Out.HOLD)
         check("3 x Rs 25,000", split(25_000.0), Out.HOLD)
     }
 
-    @Test fun aStrangerTextAloneNeverChangesAPaymentDecision() {
-        // The phone no longer sends texts to the detector (SmsSource), so a text is simply nothing here; these two are the old
-        // behaviour for comparison: a text then a payment is quiet, and only a sideloaded app after it would have held.
-        check("stranger text, then new payee Rs 50,000 five minutes later",
-            listOf(call(0), end(1), payee(5 * min - 1), pay(5 * min, 50_000.0, true)), Out.QUIET)
+    @Test fun aNewPayeeAddedRightAfterAnUnknownCall() {
         check("payee added right after the unknown call, Rs 5,000",
-            listOf(call(0), end(min), payee(2 * min), pay(3 * min, 5_000.0, true)), Out.QUIET)
+            listOf(call(0), end(min), payee(2 * min), pay(3 * min, 5_000.0, true)), Out.NUDGE)
     }
 }

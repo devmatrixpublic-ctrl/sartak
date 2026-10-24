@@ -44,6 +44,7 @@ class EventDispatcher(
     private var lastTrace: PaymentTrace? = null
     private val detector = Detector.create(ageBand, baseline, model).also { it.traceSink = { t -> lastTrace = t } }
     private val splitGuard = SplitGuard(model, ageBand, baseline)
+    private val highValue = HighValueNewPayee()
 
     private val policy = SessionPolicy()
     private val unknownCallActive get() = policy.unknownCallActive
@@ -116,7 +117,7 @@ class EventDispatcher(
             if (d.level.showsScreen) {
                 _alarms.tryEmit(Alarm(d, lastTrace, unknownCallActive))
                 if (worst.level == Level.NONE) worst = d
-            } else if (e.type == EventType.PAYMENT_ATTEMPT && NudgePolicy.shouldNudge(unknownCallActive, e.payeeIsNew, e.amountInr, baseline.median)) {
+            } else if (e.type == EventType.PAYMENT_ATTEMPT && NudgePolicy.shouldNudge(policy.unknownContactRecent(e.tMs), e.payeeIsNew, e.amountInr, baseline.median)) {
                 _nudges.tryEmit(Nudge(NudgePolicy.REASONS))
                 worst = d
             } else if (e.type == EventType.PAYMENT_ATTEMPT && worst.level == Level.NONE) worst = d
@@ -132,12 +133,15 @@ class EventDispatcher(
     /** One event into the detector, with the app's session policy. Null when the event is ignored. Call under [lock]. */
     private fun feed(raw: Event): Decision? {
         val step = policy.prepare(raw) ?: return null
-        if (step.resetFirst) { detector.reset(); splitGuard.reset() }
+        if (step.resetFirst) { detector.reset(); splitGuard.reset(); highValue.reset() }
         lastTrace = null
         val main = detector.onEvent(step.event)
         // A second look for payments split into pieces. It only ever adds an alarm; the main decision is never lowered.
         val extra = splitGuard.onEvent(step.event)
         if (!main.level.showsScreen && extra.level.showsScreen) { lastTrace = splitGuard.lastTrace; return extra }
+        // A third look for the payments that matter most: new payee, a large amount, and an unknown call that is open or just ended.
+        val big = highValue.onEvent(step.event, policy.unknownCallActive, policy.unknownContactRecent(step.event.tMs))
+        if (!main.level.showsScreen && big.level.showsScreen) { lastTrace = null; return big }
         return main
     }
 

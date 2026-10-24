@@ -25,6 +25,12 @@ class SessionPolicy(
     /** True while a call is in progress, so a message signal never closes or relabels it. */
     val callIsOpen get() = callOpen
     private var videoOpenSince: Long? = null
+    private var unknownVideoOpen = false
+    private var lastUnknownEndMs: Long? = null
+
+    /** An unknown call or video is open, or one ended within [windowMs] of [nowMs]. Texts never count. */
+    fun unknownContactRecent(nowMs: Long, windowMs: Long = HighValueNewPayee.RECENT_MS): Boolean =
+        unknownCallActive || unknownVideoOpen || (lastUnknownEndMs?.let { nowMs - it in 0..windowMs } == true)
 
     /** Null when the event must be ignored. */
     fun prepare(raw: Event): Step? {
@@ -58,9 +64,9 @@ class SessionPolicy(
     private fun track(e: Event) {
         when (e.type) {
             EventType.CALL_START -> { unknownCallActive = e.callerKnown == false; callOpen = true }
-            EventType.CALL_END -> { unknownCallActive = false; callOpen = false }
-            EventType.VIDEO_SESSION_START -> videoOpenSince = e.tMs
-            EventType.VIDEO_SESSION_END -> videoOpenSince = null
+            EventType.CALL_END -> { if (unknownCallActive) lastUnknownEndMs = e.tMs; unknownCallActive = false; callOpen = false }
+            EventType.VIDEO_SESSION_START -> { videoOpenSince = e.tMs; unknownVideoOpen = e.callerKnown == false }
+            EventType.VIDEO_SESSION_END -> { if (unknownVideoOpen) lastUnknownEndMs = e.tMs; unknownVideoOpen = false; videoOpenSince = null }
             else -> Unit
         }
     }

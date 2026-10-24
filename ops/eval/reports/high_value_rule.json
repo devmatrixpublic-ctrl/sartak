@@ -1,0 +1,81 @@
+{
+  "alpha": 0.0008,
+  "chosen_inr": 25000,
+  "rows": [
+    {
+      "threshold_inr": 10000,
+      "scam_sessions": 578,
+      "scams_held_before": 538,
+      "extra_scams_held": 25,
+      "recall_after": 0.9740484429065744,
+      "legit_sessions": 9887,
+      "false_alarms_before": 7,
+      "extra_false_alarms": 39,
+      "false_alarm_rate_after": 0.004652574087185193,
+      "false_alarm_ci95_after": [
+        0.0034900993854469703,
+        0.006199834381159907
+      ]
+    },
+    {
+      "threshold_inr": 20000,
+      "scam_sessions": 578,
+      "scams_held_before": 538,
+      "extra_scams_held": 21,
+      "recall_after": 0.967128027681661,
+      "legit_sessions": 9887,
+      "false_alarms_before": 7,
+      "extra_false_alarms": 12,
+      "false_alarm_rate_after": 0.0019217153838373621,
+      "false_alarm_ci95_after": [
+        0.0012306443502314041,
+        0.0029996933391316528
+      ]
+    },
+    {
+      "threshold_inr": 25000,
+      "scam_sessions": 578,
+      "scams_held_before": 538,
+      "extra_scams_held": 20,
+      "recall_after": 0.9653979238754326,
+      "legit_sessions": 9887,
+      "false_alarms_before": 7,
+      "extra_false_alarms": 8,
+      "false_alarm_rate_after": 0.0015171437240821281,
+      "false_alarm_ci95_after": [
+        0.0009196479718774962,
+        0.0025018606690049945
+      ]
+    },
+    {
+      "threshold_inr": 30000,
+      "scam_sessions": 578,
+      "scams_held_before": 538,
+      "extra_scams_held": 14,
+      "recall_after": 0.9550173010380623,
+      "legit_sessions": 9887,
+      "false_alarms_before": 7,
+      "extra_false_alarms": 6,
+      "false_alarm_rate_after": 0.001314857894204511,
+      "false_alarm_ci95_after": [
+        0.0007685913633282966,
+        0.0022485027533139107
+      ]
+    },
+    {
+      "threshold_inr": 50000,
+      "scam_sessions": 578,
+      "scams_held_before": 538,
+      "extra_scams_held": 5,
+      "recall_after": 0.9394463667820069,
+      "legit_sessions": 9887,
+      "false_alarms_before": 7,
+      "extra_false_alarms": 0,
+      "false_alarm_rate_after": 0.0007080004045716598,
+      "false_alarm_ci95_after": [
+        0.0003429983408310478,
+        0.001460852203090311
+      ]
+    }
+  ]
+}

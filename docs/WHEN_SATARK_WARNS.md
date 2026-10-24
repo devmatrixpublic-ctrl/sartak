@@ -12,10 +12,18 @@ which is checked on a phone.
 |---|---|---|
 | New payee, Rs 300 (under twice the usual) | quiet | quiet |
 | New payee, Rs 5,000 or Rs 20,000 | nudge | nudge |
-| New payee, Rs 50,000 | **hold** | nudge |
-| New payee, Rs 100,000 | **hold** | **hold** |
+| New payee, Rs 24,999 | nudge | nudge |
+| New payee, Rs 25,000 or more | **hold** | **hold** |
 | Known payee, Rs 50,000 | quiet | quiet |
 | Known caller (in contacts), new payee, Rs 50,000 | quiet | quiet |
+
+## Payments soon AFTER the unknown call (or video) has ended
+| Situation | Result |
+|---|---|
+| Ended up to 30 min ago, new payee, Rs 25,000 or more | **hold** |
+| Ended up to 30 min ago, new payee, Rs 5,000 | nudge |
+| Ended more than 30 min ago | quiet |
+| The call was from a saved contact | quiet |
 
 ## Installs
 | Situation | Result |
@@ -34,13 +42,16 @@ which is checked on a phone.
 ## Payments split into pieces (same new payee, unknown call, within an hour)
 | Situation | 36-59 | 60+ |
 |---|---|---|
-| 3 x Rs 3,000 | nudge | nudge |
-| 3 x Rs 10,000 | **hold** (split guard) | nudge |
-| 3 x Rs 25,000 | **hold** (split guard) | **hold** |
+| 3 x Rs 1,000 | nudge | nudge |
+| 3 x Rs 3,000 (Rs 9,000 in all) | **hold** (split guard) | nudge |
+| 3 x Rs 10,000 (Rs 30,000 in all) | **hold** | **hold** |
+| 3 x Rs 25,000 | **hold** | **hold** |
 
 ## Gaps this exposed (said openly)
-- A payment **after the unknown call or text has ended** is quiet, even for Rs 50,000 to a new payee. The payment checks need the
-  unknown contact to be active at the moment of payment.
+- A payment more than **30 minutes after** the unknown call ended is quiet. Text messages never count as unknown contact.
+- The same amount to the same payee again **within 2 minutes** is counted as a retry of one payment, not a second piece.
 - A stranger text (or, later, a flagged WhatsApp message) never changes a payment decision. It is kept as evidence for a Stop screen
   and counted for the repeated-texts warning, which holds nothing.
-- Nudge and hold thresholds are higher for the 60+ band.
+- The detector's own payment score is still less sensitive for the 60+ band. The Rs 25,000 rule (`HighValueNewPayee`) is what holds a
+  large payment to a new payee for every age; it costs 8 more genuine sessions held in 9,887 (false alarms 0.071% to 0.152%,
+  over the 0.100% target), and "Continue anyway" always lets the person go on (`ops/eval/reports/high_value_rule.md`).
