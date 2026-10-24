@@ -78,6 +78,7 @@ interface SatarkDao {
 
     @Query("SELECT * FROM alert_stat WHERE alertKey = :key") suspend fun alertStat(key: String): AlertStat?
     @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun putAlertStat(s: AlertStat)
+    @Query("SELECT COUNT(*) FROM decision_log WHERE level = 'HARD'") suspend fun heldCount(): Int
     @Query("SELECT COALESCE(SUM(count), 0) FROM alert_stat") suspend fun alertsShown(): Int
     @Query("SELECT COALESCE(SUM(mergedCount), 0) FROM alert_stat") suspend fun alertsMerged(): Int
 

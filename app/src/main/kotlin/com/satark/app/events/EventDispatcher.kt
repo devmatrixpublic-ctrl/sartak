@@ -120,7 +120,7 @@ class EventDispatcher(
                 _alarms.tryEmit(Alarm(d, lastTrace, unknownCallActive))
                 if (worst.level == Level.NONE) worst = d
             } else if (e.type == EventType.PAYMENT_ATTEMPT && NudgePolicy.shouldNudge(unknownCallActive, e.payeeIsNew, e.amountInr, baseline.median) && nudgeLimiter.tryAcquire()) {
-                _nudges.tryEmit(Nudge(emptyList()))
+                _nudges.tryEmit(Nudge(NudgePolicy.REASONS))
                 worst = d
             } else if (e.type == EventType.PAYMENT_ATTEMPT && worst.level == Level.NONE) worst = d
         }

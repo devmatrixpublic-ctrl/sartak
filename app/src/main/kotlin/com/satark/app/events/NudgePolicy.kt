@@ -11,6 +11,9 @@ package com.satark.app.events
 object NudgePolicy {
     const val MIN_RATIO = 2.0
 
+    /** The reasons shown under the nudge, in the same reason-code language as an alarm (strings in values/ and values-hi/). */
+    val REASONS = listOf("F_UNK_CALL_ACTIVE", "F_NEW_PAYEE", "F_LOG_AMT_RATIO")
+
     fun shouldNudge(unknownCallActive: Boolean, payeeIsNew: Boolean?, amountInr: Double?, usualPaymentInr: Double): Boolean {
         if (!unknownCallActive || payeeIsNew != true) return false
         val amount = amountInr ?: return false

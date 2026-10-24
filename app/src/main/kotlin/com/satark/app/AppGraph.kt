@@ -102,6 +102,7 @@ class AppGraph(private val app: Application) {
 
     suspend fun recentDecisions(n: Int) = dao.recentDecisions(n)
     suspend fun eventCount() = dao.eventCount()
+    suspend fun heldCount() = dao.heldCount()
 
     /** Called by [com.satark.app.events.EventPurgeWorker]: delete event_queue rows older than 7 days. */
     suspend fun purgeOldEvents(nowMs: Long) = dao.pruneEvents(com.satark.app.events.EventPurgeWorker.cutoff(nowMs))
