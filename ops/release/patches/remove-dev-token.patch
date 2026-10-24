@@ -1,0 +1,543 @@
+diff --git a/README.md b/README.md
+index 016c226..6d584e4 100644
+--- a/README.md
++++ b/README.md
+@@ -19,7 +19,7 @@ This repository holds the whole system, built against the module-wise implementa
+ | **Backend (`server/`)** | **Member 3** | implemented (P0–P7) plus M4's auth; 161 tests | never deployed to Render; real Razorpay/Firebase credentials |
+ | Security / CI / evaluation (`ops/`, `server/app/auth/`) | Member 4 | auth, CI, evaluation gate, strings, held-out runner, security checklist | Google attestation roots, chains from real phones, certificate pins (need the deployed domain), the one held-out run |
+ 
+-Release is gated on purpose: it fails while any `@SatarkStub` / `# SATARK_STUB` marker remains (the dev-token stub) and while
++Release is gated on purpose: it fails while any `@SatarkStub` / `# SATARK_STUB` marker remains (the remaining Android dev-token fallback) and while
+ the evaluation gate fails.
+ 
+ ## Limitations
+@@ -258,8 +258,8 @@ requirement, not hidden in a footnote):
+ 
+ ## Known limitations
+ 
+-- **Release is gated and currently blocked, on purpose.** `release.yml` refuses to deploy while a stub marker remains (the dev-token
+-  stub) or while the evaluation gate fails. The gate passes today on simulated data (recall 93.1%, false alarms 0.071%); the stub is
++- **Release is gated and currently blocked, on purpose.** `release.yml` refuses to deploy while a stub marker remains (the Android
++  dev-token fallback) or while the evaluation gate fails. The gate passes today on simulated data (recall 93.1%, false alarms 0.071%); the stub is
+   what blocks. See `ops/ci/README.md`.
+ - Request bodies are capped at 64 KB (256 KB for `/webhooks/`) before parsing or authentication (`server/app/core/limits.py`).
+ - `/docs`, `/redoc` and `/openapi.json` are served only when `SATARK_ENV=dev`.
+@@ -276,10 +276,9 @@ requirement, not hidden in a footnote):
+   chains only. It has not yet been run against chains from the two physical
+   phones, and the real Google roots are not committed, so production boot
+   is blocked until they are (fail closed, by design).
+-- A `/auth/dev-token` stub (tagged `# SATARK_STUB`) exists for dev only; it
+-  404s unless `SATARK_ENV=dev` and the flag is set, and boot refuses the flag
+-  elsewhere. `ops/ci/check_stubs.py` fails the release build while the tag
+-  remains.
++- The server's `/auth/dev-token` stub is removed: a token needs a real attestation chain, so an emulator cannot register with any
++  server. The Android debug fallback (`@SatarkStub` in `net/Network.kt`, M1's) must be removed too; `ops/ci/check_stubs.py` fails the
++  release build while it remains.
+ - The per-device/IP rate limiter uses Redis in production and fails open if
+   Redis is down (rate limiting is abuse control, not authentication).
+ - Razorpay/Firebase/Render integrations fall back to local stubs without
+diff --git a/contracts/auth.md b/contracts/auth.md
+index 6230956..06764e0 100644
+--- a/contracts/auth.md
++++ b/contracts/auth.md
+@@ -116,11 +116,9 @@ Behind Render's proxy `client_ip` is the proxy address unless trusted `X-Forward
+ | `AUTH_EXPECTED_PACKAGE` | release app package name; required outside dev |
+ | `AUTH_EXPECTED_SIGNING_SHA256` | comma-separated lowercase hex SHA-256 of the release signing certificate(s); required outside dev |
+ | `AUTH_REQUIRE_HARDWARE` | default true; forced on outside dev |
+-| `AUTH_ENABLE_DEV_TOKEN` | dev only (below); refused at boot outside dev |
+ 
+-## Dev token stub (temporary, tagged `# SATARK_STUB`)
++## No dev token
+ 
+-`POST /auth/dev-token {device_id, role?}` answers 404 unless `SATARK_ENV=dev` **and** `SATARK_AUTH_ENABLE_DEV_TOKEN=1`.
+-It lets M1 build before attestation works on a phone (an emulator's chain does not root at Google). It is hidden from
+-the OpenAPI schema. The stub-marker CI gate (`ops/ci/check_stubs.py`) fails the release build while the marker exists,
+-so removing the stub is a release blocker by construction.
++`POST /auth/dev-token` and `SATARK_AUTH_ENABLE_DEV_TOKEN` existed only so M1 could build before attestation worked on a phone. They are
++removed: the only way to get a token is `/auth/device` with a hardware-backed Key Attestation chain (an emulator's software chain is
++refused, in every environment). `/auth/dev-token` answers 404 like any unknown path.
+diff --git a/docs/BACKEND_HANDOFF.md b/docs/BACKEND_HANDOFF.md
+index 80a85c1..b618a3b 100644
+--- a/docs/BACKEND_HANDOFF.md
++++ b/docs/BACKEND_HANDOFF.md
+@@ -16,7 +16,7 @@ Everything is on `main`. The backend was built in stacked branches (since delete
+ | Payment state machines, Razorpay webhook | `server/app/payments/` | M3 | done; tested with fixtures and a local stub order client |
+ | Alerts (FCM) | `server/app/alerts/` | M3 | done; tested with a stub client |
+ | Signature ingest | `server/app/signatures/` | M3 | done; accepts the detector's own 16 feature names |
+-| Auth: challenge, 7 attestation checks, JWT, refresh, roles, rate limits | `server/app/auth/` | **M4** (replaced M3's stub) | done; a dev-token stub remains until real attestation works |
++| Auth: challenge, 7 attestation checks, JWT, refresh, roles, rate limits | `server/app/auth/` | **M4** (replaced M3's stub) | done; the server's dev-token stub is removed; only the Android debug fallback remains |
+ | Body-size cap, client-IP handling | `server/app/core/limits.py`, `clientip.py` | M4 item, built in integration | done; `SATARK_TRUSTED_PROXY_HOPS` is set to 0 until checked on Render |
+ | CI, evaluation, strings, held-out runner | `.github/workflows/`, `ops/` | M4 | running on GitHub; see `ops/README.md` |
+ | Android app, detector | `app/`, `detector/` | M1, M2 | on `main`; see their READMEs |
+@@ -59,7 +59,7 @@ python3 -m venv .venv && source .venv/bin/activate
+ pip install -e ".[dev]"
+ rm -f satark_dev.db && alembic upgrade head
+ pytest -q
+-uvicorn app.main:app --reload        # dev mode: docs at /docs, dev-token enabled only with SATARK_AUTH_ENABLE_DEV_TOKEN=1
++uvicorn app.main:app --reload        # dev mode: docs at /docs
+ ```
+ 
+ ## Next steps for the backend, in order
+@@ -68,4 +68,4 @@ uvicorn app.main:app --reload        # dev mode: docs at /docs, dev-token enable
+ 2. Run `python ops/e2e/smoke_deployed.py https://<service>` against the live URL.
+ 3. Add real Razorpay test keys and Firebase credentials; exercise a real checkout and a real push on the second phone.
+ 4. Set `SATARK_TRUSTED_PROXY_HOPS` after checking Render's hop count; run `ops/security/db_roles.sql` and switch to the `satark_app` role.
+-5. Remove the dev-token stub with M4 once real attestation works. Optional: signature trend detection (CUSUM), not built.
++5. Optional: signature trend detection (CUSUM), not built.
+diff --git a/docs/HANDOFF_M2.md b/docs/HANDOFF_M2.md
+index 49f9f3b..d861ad9 100644
+--- a/docs/HANDOFF_M2.md
++++ b/docs/HANDOFF_M2.md
+@@ -11,7 +11,7 @@ Read this first if you are picking the project up cold. It says what exists, how
+ * Branch cleanup done 2026-10-22: the fully merged branches (`integration/all`, `feat/m2-detector`, `m4`, `feat/m3-*`, `docs/m3-readme`, `chore/post-merge-prep`) were deleted. M1's four later commits (Firebase push, protection screen, `app/tools/phone_check.py`, register-once) merged in PR #12. The remote
+   branches `role_1`, `feat/m1-app` and the merged ones can be deleted; keep `docs/context-handoff` until the team agrees it is obsolete.
+   `docs/context-handoff` (M3's old handoff) is superseded by `docs/BACKEND_HANDOFF.md`.
+-* Release is **blocked on purpose** by dev-token stub markers (three on `main`) until real Key Attestation works on a phone.
++* Release is **blocked on purpose** by the one remaining dev-token stub marker (Android, `net/Network.kt`) until real Key Attestation works on a phone.
+ 
+ ## Where the detector work lives
+ 
+@@ -69,7 +69,7 @@ untested, not proven**; do not present them as a measured result.
+ * **The CI job named "Android build (skipped until app/ exists)" really builds the app now**; only its name is stale.
+ * **GitHub Actions raw logs may not be downloadable** from restricted environments; the Android job prints its Gradle log tail as an annotation on failure.
+ * **Production boot needs `server/certs/google_attestation_roots.pem`**, so the Render deploy waits on M4's roots decision.
+-* **The stub rule has an allowlist** (`ops/ci/planned_stubs.txt`) for exactly the plan's own dev-token markers; the release scan ignores it and fails while any marker remains.
++* **The stub rule has an allowlist** (`ops/ci/planned_stubs.txt`) for exactly the plan's own dev-token marker (Android only now); the release scan ignores it and fails while any marker remains.
+ * **An automated permission check refuses to merge a PR without a human saying so.** Merging needs an explicit decision by a person.
+ * **Never tag `detector-freeze` by hand**: run the pre-flight. The held-out set can be run once.
+ 
+diff --git a/docs/RUN_THE_APP.md b/docs/RUN_THE_APP.md
+index f165afb..b4cef69 100644
+--- a/docs/RUN_THE_APP.md
++++ b/docs/RUN_THE_APP.md
+@@ -11,7 +11,7 @@ cd server
+ python3 -m venv .venv && source .venv/bin/activate
+ pip install -e ".[dev]"
+ rm -f satark_dev.db && alembic upgrade head
+-SATARK_ENV=dev SATARK_AUTH_ENABLE_DEV_TOKEN=1 uvicorn app.main:app --host 0.0.0.0 --port 8000
++SATARK_ENV=dev uvicorn app.main:app --host 0.0.0.0 --port 8000
+ curl http://localhost:8000/health        # {"status":"ok"}
+ ```
+ Without Razorpay or Firebase keys the server uses local stub clients (fake order ids, no real push).
+@@ -42,6 +42,6 @@ their helper commands are in `app/e2e_log.md`.
+ Without Android: `python ops/e2e/run_e2e.py` shows the real detector driving the real server.
+ 
+ ## Limits to know
+-* **An emulator cannot register with a production-mode server.** Its attestation is software-only, so the server refuses it; debug builds fall back to
+-  `/auth/dev-token`, which exists only on a dev server. Against Render only a real phone with a hardware-backed key works, once M4's roots and the signing digest are set.
++* **An emulator cannot register with any server.** Its attestation is software-only, so the server refuses it, and the dev-token endpoint that used to
++  paper over this is gone. Use a real phone with a hardware-backed key (`python app/tools/phone_check.py`); against Render it needs M4's roots and the signing digest.
+ * **Push to the trusted contact:** the app now has Firebase push, a protection screen and a one-command phone check (`app/tools/phone_check.py`), merged in PR #12 with CI green. It is **untested on a real device**: it needs a Firebase `google-services.json` and a phone.
+diff --git a/ops/README.md b/ops/README.md
+index f43484e..0556ab9 100644
+--- a/ops/README.md
++++ b/ops/README.md
+@@ -28,7 +28,7 @@ Test status today: **161 server tests, 67 ops tests, all passing** (`cd server &
+ 
+ * **M3:** production boot now needs `SATARK_AUTH_ATTESTATION_ROOTS`, `SATARK_AUTH_EXPECTED_PACKAGE`, `SATARK_AUTH_EXPECTED_SIGNING_SHA256`
+   (wired in `render.yaml`); until set the service refuses to start. New migration `a3c91d7e5b20` adds `refresh_tokens` and `devices.revoked`.
+-* **M1:** `contracts/auth.md` has the encodings. Use `/auth/dev-token` (dev only) until attestation works on a phone. `signingConfigs.release`
++* **M1:** `contracts/auth.md` has the encodings. There is no dev token any more: register with a real phone's attestation. `signingConfigs.release`
+   must read `KEYSTORE_PATH`, `KEYSTORE_PASSWORD`, `KEY_ALIAS`, `KEY_PASSWORD`. Request bounds are in `contracts/api.yaml`.
+ * **M2:** the false-alarm gate is resolved (calibration margin, see above). The held-out adapter scores each case as a brand-new user (cold-start prior, unknown age band, pooled threshold) unless you supply `--users`.
+ * Client IP for rate limiting: `SATARK_TRUSTED_PROXY_HOPS` (default 0 = ignore `X-Forwarded-For`, so on Render all clients share the proxy's bucket). Code and tests are in `server/app/core/clientip.py`; M4 sets the value (usually 1) after checking how many hops Render adds.
+@@ -37,5 +37,5 @@ Test status today: **161 server tests, 67 ops tests, all passing** (`cd server &
+ python ops/eval/run_eval.py          # evaluation + gate (about 80 s)
+ python ops/strings/validate_strings.py
+ python ops/heldout/run_heldout.py --check   # run every held-out guard; changes nothing
+-python ops/ci/check_stubs.py .       # lists stub markers (expect the 2 dev-token ones)
++python ops/ci/check_stubs.py .       # lists stub markers (expect only the Android dev-token fallback)
+ ```
+diff --git a/ops/ci/planned_stubs.txt b/ops/ci/planned_stubs.txt
+index b7f9a6b..7df4746 100644
+--- a/ops/ci/planned_stubs.txt
++++ b/ops/ci/planned_stubs.txt
+@@ -5,6 +5,4 @@
+ # marker remains, so this list never lets a stub ship.
+ #
+ # format:  path | text that must appear on the marker line | side | removed when
+-server/app/auth/service.py | def dev_token | M4, server side | a real phone registers through /auth/device
+-server/app/auth/routes.py | /dev-token | M4, server side | a real phone registers through /auth/device
+ app/src/main/kotlin/com/satark/app/net/Network.kt | /auth/dev-token: debug builds only | M1, client side | attestation registers on a real phone
+diff --git a/ops/e2e/README.md b/ops/e2e/README.md
+index 5cffc3a..0ebb35c 100644
+--- a/ops/e2e/README.md
++++ b/ops/e2e/README.md
+@@ -6,7 +6,7 @@ detector and the server mocked:
+ 1. `detector/src/test/.../E2EDecisionsExport.kt` runs the real Kotlin detector (bundled `model.json`) over hand-built scam and
+    clean scenarios plus two real SatarkSim vectors, asserts each decision, and writes `detector/build/e2e/decisions.json`.
+ 2. The script applies the Alembic migrations to an **empty** database, starts the real FastAPI server, and walks the app's flow
+-   with those decisions: dev-token registration, trusted-contact link, `/risk-check` (HARD -> HOLD, clean -> ALLOW),
++   with those decisions: real-attestation registration (throwaway root), trusted-contact link, `/risk-check` (HARD -> HOLD, clean -> ALLOW),
+    `upi_intent` hand-off and app-reported result, `checkout` with a signed Razorpay webhook (forged, duplicate and stale events),
+    `/alert`, `/signature` with the detector's own 16 feature names, and attacks (no token, IDOR, mass assignment, oversize body).
+ 
+diff --git a/ops/e2e/run_e2e.py b/ops/e2e/run_e2e.py
+index c1accef..591cdc1 100644
+--- a/ops/e2e/run_e2e.py
++++ b/ops/e2e/run_e2e.py
+@@ -15,6 +15,7 @@ Usage (repo root):  python ops/e2e/run_e2e.py [--skip-gradle] [--decisions PATH]
+ from __future__ import annotations
+ 
+ import argparse
++import base64
+ import hashlib
+ import hmac
+ import json
+@@ -32,9 +33,18 @@ import httpx
+ 
+ ROOT = Path(__file__).resolve().parents[2]
+ SERVER = ROOT / "server"
++sys.path.insert(0, str(SERVER / "tests"))      # attestation_fixtures: builds X.509 chains shaped like Android Key Attestation
+ DETECTOR = ROOT / "detector"
+ WEBHOOK_SECRET = "e2e-webhook-secret"
+ 
++from attestation_fixtures import DIGEST, PACKAGE, make_chain  # noqa: E402
++from cryptography.hazmat.primitives.asymmetric import ec  # noqa: E402
++from cryptography.hazmat.primitives.serialization import Encoding  # noqa: E402
++
++# A throwaway root that exists only for this run (written to a temp file and pinned by the e2e server). It is not a trust decision.
++E2E_ROOT_KEY = ec.generate_private_key(ec.SECP256R1())
++E2E_ROOT = make_chain(b"\x00" * 32, root_key=E2E_ROOT_KEY).root
++
+ results: list[tuple[str, bool, str]] = []
+ 
+ 
+@@ -80,7 +90,10 @@ def main(argv=None) -> int:
+           all(s["decision"]["level"] == s["expected_level"] for s in scen.values()))
+ 
+     tmp = Path(tempfile.mkdtemp(prefix="satark-e2e-"))
+-    env = {**os.environ, "SATARK_ENV": "dev", "SATARK_AUTH_ENABLE_DEV_TOKEN": "1",
++    roots = tmp / "e2e-roots.pem"
++    roots.write_bytes(E2E_ROOT.public_bytes(Encoding.PEM))
++    env = {**os.environ, "SATARK_ENV": "dev", "SATARK_AUTH_ATTESTATION_ROOTS": str(roots),
++           "SATARK_AUTH_EXPECTED_PACKAGE": PACKAGE, "SATARK_AUTH_EXPECTED_SIGNING_SHA256": DIGEST.hex(),
+            "SATARK_DATABASE_URL": f"sqlite:///{tmp / 'e2e.db'}", "SATARK_RAZORPAY_WEBHOOK_SECRET": WEBHOOK_SECRET,
+            "SATARK_RATE_LIMIT_PER_MINUTE": "1000", "SATARK_REDIS_URL": "redis://127.0.0.1:1/0"}
+     print("2. migrations on an empty database")
+@@ -91,7 +104,7 @@ def main(argv=None) -> int:
+ 
+     port = free_port()
+     log = open(tmp / "server.log", "wb")
+-    srv = subprocess.Popen([sys.executable, "-m", "uvicorn", "app.main:app", "--host", "127.0.0.1", "--port", str(port)],
++    srv = subprocess.Popen([sys.executable, str(Path(__file__).with_name("serve_for_e2e.py")), str(port)],
+                            cwd=SERVER, env=env, stdout=log, stderr=log)
+     base = f"http://127.0.0.1:{port}"
+     try:
+@@ -119,22 +132,28 @@ def main(argv=None) -> int:
+ 
+ def run_flows(base: str, scen: dict) -> None:
+     c = httpx.Client(base_url=base, timeout=15)
+-    A, B, EVIL = (str(uuid.uuid4()) for _ in range(3))
+     salt = b"e2e-install-salt"
+ 
+-    def token(dev: str) -> dict:
+-        r = c.post("/auth/dev-token", json={"device_id": dev})
+-        return {"Authorization": f"Bearer {r.json()['access_token']}"} if r.status_code == 200 else {}
++    def register() -> tuple[str, dict]:
++        """The real registration: challenge -> a chain that embeds it -> /auth/device. Returns (device id, auth headers)."""
++        ch = c.post("/auth/challenge", json={}).json()["challenge"]
++        raw = base64.urlsafe_b64decode(ch + "=" * (-len(ch) % 4))
++        chain = make_chain(raw, root_key=E2E_ROOT_KEY)
++        r = c.post("/auth/device", json={"challenge": ch, "public_key": base64.b64encode(chain.leaf_spki).decode(),
++                                         "attestation_chain": [base64.b64encode(d).decode() for d in chain.der]})
++        if r.status_code != 200:
++            return "", {}
++        return r.json()["device_id"], {"Authorization": f"Bearer {r.json()['access_token']}"}
+ 
+     print("3. auth and registration")
+     check("GET /health", c.get("/health").json() == {"status": "ok"})
+     ch = c.post("/auth/challenge", json={})
+     check("POST /auth/challenge returns a challenge and expiry", ch.status_code == 200 and {"challenge", "expires_at"} <= set(ch.json()))
+     reg = c.post("/auth/device", json={"challenge": ch.json().get("challenge", ""), "public_key": "AAAA", "attestation_chain": ["AAAA", "BBBB"]})
+-    check("device registration without pinned Google roots fails closed (503), as designed in dev",
+-          reg.status_code in (400, 503), f"{reg.status_code} {reg.text[:120]}")
+-    hA, hB, hEvil = token(A), token(B), token(EVIL)
+-    check("dev tokens issued for three devices", all((hA, hB, hEvil)))
++    check("a bogus attestation is refused (400)", reg.status_code == 400, f"{reg.status_code} {reg.text[:120]}")
++    check("there is no dev-token endpoint any more (404)", c.post("/auth/dev-token", json={"device_id": "x"}).status_code == 404)
++    (A, hA), (B, hB), (EVIL, hEvil) = register(), register(), register()
++    check("three devices registered through /auth/device with real X.509 chains (throwaway root)", all((A, B, EVIL)) and len({A, B, EVIL}) == 3)
+     check("no token -> 401", c.post("/risk-check", json={}).status_code == 401)
+     check("garbage token -> 401", c.post("/risk-check", json={}, headers={"Authorization": "Bearer nonsense"}).status_code == 401)
+ 
+diff --git a/ops/e2e/serve_for_e2e.py b/ops/e2e/serve_for_e2e.py
+new file mode 100644
+index 0000000..eb89240
+--- /dev/null
++++ b/ops/e2e/serve_for_e2e.py
+@@ -0,0 +1,16 @@
++#!/usr/bin/env python3
++"""Starts the real server for ops/e2e/run_e2e.py. ONE test-only difference from production: Google's revocation list is replaced by an
++empty one, so the run does not depend on the network. Everything else, including every Key Attestation check against the throwaway root
++that run_e2e.py pins, is the real code. Usage: python ops/e2e/serve_for_e2e.py PORT   (cwd: server/)"""
++import sys
++
++import uvicorn
++
++import app.auth.dependencies as deps
++
++deps.GoogleRevocationList = lambda: (lambda: frozenset())          # test-only: no fetch from android.googleapis.com
++
++from app.main import app  # noqa: E402
++
++if __name__ == "__main__":
++    uvicorn.run(app, host="127.0.0.1", port=int(sys.argv[1]))
+diff --git a/ops/e2e/smoke_deployed.py b/ops/e2e/smoke_deployed.py
+index c3f9c35..6beeee7 100644
+--- a/ops/e2e/smoke_deployed.py
++++ b/ops/e2e/smoke_deployed.py
+@@ -9,7 +9,7 @@ Checks (each prints PASS or FAIL):
+   * served over HTTPS; plain HTTP is refused or redirected to HTTPS
+   * GET /health is 200 {"status": "ok"}
+   * interactive docs and the schema are NOT served (/docs, /redoc, /openapi.json)
+-  * the dev-token stub is off (/auth/dev-token is 404)
++  * the removed dev-token endpoint stays gone (/auth/dev-token is 404)
+   * every protected route answers 401 without a token, with a {code, message} body and no stack trace
+   * /auth/challenge works; /auth/device rejects a bogus attestation (400 or 503, never a 500)
+   * a forged Razorpay webhook signature is refused (400)
+@@ -72,7 +72,7 @@ def run(base_url: str, allow_http: bool = False) -> list[tuple[str, bool, str]]:
+         status = c.get(path).status_code
+         check(f"{path} is not served", status == 404, f"status {status}")
+     dt = c.post("/auth/dev-token", json={"device_id": "smoke-test"})
+-    check("dev-token stub is off (404)", dt.status_code == 404, f"status {dt.status_code}")
++    check("the removed dev-token endpoint stays gone (404)", dt.status_code == 404, f"status {dt.status_code}")
+ 
+     print("authentication is required")
+     protected = [("POST", "/risk-check", {}), ("GET", "/payments/00000000-0000-0000-0000-000000000000", None),
+diff --git a/ops/e2e/test_smoke.py b/ops/e2e/test_smoke.py
+index a80f517..b0e0209 100644
+--- a/ops/e2e/test_smoke.py
++++ b/ops/e2e/test_smoke.py
+@@ -78,11 +78,10 @@ def test_smoke_passes_on_a_production_configured_server_and_fails_on_a_dev_serve
+         prod.terminate()
+         prod.wait(10)
+ 
+-    dev, url = _serve(tmp_path, SATARK_ENV="dev", SATARK_AUTH_ENABLE_DEV_TOKEN="1")
++    dev, url = _serve(tmp_path, SATARK_ENV="dev")
+     try:
+         names = {n for n, ok, _ in smoke.run(url, allow_http=True) if not ok}
+     finally:
+         dev.terminate()
+         dev.wait(10)
+-    assert "dev-token stub is off (404)" in names                                  # a dev server is caught, not waved through
+-    assert any("/docs" in n for n in names)
++    assert any("/docs" in n for n in names)                                       # a dev server is caught, not waved through
+diff --git a/ops/security/checklist.md b/ops/security/checklist.md
+index abb53b0..bcb17e5 100644
+--- a/ops/security/checklist.md
++++ b/ops/security/checklist.md
+@@ -18,7 +18,7 @@ tree for private keys / cloud, Razorpay, Google, GitHub and Slack tokens found n
+ | API5 | Broken function-level authorization | **Done** | Role checks exact, 403 on mismatch (`test_wrong_role_is_403`, `test_admin_device_cannot_use_device_routes_and_vice_versa`). Admin is never self-assignable. |
+ | API6 | Unrestricted access to sensitive business flows | **Partial** | A held payment cannot have a result reported (M3 `test_p2_payments.py`); webhook is the only path to `paid`. **Open:** no per-device cap on `/risk-check` volume beyond the general limit. |
+ | API7 | Server-side request forgery | **Done** (by construction) | The server's only outbound calls go to fixed hosts: Google's attestation status URL (`revocation.py: STATUS_URL`), Razorpay, FCM. No client-supplied URL is ever fetched. |
+-| API8 | Security misconfiguration | **Done** | Unsafe auth config refuses to boot (`test_m4_settings.py`, 15 tests incl. the documented env-var names); `/docs`, `/redoc`, `/openapi.json` are off outside dev (`test_docs_and_schema_are_not_served_outside_dev`); no CORS headers (`test_no_cors_headers_are_emitted`); dev-token stub is dev-only and refused at boot elsewhere. **Open:** no security response headers (`X-Content-Type-Options`, HSTS from the app); Render terminates TLS and HSTS is checked by `tls_pins.py` instead. |
++| API8 | Security misconfiguration | **Done** | Unsafe auth config refuses to boot (`test_m4_settings.py`, 13 tests incl. the documented env-var names); `/docs`, `/redoc`, `/openapi.json` are off outside dev (`test_docs_and_schema_are_not_served_outside_dev`); no CORS headers (`test_no_cors_headers_are_emitted`); the dev-token stub is removed, so there is no token without a real attestation chain (`test_there_is_no_way_to_get_a_token_without_attesting`). **Open:** no security response headers (`X-Content-Type-Options`, HSTS from the app); Render terminates TLS and HSTS is checked by `tls_pins.py` instead. |
+ | API9 | Improper inventory management | **Done** | M3 contract test asserts every path in `contracts/api.yaml` is mounted and implemented (now including `/auth/*`); `test_every_non_public_route...` enumerates the live schema, so an undocumented route would have to be added to a public allow-list on purpose. |
+ | API10 | Unsafe consumption of APIs | **Done** | Razorpay webhook: HMAC over the raw body, dedupe, forged -> 400 (M3 `test_p3_webhook.py`); Google revocation list fails closed when never fetched (`test_revocation_list_fails_closed_when_never_fetched`). |
+ 
+diff --git a/server/DEPLOY_CHECKLIST.md b/server/DEPLOY_CHECKLIST.md
+index 6fe5ed5..baefa44 100644
+--- a/server/DEPLOY_CHECKLIST.md
++++ b/server/DEPLOY_CHECKLIST.md
+@@ -26,7 +26,6 @@ and `server/app/core/settings.py`, in the order things depend on each other.
+ | `SATARK_TRUSTED_PROXY_HOPS` | **you, after checking** | Blueprint value 0 = ignore `X-Forwarded-For`. See step 4. |
+ | `SATARK_RAZORPAY_KEY_ID`, `_KEY_SECRET`, `_WEBHOOK_SECRET` | **you, in the dashboard** | Secrets; never commit. |
+ | `SATARK_FIREBASE_CREDENTIALS_JSON` | **you, in the dashboard** | The whole service-account JSON as the value. |
+-| `SATARK_AUTH_ENABLE_DEV_TOKEN` | never set | Boot refuses it outside dev. |
+ 
+ ## 2. First deploy
+ 
+@@ -40,7 +39,7 @@ and `server/app/core/settings.py`, in the order things depend on each other.
+ python ops/e2e/smoke_deployed.py https://<service>.onrender.com
+ ```
+ 
+-All checks must pass: HTTPS, health, docs hidden, dev-token off, 401 without a token, bogus attestation rejected, forged webhook
++All checks must pass: HTTPS, health, docs hidden, the removed dev-token endpoint still 404, 401 without a token, bogus attestation rejected, forged webhook
+ refused, oversize body refused. (The script itself is proven against a production-configured local server in `ops/e2e/test_smoke.py`.)
+ It does not test real attestation, payments, push, pinning, the database role or the Redis limit.
+ 
+diff --git a/server/app/auth/config.py b/server/app/auth/config.py
+index bce926e..ac4277a 100644
+--- a/server/app/auth/config.py
++++ b/server/app/auth/config.py
+@@ -14,8 +14,6 @@ def expected_signing_digests(settings: Settings) -> frozenset[str]:
+ 
+ def validate_auth_settings(settings: Settings) -> None:
+     """Fail at boot, not on the first request. Dev is permissive; everything else is strict."""
+-    if settings.auth_enable_dev_token and not settings.is_dev:
+-        raise RuntimeError("SATARK_AUTH_ENABLE_DEV_TOKEN is only allowed when SATARK_ENV=dev")
+     if settings.is_dev:
+         return
+     if settings.jwt_secret == DEV_JWT_SECRET or len(settings.jwt_secret.encode()) < MIN_SECRET_BYTES:
+diff --git a/server/app/auth/routes.py b/server/app/auth/routes.py
+index e3e4a65..9deb7eb 100644
+--- a/server/app/auth/routes.py
++++ b/server/app/auth/routes.py
+@@ -1,4 +1,4 @@
+-"""POST /auth/challenge, /auth/device, /auth/refresh (+ the dev-token stub). Shapes follow contracts/api.yaml."""
++"""POST /auth/challenge, /auth/device, /auth/refresh. Shapes follow contracts/api.yaml."""
+ from __future__ import annotations
+ 
+ from datetime import datetime, timezone
+@@ -11,8 +11,7 @@ from app.core.clientip import client_ip
+ from app.core.schemas import StrictInput
+ 
+ from .dependencies import get_auth_service
+-from .errors import AuthError
+-from .service import CHALLENGE_LIMIT, REGISTER_LIMIT, ROLES, AuthService
++from .service import CHALLENGE_LIMIT, REGISTER_LIMIT, AuthService
+ 
+ router = APIRouter(prefix="/auth", tags=["auth"])
+ 
+@@ -67,20 +66,3 @@ def refresh(body: RefreshIn, request: Request, svc: AuthService = Depends(get_au
+     record, tokens = svc.refresh(body.refresh_token)
+     return TokenOut(access_token=tokens.access_token, refresh_token=tokens.refresh_token,
+                     expires_in=tokens.expires_in, device_id=record.device_id)
+-
+-
+-class DevTokenIn(StrictInput):                                  # support for the dev-token stub below
+-    device_id: str = Field(min_length=1, max_length=36)
+-    role: str = "device"
+-
+-
+-@router.post("/dev-token", response_model=TokenOut, include_in_schema=False)  # SATARK_STUB
+-def dev_token(body: DevTokenIn, svc: AuthService = Depends(get_auth_service)) -> TokenOut:
+-    """Answers 404 unless SATARK_ENV=dev and SATARK_AUTH_ENABLE_DEV_TOKEN=1 (checked in the service)."""
+-    if not (svc.settings.is_dev and svc.settings.auth_enable_dev_token):
+-        raise AuthError(404, "not_found", "Not found.")
+-    if body.role not in ROLES:
+-        raise AuthError(422, "invalid_request", "Unknown role.")
+-    tokens = svc.dev_token(body.device_id, body.role)
+-    return TokenOut(access_token=tokens.access_token, refresh_token=tokens.refresh_token,
+-                    expires_in=tokens.expires_in, device_id=body.device_id)
+diff --git a/server/app/auth/service.py b/server/app/auth/service.py
+index 51e0d96..f495984 100644
+--- a/server/app/auth/service.py
++++ b/server/app/auth/service.py
+@@ -164,12 +164,3 @@ class AuthService:
+         if device is None or device.revoked:
+             raise unauthorized("invalid_token", "Device is not active.")
+         return DeviceIdentity(device.device_id, device.role)
+-
+-    # dev stub ------------------------------------------------------------------------
+-    def dev_token(self, device_id: str, role: str) -> TokenPair:  # SATARK_STUB
+-        if not (self.settings.is_dev and self.settings.auth_enable_dev_token):
+-            raise AuthError(404, "not_found", "Not found.")
+-        record = self.store.get_device(device_id) or self.store.upsert_device(DeviceRecord(
+-            device_id=device_id, public_key=f"dev-stub:{device_id}", attestation_level="software",
+-            verified_boot_state="unverified", role=role))
+-        return self._issue_pair(record)
+diff --git a/server/app/core/settings.py b/server/app/core/settings.py
+index d496014..5afba77 100644
+--- a/server/app/core/settings.py
++++ b/server/app/core/settings.py
+@@ -47,7 +47,6 @@ class Settings(BaseSettings):
+     auth_expected_signing_sha256: str = ""      # comma-separated lowercase hex SHA-256 digests
+     auth_attestation_roots: str = ""       # PEM bundle of the pinned Google attestation roots
+     auth_require_hardware: bool = True
+-    auth_enable_dev_token: bool = False         # dev only, refused elsewhere (see the dev-token stub in auth/routes.py)
+ 
+     @property
+     def effective_migration_url(self) -> str:
+diff --git a/server/tests/test_m4_auth.py b/server/tests/test_m4_auth.py
+index fa352cd..a307ee8 100644
+--- a/server/tests/test_m4_auth.py
++++ b/server/tests/test_m4_auth.py
+@@ -324,19 +324,16 @@ def test_trusted_contact_requires_a_registered_device_with_real_auth(env):
+     assert ghost.status_code == 404
+ 
+ 
+-# --- dev-token stub ---------------------------------------------------------------------
+-def test_dev_token_is_404_unless_enabled(env):
+-    assert env["client"].post("/auth/dev-token", json={"device_id": "d1"}).status_code == 404
+-
+-
+-def test_dev_token_works_when_enabled(make_env):
+-    env = make_env(auth_enable_dev_token=True)
++# --- the dev-token stub is gone ---------------------------------------------------------
++def test_there_is_no_way_to_get_a_token_without_attesting(env, monkeypatch):
++    """/auth/dev-token was removed once real attestation worked on a phone: no route, no flag, no setting, in any environment."""
++    monkeypatch.setenv("SATARK_AUTH_ENABLE_DEV_TOKEN", "1")                      # the old switch must now do nothing
+     c = env["client"]
+-    tok = c.post("/auth/dev-token", json={"device_id": "dev-1"}).json()["access_token"]
+-    assert c.post("/risk-check", json=RISK_BODY, headers=bearer(tok)).status_code == 200
+-    assert c.get("/_m4/admin-ping", headers=bearer(tok)).status_code == 403
+-    adm = c.post("/auth/dev-token", json={"device_id": "adm-1", "role": "admin"}).json()["access_token"]
+-    assert c.get("/_m4/admin-ping", headers=bearer(adm)).status_code == 200
++    for body in ({"device_id": "d1"}, {"device_id": "adm-1", "role": "admin"}):
++        assert c.post("/auth/dev-token", json=body).status_code == 404
++    from app.core.settings import Settings
++    assert "auth_enable_dev_token" not in Settings.model_fields
++    assert not any(getattr(r, "path", "").endswith("dev-token") for r in c.app.routes)
+ 
+ 
+ def test_no_policy_means_503_not_a_crash(env):
+diff --git a/server/tests/test_m4_security.py b/server/tests/test_m4_security.py
+index 5911a2e..8b3fa4f 100644
+--- a/server/tests/test_m4_security.py
++++ b/server/tests/test_m4_security.py
+@@ -12,7 +12,7 @@ from app.db.base import Base
+ from app.db.session import get_db
+ from app.main import app
+ 
+-PUBLIC = {"/health", "/webhooks/razorpay", "/auth/challenge", "/auth/device", "/auth/refresh", "/auth/dev-token"}
++PUBLIC = {"/health", "/webhooks/razorpay", "/auth/challenge", "/auth/device", "/auth/refresh"}
+ DOC_PATHS = {"/openapi.json", "/docs", "/docs/oauth2-redirect", "/redoc"}
+ RISK_OK = {"decision": {"level": "NONE", "score": 0.0, "reasons": []}, "method": "checkout",
+            "amount": 42.0, "payee_hash": "ph"}
+diff --git a/server/tests/test_m4_settings.py b/server/tests/test_m4_settings.py
+index 40f531a..a8130bb 100644
+--- a/server/tests/test_m4_settings.py
++++ b/server/tests/test_m4_settings.py
+@@ -27,7 +27,6 @@ def test_valid_production_boots(tmp_path):
+ @pytest.mark.parametrize("kw,msg", [
+     ({"jwt_secret": DEV_JWT_SECRET}, "SATARK_JWT_SECRET"),
+     ({"jwt_secret": "short"}, "SATARK_JWT_SECRET"),
+-    ({"auth_enable_dev_token": True}, "only allowed when SATARK_ENV=dev"),
+     ({"auth_require_hardware": False}, "hardware"),
+     ({"auth_expected_package": ""}, "EXPECTED_PACKAGE"),
+     ({"auth_expected_signing_sha256": ""}, "EXPECTED_PACKAGE"),
+@@ -39,11 +38,6 @@ def test_unsafe_production_settings_refuse_to_boot(tmp_path, kw, msg):
+         validate_auth_settings(prod(tmp_path, **kw))
+ 
+ 
+-def test_dev_token_flag_refused_outside_dev():
+-    with pytest.raises(RuntimeError, match="only allowed"):
+-        validate_auth_settings(Settings(env="staging", auth_enable_dev_token=True, jwt_secret=GOOD_SECRET))
+-
+-
+ def test_documented_env_var_names_actually_configure_the_settings(monkeypatch, tmp_path):
+     """Every SATARK_AUTH_* name in contracts/auth.md and render.yaml must map to a real field.
+     (A field named ..._roots_path silently ignored SATARK_AUTH_ATTESTATION_ROOTS and could never boot.)"""
+@@ -56,7 +50,6 @@ def test_documented_env_var_names_actually_configure_the_settings(monkeypatch, t
+         "SATARK_AUTH_EXPECTED_PACKAGE": "com.satark.app",
+         "SATARK_AUTH_EXPECTED_SIGNING_SHA256": "AB" * 32 + "," + "cd" * 32,
+         "SATARK_AUTH_REQUIRE_HARDWARE": "true",
+-        "SATARK_AUTH_ENABLE_DEV_TOKEN": "false",
+     }.items():
+         monkeypatch.setenv(name, value)
+     s = Settings()
+@@ -72,7 +65,7 @@ def test_every_documented_auth_env_var_exists_in_the_docs_and_render_blueprint()
+     docs = (root / "contracts" / "auth.md").read_text(encoding="utf-8")
+     render = (root / "render.yaml").read_text(encoding="utf-8")
+     m4_fields = ("auth_attestation_roots", "auth_expected_package", "auth_expected_signing_sha256",
+-                 "auth_require_hardware", "auth_enable_dev_token")
++                 "auth_require_hardware")
+     for field in m4_fields:
+         assert field in Settings.model_fields
+         assert field.upper() in docs.upper().replace("`", ""), f"{field} not documented in contracts/auth.md"
+diff --git a/ops/ci/README.md b/ops/ci/README.md
+index 54a1628..7f8b695 100644
+--- a/ops/ci/README.md
++++ b/ops/ci/README.md
+@@ -48,8 +48,7 @@ job reports (step summary + artifact) and does not block PRs; set the repository
+ 
+ ## Release (`main`)
+ 
+-`gate` runs first and nothing ships unless it passes: no stub markers anywhere, evaluation gate, strings valid. Today it fails on the
+-dev-token stub only. That is the intended release behaviour; it means **no automated deploy until the dev-token stub is removed.** (Render can still deploy from the repo on its own, independent of Actions.)
++`gate` runs first and nothing ships unless it passes: no stub markers anywhere, evaluation gate, strings valid. After the server-side dev-token removal it fails only on the Android debug fallback (`net/Network.kt`, M1's). That is the intended release behaviour; it means **no automated deploy until that last marker is removed.** (Render can still deploy from the repo on its own, independent of Actions.)
+ 
+ Then `server-image` builds the image and POSTs the Render deploy hook, and `android-release` builds the signed APK on a version tag (`v*`) or a manual run and publishes it as a GitHub Release (`ops/release/README.md`). A tag does not redeploy the server.
+ 
