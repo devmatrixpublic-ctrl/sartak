@@ -8,7 +8,15 @@
     <uses-permission android:name="android.permission.READ_CALL_LOG" />
     <uses-permission android:name="android.permission.READ_CONTACTS" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- Only to learn which number sent a text. The text itself is never read. Play policy review needed for a store release. -->
+    <uses-permission android:name="android.permission.RECEIVE_SMS" />
+    <!-- Lets the warning offer "Remove this app": Android still asks the person to confirm. -->
+    <uses-permission android:name="android.permission.REQUEST_DELETE_PACKAGES" />
+    <!-- Granted by the user in Settings > Display over other apps: lets the scam warning appear over a UPI app. -->
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
     <uses-permission android:name="android.permission.CAMERA" />
+    <!-- Lets protection start again after a restart. Only does anything if the person already agreed on the consent screen. -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
     <!-- Install source of every new package (Play vs sideload). Play policy review needed for a store release. -->
@@ -55,6 +63,23 @@
                 android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
                 android:value="Scam-pattern detection: call state, installs and foreground app" />
         </service>
+
+        <receiver android:name=".signals.RestartReceiver" android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
+
+        <!-- A text arrived: only the sending number is looked at, never the body. Does nothing until the SMS permission is granted. -->
+        <receiver
+            android:name=".signals.SmsReceiver"
+            android:exported="true"
+            android:permission="android.permission.BROADCAST_SMS">
+            <intent-filter>
+                <action android:name="android.provider.Telephony.SMS_RECEIVED" />
+            </intent-filter>
+        </receiver>
 
         <!-- Trusted-contact alerts (Firebase Cloud Messaging). Active only in builds that have app/google-services.json. -->
         <service

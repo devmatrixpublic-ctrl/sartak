@@ -67,6 +67,8 @@ interface SatarkDao {
     @Query("SELECT * FROM event_queue WHERE tMs >= :since ORDER BY tMs, id") suspend fun eventsSince(since: Long): List<EventRow>
 
     @Insert suspend fun insertDecision(d: DecisionRow)
+    @Query("SELECT * FROM decision_log ORDER BY tMs DESC, id DESC LIMIT :n") suspend fun recentDecisions(n: Int): List<DecisionRow>
+    @Query("SELECT COUNT(*) FROM event_queue") suspend fun eventCount(): Int
 
     @Insert(onConflict = OnConflictStrategy.IGNORE) suspend fun addPayee(p: KnownPayee)
     @Query("SELECT COUNT(*) FROM known_payee WHERE hash = :hash") suspend fun payeeCount(hash: String): Int

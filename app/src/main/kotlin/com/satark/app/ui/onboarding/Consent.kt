@@ -36,12 +36,13 @@ object ConsentText {
     val watches = listOf(
         "Whether a call is from someone not in your contacts, and when it starts and ends",
         "When a new app is installed, and whether it came from Google Play",
+        "Whether a message came from a number that is not in your contacts (only who sent it, never what it says)",
         "How long video apps are open",
         "The payments you start inside Satark",
     )
     val never = listOf(
         "What anyone says or shows on a call",
-        "Your messages, photos or contacts list",
+        "The text of your messages, your photos or your contacts list",
         "Phone numbers or UPI IDs in readable form (they are scrambled on this phone first)",
     )
 }

@@ -8,6 +8,8 @@ sealed interface RawSignal {
 
     data class CallStarted(override val tMs: Long, val callerKnown: Boolean?) : RawSignal
     data class CallEnded(override val tMs: Long) : RawSignal
+    /** A message arrived from a number that is not in the contacts. Only the fact and the time: never the text or the number. */
+    data class UnknownMessage(override val tMs: Long) : RawSignal
     data class VideoStarted(override val tMs: Long, val appPackage: String?, val callerKnown: Boolean?) : RawSignal
     data class VideoEnded(override val tMs: Long, val appPackage: String?) : RawSignal
     data class AppInstalled(override val tMs: Long, val appPackage: String, val source: InstallSource?) : RawSignal

@@ -40,7 +40,11 @@ class AlertController(
     private val now: () -> Long = System::currentTimeMillis,
     /** Called once for each alert that is actually shown (not for merged repeats): the notification. */
     private val onShown: (Decision) -> Unit = {},
+    /** A UPI app came to the front soon after an alarm: warn again, over that app. */
+    private val onPaymentAppOpened: (List<String>) -> Unit = {},
 ) {
+    private val reminder = OpenReminder(now)
+
     private val _current = MutableStateFlow<AlertUi?>(null)
     val current: StateFlow<AlertUi?> = _current.asStateFlow()
 
@@ -54,11 +58,18 @@ class AlertController(
                     Mechanism.LONG_SESSION -> AlertUi.LongSession(d.reasons)
                     else -> AlertUi.Hard(d.reasons).also { pause.start() }
                 }
+                reminder.alarmed(d.reasons)
                 onShown(d)
                 notifyServer(d, a.trace?.features)
             }
         }
         scope.launch { dispatcher.nudges.collect { if (!shadow()) _current.value = it.let { n -> AlertUi.Nudge(n.reasons) } } }
+    }
+
+    /** A UPI app opened. Within 30 minutes of an alarm, remind the person (at most once every 2 minutes). */
+    fun paymentAppOpened() {
+        if (shadow()) return
+        reminder.due()?.let(onPaymentAppOpened)
     }
 
     /** Alarm -> POST /alert (trusted-contact push) and an anonymised /signature, both queued if offline. */
@@ -89,6 +100,32 @@ class AlertController(
     fun continueAnyway() { onContinueAnyway(); _current.value = null }
 
     fun dismiss() { _current.value = null }
+
+    companion object {
+        /** UPI apps people use for payments. The debug build also counts the test stand-in. */
+        val UPI_APPS = setOf(
+            "com.google.android.apps.nbu.paisa.user", "com.phonepe.app", "net.one97.paytm",
+            "in.amazon.mShop.android.shopping", "in.org.npci.upiapp", "com.dreamplug.androidapp",
+        )
+    }
+}
+
+/** After an alarm, the first UPI app to open within 30 minutes earns one reminder. One per incident, so it never nags. */
+class OpenReminder(private val now: () -> Long) {
+    private var alarmMs = 0L
+    private var reasons: List<String> = emptyList()
+    private var reminded = false
+
+    fun alarmed(r: List<String>) { alarmMs = now(); reasons = r; reminded = false }
+
+    /** The reasons to warn with, or null when no reminder is due. */
+    fun due(): List<String>? {
+        if (alarmMs == 0L || reminded || now() - alarmMs > WINDOW_MS) return null
+        reminded = true
+        return reasons
+    }
+
+    companion object { const val WINDOW_MS = 30 * 60_000L }
 }
 
 /**

@@ -35,6 +35,7 @@ class EventDispatcher(
     private val model: ModelConfig,
     private val ageBand: String?,
     private val scope: CoroutineScope,
+    private val nudgeLimiter: NudgeLimiter = NudgeLimiter(object : NudgeLimiter.Store { override var times: List<Long> = emptyList() }),
     private val now: () -> Long = System::currentTimeMillis,
 ) {
     private val lock = Mutex()
@@ -43,6 +44,9 @@ class EventDispatcher(
     private val baseline = Baseline.coldStart(model)
     private var lastTrace: PaymentTrace? = null
     private val detector = Detector.create(ageBand, baseline, model).also { it.traceSink = { t -> lastTrace = t } }
+    fun nudgesThisMonth(): Int = nudgeLimiter.shownInWindow()
+
+    private val splitGuard = SplitGuard(model, ageBand, baseline)
 
     private val policy = SessionPolicy()
     private val unknownCallActive get() = policy.unknownCallActive
@@ -74,11 +78,14 @@ class EventDispatcher(
 
     fun submit(s: RawSignal, source: String? = null) {
         scope.launch {
-            val e = EventMapper.map(s)
+            val events = EventMapper.mapAll(s)
             lock.withLock {
-                if (dedup.isDuplicate(e)) return@withLock
-                dao.insertEvent(EventRow(tMs = e.tMs, json = JSONObject(EventMapper.toSchemaMap(e, source)).toString()))
-                sequencer.add(e)
+                if (s is RawSignal.UnknownMessage && policy.callIsOpen) return@withLock // a call is already in progress: leave it alone
+                for (e in events) {
+                    if (dedup.isDuplicate(e)) continue
+                    dao.insertEvent(EventRow(tMs = e.tMs, json = JSONObject(EventMapper.toSchemaMap(e, source)).toString()))
+                    sequencer.add(e)
+                }
             }
             pump(flushAll = false)
             // The sequencer holds new events briefly for reordering; release this one as soon as the hold ends,
@@ -91,8 +98,7 @@ class EventDispatcher(
     /** Submit already-mapped events and return the worst Decision they produced (used right before a risk check). */
     suspend fun submitAndDecide(signals: List<RawSignal>, source: String): Decision {
         lock.withLock {
-            for (s in signals) {
-                val e = EventMapper.map(s)
+            for (e in signals.flatMap(EventMapper::mapAll)) {
                 if (dedup.isDuplicate(e)) continue
                 dao.insertEvent(EventRow(tMs = e.tMs, json = JSONObject(EventMapper.toSchemaMap(e, source)).toString()))
                 sequencer.add(e)
@@ -113,7 +119,7 @@ class EventDispatcher(
             if (d.level.showsScreen) {
                 _alarms.tryEmit(Alarm(d, lastTrace, unknownCallActive))
                 if (worst.level == Level.NONE) worst = d
-            } else if (e.type == EventType.PAYMENT_ATTEMPT && unknownCallActive && e.payeeIsNew == true) {
+            } else if (e.type == EventType.PAYMENT_ATTEMPT && NudgePolicy.shouldNudge(unknownCallActive, e.payeeIsNew, e.amountInr, baseline.median) && nudgeLimiter.tryAcquire()) {
                 _nudges.tryEmit(Nudge(emptyList()))
                 worst = d
             } else if (e.type == EventType.PAYMENT_ATTEMPT && worst.level == Level.NONE) worst = d
@@ -129,9 +135,13 @@ class EventDispatcher(
     /** One event into the detector, with the app's session policy. Null when the event is ignored. Call under [lock]. */
     private fun feed(raw: Event): Decision? {
         val step = policy.prepare(raw) ?: return null
-        if (step.resetFirst) detector.reset()
+        if (step.resetFirst) { detector.reset(); splitGuard.reset() }
         lastTrace = null
-        return detector.onEvent(step.event)
+        val main = detector.onEvent(step.event)
+        // A second look for payments split into pieces. It only ever adds an alarm; the main decision is never lowered.
+        val extra = splitGuard.onEvent(step.event)
+        if (!main.level.showsScreen && extra.level.showsScreen) { lastTrace = splitGuard.lastTrace; return extra }
+        return main
     }
 
     /**

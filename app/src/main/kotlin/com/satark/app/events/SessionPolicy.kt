@@ -22,6 +22,8 @@ class SessionPolicy(
     var restoredUpTo: Long? = null
 
     private var callOpen = false
+    /** True while a call is in progress, so a message signal never closes or relabels it. */
+    val callIsOpen get() = callOpen
     private var videoOpenSince: Long? = null
 
     /** Null when the event must be ignored. */

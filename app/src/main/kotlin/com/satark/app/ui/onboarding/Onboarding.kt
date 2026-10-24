@@ -119,6 +119,49 @@ fun OnboardingFlow(graph: AppGraph, settings: Boolean = false, onDeleted: () -> 
                 }
             }
         }
+        val overlayOn = remember(tick) { Settings.canDrawOverlays(ctx) }
+        Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLowest)) {
+            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("Warnings over other apps", style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
+                    Surface(
+                        color = if (overlayOn) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.errorContainer,
+                        shape = MaterialTheme.shapes.small,
+                    ) {
+                        Text(if (overlayOn) "On" else "Off: permission needed", Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                            style = MaterialTheme.typography.labelMedium,
+                            color = if (overlayOn) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onErrorContainer)
+                    }
+                }
+                Text("If Satark thinks you are being scammed, it shows a full-screen STOP warning on top of your UPI app. Without this, you only get a notification.",
+                    style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                if (!overlayOn) Button(onClick = {
+                    runCatching {
+                        ctx.startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, android.net.Uri.parse("package:" + ctx.packageName)))
+                    }
+                }) { Text("Allow") }
+            }
+        }
+        val smsOn = remember(tick) { com.satark.app.signals.SmsReceiver.granted(ctx) }
+        val messagesOn = smsOn
+        Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLowest)) {
+            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("Messages from strangers", style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
+                    Surface(
+                        color = if (messagesOn) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant,
+                        shape = MaterialTheme.shapes.small,
+                    ) {
+                        Text(if (messagesOn) "On" else "Off (optional)", Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                            style = MaterialTheme.typography.labelMedium,
+                            color = if (messagesOn) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
+                Text("Satark notices when a text comes from a number that is not in your contacts. It sees only who sent it, never what it says.",
+                    style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                if (!smsOn) Button(onClick = { perms.launch(arrayOf(Manifest.permission.RECEIVE_SMS)) }) { Text("Allow texts") }
+            }
+        }
         ProtectionBanners(status)
 
         if (settings) LanguageCard()
@@ -164,7 +207,7 @@ private fun NeverAsksCard() {
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text("Satark never asks for your PIN or OTP", style = MaterialTheme.typography.titleSmall,
                     color = MaterialTheme.colorScheme.onPrimaryContainer)
-                Text("Real Satark warnings appear only inside this app. They never come as an SMS or a link, and never ask for your UPI PIN, OTP or bank details.",
+                Text("Real Satark warnings appear only in Satark or as Satark's own STOP screen over your apps. They never come as an SMS or a link, and never ask for your UPI PIN, OTP or bank details.",
                     style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onPrimaryContainer)
             }
         }

@@ -29,6 +29,7 @@ import com.satark.app.payments.UpiResultParser
 import com.satark.app.signals.SignalService
 import com.satark.app.ui.alerts.AlertHost
 import com.satark.app.ui.alerts.ContactDecisionScreen
+import com.satark.app.ui.alerts.HistoryScreen
 import com.satark.app.ui.onboarding.ConsentScreen
 import com.satark.app.ui.onboarding.OnboardingFlow
 import com.satark.app.ui.pay.PayHome
@@ -49,6 +50,7 @@ class MainActivity : ComponentActivity(), PaymentResultListener {
     private var showProtection by mutableStateOf(false)
     private var consentAsked by mutableStateOf(false)
     private var decidePaymentId by mutableStateOf<String?>(null) // trusted contact opened a held-payment alert
+    private var showHistory by mutableStateOf(false)
 
     private val upiLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { r ->
         val p = pending ?: return@registerForActivityResult
@@ -68,10 +70,12 @@ class MainActivity : ComponentActivity(), PaymentResultListener {
 
     override fun onStart() {
         super.onStart()
+        graph.appVisible = true
         graph.hub.screenRecording.register(getSystemService(android.view.WindowManager::class.java), mainExecutor)
     }
 
     override fun onStop() {
+        graph.appVisible = false
         graph.hub.screenRecording.unregister(getSystemService(android.view.WindowManager::class.java))
         super.onStop()
     }
@@ -121,8 +125,12 @@ class MainActivity : ComponentActivity(), PaymentResultListener {
             } else if (showProtection) {
                 BackHandler { showProtection = false }
                 OnboardingFlow(graph, settings = true, onDeleted = { showProtection = false; recreate() }) { showProtection = false }
+            } else if (showHistory) {
+                BackHandler { showHistory = false }
+                HistoryScreen(graph) { showHistory = false }
             } else {
-                PayHome(graph, status, ::onOutcome, onOpenProtection = { showProtection = true }, onNewPayment = { status = null })
+                PayHome(graph, status, ::onOutcome, onOpenProtection = { showProtection = true }, onNewPayment = { status = null },
+                    onOpenHistory = { showHistory = true })
             }
         }
     }

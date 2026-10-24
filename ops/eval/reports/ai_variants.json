@@ -1,0 +1,280 @@
+{
+  "alpha": 0.0008,
+  "meta": {
+    "median_inr": 160.97,
+    "mad_inr": 114.85499999999999,
+    "ranges": {
+      "family": [
+        57.65528923519946,
+        279.60565078818155
+      ],
+      "family_high": [
+        130.0690534475724,
+        527.1542388480249
+      ],
+      "arrest": [
+        3199.1239208928578,
+        26196.99204826098
+      ],
+      "remote": [
+        71.15788520185285,
+        351.44895191097606
+      ],
+      "apk": [
+        168.4369196078141,
+        832.7313217417816
+      ],
+      "legit_tail": [
+        14.488147836376752,
+        172.9818561330593
+      ]
+    }
+  },
+  "thresholds": {
+    "18-35": 1.0277447193617673,
+    "36-59": 1.007228506574044,
+    "60+": 1.5299705770222096
+  },
+  "scenarios": [
+    {
+      "scenario": "Family emergency from an unknown caller",
+      "group": "scam",
+      "expect_alarm": true,
+      "n": 90,
+      "alarmed": 4,
+      "rate": 0.044444444444444446,
+      "ci95": [
+        0.017416960013248817,
+        0.1087701467709492
+      ],
+      "by_band": {
+        "18-35": 0.03333333333333333,
+        "36-59": 0.1,
+        "60+": 0.0
+      },
+      "mechanisms": {
+        "payment_score": 4
+      },
+      "before_first_payment": 0.044444444444444446
+    },
+    {
+      "scenario": "Digital arrest on a video call",
+      "group": "scam",
+      "expect_alarm": true,
+      "n": 90,
+      "alarmed": 90,
+      "rate": 1.0,
+      "ci95": [
+        0.959062931578319,
+        0.9999999999999998
+      ],
+      "by_band": {
+        "18-35": 1.0,
+        "36-59": 1.0,
+        "60+": 1.0
+      },
+      "mechanisms": {
+        "payment_score": 90
+      },
+      "before_first_payment": 1.0
+    },
+    {
+      "scenario": "Fake customer care with screen-sharing",
+      "group": "scam",
+      "expect_alarm": true,
+      "n": 90,
+      "alarmed": 90,
+      "rate": 1.0,
+      "ci95": [
+        0.959062931578319,
+        0.9999999999999998
+      ],
+      "by_band": {
+        "18-35": 1.0,
+        "36-59": 1.0,
+        "60+": 1.0
+      },
+      "mechanisms": {
+        "payment_score": 90
+      },
+      "before_first_payment": 1.0
+    },
+    {
+      "scenario": "Fake KYC app",
+      "group": "scam",
+      "expect_alarm": true,
+      "n": 90,
+      "alarmed": 90,
+      "rate": 1.0,
+      "ci95": [
+        0.959062931578319,
+        0.9999999999999998
+      ],
+      "by_band": {
+        "18-35": 1.0,
+        "36-59": 1.0,
+        "60+": 1.0
+      },
+      "mechanisms": {
+        "sideload_during_call": 90
+      },
+      "before_first_payment": 1.0
+    },
+    {
+      "scenario": "Text-led, no call",
+      "group": "scam",
+      "expect_alarm": true,
+      "n": 90,
+      "alarmed": 90,
+      "rate": 1.0,
+      "ci95": [
+        0.959062931578319,
+        0.9999999999999998
+      ],
+      "by_band": {
+        "18-35": 1.0,
+        "36-59": 1.0,
+        "60+": 1.0
+      },
+      "mechanisms": {
+        "sideload_during_call": 90
+      },
+      "before_first_payment": 1.0
+    },
+    {
+      "scenario": "Payment split into three",
+      "group": "scam",
+      "expect_alarm": true,
+      "n": 90,
+      "alarmed": 0,
+      "rate": 0.0,
+      "ci95": [
+        0.0,
+        0.04093706842168078
+      ],
+      "by_band": {
+        "18-35": 0.0,
+        "36-59": 0.0,
+        "60+": 0.0
+      },
+      "mechanisms": {},
+      "before_first_payment": 0.0
+    },
+    {
+      "scenario": "Large payment, no screen-sharing app",
+      "group": "scam",
+      "expect_alarm": true,
+      "n": 90,
+      "alarmed": 28,
+      "rate": 0.3111111111111111,
+      "ci95": [
+        0.22485715147181132,
+        0.41283018548749023
+      ],
+      "by_band": {
+        "18-35": 0.43333333333333335,
+        "36-59": 0.5,
+        "60+": 0.0
+      },
+      "mechanisms": {
+        "payment_score": 28
+      },
+      "before_first_payment": 0.3111111111111111
+    },
+    {
+      "scenario": "Genuine rent, known caller",
+      "group": "control",
+      "expect_alarm": false,
+      "n": 90,
+      "alarmed": 0,
+      "rate": 0.0,
+      "ci95": [
+        0.0,
+        0.04093706842168078
+      ],
+      "by_band": {
+        "18-35": 0.0,
+        "36-59": 0.0,
+        "60+": 0.0
+      },
+      "mechanisms": {},
+      "before_first_payment": 0.0
+    },
+    {
+      "scenario": "Genuine bank-support call, small payment",
+      "group": "control",
+      "expect_alarm": false,
+      "n": 90,
+      "alarmed": 0,
+      "rate": 0.0,
+      "ci95": [
+        0.0,
+        0.04093706842168078
+      ],
+      "by_band": {
+        "18-35": 0.0,
+        "36-59": 0.0,
+        "60+": 0.0
+      },
+      "mechanisms": {},
+      "before_first_payment": 0.0
+    },
+    {
+      "scenario": "Genuine wedding payment, no call",
+      "group": "control",
+      "expect_alarm": false,
+      "n": 90,
+      "alarmed": 0,
+      "rate": 0.0,
+      "ci95": [
+        0.0,
+        0.04093706842168078
+      ],
+      "by_band": {
+        "18-35": 0.0,
+        "36-59": 0.0,
+        "60+": 0.0
+      },
+      "mechanisms": {},
+      "before_first_payment": 0.0
+    },
+    {
+      "scenario": "Delivery call, shop payment",
+      "group": "control",
+      "expect_alarm": false,
+      "n": 90,
+      "alarmed": 0,
+      "rate": 0.0,
+      "ci95": [
+        0.0,
+        0.04093706842168078
+      ],
+      "by_band": {
+        "18-35": 0.0,
+        "36-59": 0.0,
+        "60+": 0.0
+      },
+      "mechanisms": {},
+      "before_first_payment": 0.0
+    },
+    {
+      "scenario": "Play Store install, no payment",
+      "group": "control",
+      "expect_alarm": false,
+      "n": 90,
+      "alarmed": 0,
+      "rate": 0.0,
+      "ci95": [
+        0.0,
+        0.04093706842168078
+      ],
+      "by_band": {
+        "18-35": 0.0,
+        "36-59": 0.0,
+        "60+": 0.0
+      },
+      "mechanisms": {},
+      "before_first_payment": 0.0
+    }
+  ]
+}

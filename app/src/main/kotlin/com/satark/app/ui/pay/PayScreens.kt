@@ -23,6 +23,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -94,6 +95,7 @@ fun PayHome(
     onOutcome: (PayOutcome, UpiRequest, BigDecimal) -> Unit,
     onOpenProtection: () -> Unit = {},
     onNewPayment: () -> Unit = {},
+    onOpenHistory: () -> Unit = {},
 ) {
     // rememberSaveable: typed values survive the activity being recreated (rotation, call screen, process trim).
     var scanning by rememberSaveable { mutableStateOf(false) }
@@ -141,6 +143,7 @@ fun PayHome(
         )
         ProtectionSummary(signals)
         ProtectionLink(onOpenProtection)
+        ToolLink("Alert history", "What Satark saw, and what it keeps", Icons.Filled.Info, onOpenHistory)
         PauseCard(pause, graph.pause)
 
         Card(
@@ -273,6 +276,26 @@ private fun ProtectionLink(onOpen: () -> Unit) {
                 Text("Protection and trusted contact", style = MaterialTheme.typography.titleSmall)
                 Text("Permissions, and who is told if you may be at risk", style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+    }
+}
+
+@Composable
+private fun ToolLink(title: String, subtitle: String, icon: androidx.compose.ui.graphics.vector.ImageVector, onOpen: () -> Unit) {
+    Card(
+        onClick = onOpen, modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLowest),
+    ) {
+        Row(
+            Modifier.padding(horizontal = 16.dp, vertical = 14.dp), verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+            Column(Modifier.weight(1f)) {
+                Text(title, style = MaterialTheme.typography.titleSmall)
+                Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
         }
