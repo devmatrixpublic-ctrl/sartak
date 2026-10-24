@@ -60,6 +60,19 @@ Rs 10,000 instead of Rs 25,000, on the assumption of a student whose usual payme
 | 3 x Rs 10,000 (Rs 30,000 in all) | **hold** | **hold** |
 | 3 x Rs 25,000 | **hold** | **hold** |
 
+## The fingerprint lock
+A fingerprint is needed (no screen-lock PIN fallback) for: **Continue anyway** on a Stop screen, turning protection off, linking or removing a
+trusted contact, changing who to call, changing the age, and deleting data. First-run setup cannot finish without an enrolled fingerprint.
+The point is a scammer driving the screen through a remote-access app: they cannot present a fingerprint.
+
+| Situation | Result |
+|---|---|
+| Stop screen, tap "Continue anyway", right finger | the payment is released to the UPI app |
+| Same, wrong finger | the prompt stays open; nothing is released |
+| Same, prompt cancelled | the Stop screen stays; nothing is released |
+| No fingerprint enrolled | "Add a fingerprint first"; nothing is released |
+| Phone has no fingerprint sensor | cannot be done on that phone |
+
 ## Gaps this exposed (said openly)
 - A payment more than **30 minutes after** the unknown call ended is quiet. Text messages never count as unknown contact.
 - The same amount to the same payee again **within 2 minutes** is counted as a retry of one payment, not a second piece.

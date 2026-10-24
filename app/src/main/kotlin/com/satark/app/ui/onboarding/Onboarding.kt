@@ -66,6 +66,9 @@ import com.satark.app.push.Push
 import com.satark.app.signals.SignalStatus
 import com.satark.app.signals.SourceName
 import com.satark.app.signals.SourceState
+import com.satark.app.ui.lock.FingerprintLock
+import com.satark.app.ui.lock.LockState
+import com.satark.app.ui.lock.rememberLockGate
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -88,6 +91,7 @@ fun OnboardingFlow(graph: AppGraph, settings: Boolean = false, onDeleted: () -> 
     var tick by remember { mutableIntStateOf(0) }
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { tick++ }
     val status = remember(tick) { graph.hub.status() }
+    val lock = remember(tick) { FingerprintLock.state(ctx) }
     val scope = rememberCoroutineScope()
 
     val perms = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { tick++ }
@@ -109,6 +113,7 @@ fun OnboardingFlow(graph: AppGraph, settings: Boolean = false, onDeleted: () -> 
             }) else null,
         )
         NeverAsksCard()
+        FingerprintCard(lock)
         steps.forEach { s ->
             val st = status.of(s.source)
             Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLowest)) {
@@ -175,12 +180,60 @@ fun OnboardingFlow(graph: AppGraph, settings: Boolean = false, onDeleted: () -> 
 
         TrustedContactSetup(graph)
 
-        Button(onClick = onDone, modifier = Modifier.fillMaxWidth().height(52.dp)) {
+        // A fingerprint is needed to use Satark: first run cannot finish without one (see FingerprintCard).
+        val canStart = settings || lock == LockState.READY
+        Button(onClick = onDone, enabled = canStart, modifier = Modifier.fillMaxWidth().height(52.dp)) {
             Text(when {
                 settings -> "Back to Pay via Satark"
                 status.allAvailable -> "Start protection"
                 else -> "Continue with limited protection"
             }, style = MaterialTheme.typography.titleSmall)
+        }
+        if (!canStart) Text("Set up the fingerprint lock above to start.", style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+}
+
+/** The fingerprint lock, explained where Satark is set up: a fingerprint is needed to use Satark (see [FingerprintLock]). */
+@Composable
+private fun FingerprintCard(state: LockState) {
+    val ctx = LocalContext.current
+    val gate = rememberLockGate()
+    var worked by remember { mutableStateOf(false) }
+    val ready = state == LockState.READY
+    Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLowest)) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("Fingerprint lock", style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
+                Surface(
+                    color = if (ready) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.errorContainer,
+                    shape = MaterialTheme.shapes.small,
+                ) {
+                    Text(when (state) {
+                        LockState.READY -> "On"
+                        LockState.NONE_ENROLLED -> "Off: add a fingerprint"
+                        else -> "Not available"
+                    }, Modifier.padding(horizontal = 10.dp, vertical = 4.dp), style = MaterialTheme.typography.labelMedium,
+                        color = if (ready) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onErrorContainer)
+                }
+            }
+            Text("Satark needs your fingerprint to turn protection off, to change your trusted contact or your age, to delete your data, " +
+                "and to continue past a Stop warning. If a scammer is controlling your screen, they cannot do any of that. " +
+                "Your phone checks the fingerprint; Satark never sees it.",
+                style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            when (state) {
+                LockState.NONE_ENROLLED -> Button(onClick = {
+                    runCatching { ctx.startActivity(FingerprintLock.enrolIntent()) }
+                        .onFailure { runCatching { ctx.startActivity(Intent(Settings.ACTION_SECURITY_SETTINGS)) } }
+                }) { Text("Add a fingerprint") }
+                LockState.READY -> OutlinedButton(onClick = { gate.require("Try the fingerprint lock") { worked = true } }) {
+                    Text(if (worked) "It works" else "Try it")
+                }
+                LockState.NO_HARDWARE -> Text("This phone has no fingerprint sensor, so Satark cannot be started on it.",
+                    style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onErrorContainer)
+                LockState.UNAVAILABLE -> Text("The fingerprint sensor is not available right now. Try again in a moment.",
+                    style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onErrorContainer)
+            }
         }
     }
 }
@@ -189,9 +242,13 @@ fun OnboardingFlow(graph: AppGraph, settings: Boolean = false, onDeleted: () -> 
 @Composable
 private fun AgeCard(graph: AppGraph) {
     var text by rememberSaveable { mutableStateOf(graph.store.ageYears?.toString() ?: "") }
+    // The age sets how sensitive Satark is, so changing it needs the fingerprint: the field opens only after it.
+    var open by remember { mutableStateOf(false) }
+    val lock = rememberLockGate()
     val age = AgeProfile.parse(text)
     // Saved a moment after the last key, so typing "21" does not save "2" on the way; an invalid number leaves the saved age alone.
     LaunchedEffect(text) {
+        if (!open) return@LaunchedEffect
         delay(700)
         val next = if (text.isEmpty()) null else AgeProfile.parse(text) ?: return@LaunchedEffect
         if (next != graph.store.ageYears) graph.setAge(next)
@@ -203,7 +260,10 @@ private fun AgeCard(graph: AppGraph) {
                 "Your age stays on this phone and is never sent anywhere.",
                 style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             OutlinedTextField(text, { v -> text = v.filter(Char::isDigit).take(3) }, label = { Text("Age in years") }, singleLine = true,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.fillMaxWidth())
+                enabled = open, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.fillMaxWidth())
+            if (!open) OutlinedButton(onClick = { lock.require("Change your age") { open = true } }) {
+                Text(if (text.isEmpty()) "Enter my age" else "Change my age")
+            }
             val limit = fun(a: Int?) = "Rs " + "%,d".format(AgeProfile.highValueThreshold(a).toInt())
             Text(when {
                 text.isEmpty() -> "Not given. A new payee is held from ${limit(null)} while an unknown caller is in touch."
@@ -306,13 +366,14 @@ private fun LinkTrustedContact(graph: AppGraph) {
     var msg by rememberSaveable { mutableStateOf<String?>(null) }
     var busy by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
+    val lock = rememberLockGate()
     var dialChosen by remember { mutableStateOf(graph.store.dialContactUri != null) }
     val pickContact = rememberLauncherForActivityResult(ActivityResultContracts.PickContact()) { uri ->
         if (uri != null) { graph.store.dialContactUri = uri.toString(); dialChosen = true }
     }
     Text("Who to call", style = MaterialTheme.typography.titleSmall)
     Text("Pick the person from your contacts that “Call trusted contact” should dial. Satark keeps only which contact you picked, not their number.")
-    OutlinedButton(onClick = { pickContact.launch(null) }) { Text(if (dialChosen) "Change the person to call" else "Choose the person to call") }
+    OutlinedButton(onClick = { lock.require("Change who to call") { pickContact.launch(null) } }) { Text(if (dialChosen) "Change the person to call" else "Choose the person to call") }
     Text("Get alerts sent to someone you trust", style = MaterialTheme.typography.titleSmall)
     Text("Ask them to open Satark, tap “Show my pairing code” and send you the code. Paste it here.")
     OutlinedTextField(code, { code = it; msg = null }, label = { Text("Their pairing code") }, modifier = Modifier.fillMaxWidth(), maxLines = 3)
@@ -321,7 +382,7 @@ private fun LinkTrustedContact(graph: AppGraph) {
         when {
             p == null -> msg = "That code does not look right. Copy the whole code from their Satark."
             p.deviceId == graph.store.deviceId -> msg = "That is your own code. Paste the code from the other person's phone."
-            else -> {
+            else -> lock.require("Link a trusted contact") {
                 busy = true
                 scope.launch {
                     msg = withContext(Dispatchers.IO) { linkContact(graph, p) }
@@ -333,7 +394,7 @@ private fun LinkTrustedContact(graph: AppGraph) {
     msg?.let { Text(it) }
     var removable by remember { mutableStateOf(graph.store.linkedContactId) }
     removable?.let { id ->
-        OutlinedButton(enabled = !busy, onClick = {
+        OutlinedButton(enabled = !busy, onClick = { lock.require("Remove your trusted contact") {
             busy = true
             scope.launch {
                 msg = withContext(Dispatchers.IO) {
@@ -345,7 +406,7 @@ private fun LinkTrustedContact(graph: AppGraph) {
                 removable = graph.store.linkedContactId
                 busy = false
             }
-        }) { Text("Remove this trusted contact") }
+        } }) { Text("Remove this trusted contact") }
     }
 }
 

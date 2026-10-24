@@ -28,6 +28,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.satark.app.AppGraph
 import com.satark.app.signals.SignalService
+import com.satark.app.ui.lock.rememberLockGate
 import com.satark.app.ui.theme.SatarkHeader
 import kotlinx.coroutines.launch
 
@@ -109,13 +110,15 @@ fun ConsentCard(graph: AppGraph, onDeleted: () -> Unit) {
     val scope = rememberCoroutineScope()
     var on by remember { mutableStateOf(graph.store.consent) }
     var confirm by remember { mutableStateOf(false) }
+    val lock = rememberLockGate()
     Card(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("Let Satark watch for scam signals", style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
                 Switch(checked = on, onCheckedChange = { v ->
-                    on = v; graph.store.consent = v
-                    if (v) SignalService.start(ctx) else SignalService.stop(ctx)
+                    fun apply() { on = v; graph.store.consent = v; if (v) SignalService.start(ctx) else SignalService.stop(ctx) }
+                    // Turning protection off needs the fingerprint (a scammer on the screen cannot give it); turning it on does not.
+                    if (v) apply() else lock.require("Turn Satark's protection off", ::apply)
                 })
             }
             Text(
@@ -134,7 +137,7 @@ fun ConsentCard(graph: AppGraph, onDeleted: () -> Unit) {
                     Switch(checked = shadow, onCheckedChange = { shadow = it; graph.store.shadowMode = it })
                 }
             }
-            OutlinedButton(onClick = { confirm = true }, Modifier.fillMaxWidth()) { Text("Delete my data") }
+            OutlinedButton(onClick = { lock.require("Delete your Satark data") { confirm = true } }, Modifier.fillMaxWidth()) { Text("Delete my data") }
         }
     }
     if (confirm) AlertDialog(

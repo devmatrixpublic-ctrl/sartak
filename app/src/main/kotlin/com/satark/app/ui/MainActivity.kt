@@ -2,7 +2,6 @@ package com.satark.app.ui
 
 import android.content.Intent
 import android.os.Bundle
-import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -17,6 +16,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.lifecycleScope
 import com.razorpay.Checkout
 import com.razorpay.PaymentResultListener
@@ -42,7 +42,7 @@ import java.math.BigDecimal
 /** What is in flight between "ALLOW" and the final payment state. */
 class PendingPay(val paymentId: String, val request: UpiRequest, val amountInr: BigDecimal)
 
-class MainActivity : ComponentActivity(), PaymentResultListener {
+class MainActivity : FragmentActivity(), PaymentResultListener { // FragmentActivity: the fingerprint prompt needs one
     private val graph get() = (application as SatarkApp).graph
     private var pending: PendingPay? = null
     private var status by mutableStateOf<String?>(null)

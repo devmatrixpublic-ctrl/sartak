@@ -10,6 +10,16 @@
       message change a payment decision. Needs a "WhatsApp messages: Off, needs notifications" status row and an updated
       consent and privacy text.
 
+## Login and trusted-contact notification (decided in discussion, not built)
+- Sign-up keeps **phone number + OTP** (chosen over a no-OTP profile). Needs an SMS provider; a Firebase project would serve both OTP and push.
+  The onboarding line "Satark never asks for your PIN or OTP" must be reworded (we send one sign-in code; never a bank OTP or UPI PIN),
+  and the sign-in SMS must not count as a "stranger text". Link a trusted contact by phone number (server keeps a keyed hash, not the number).
+- **Names:** the protected person sees their contact's name; the contact's notification says who may be being scammed
+  ("<name> may be being scammed"). Keep the amount and payee off the lock screen; show them only after the contact opens it.
+- When a payment is held, the accepted trusted contact gets a push on their phone (built on the server and in the app, only tested with a
+  stub push client). Needs: a Firebase project and `app/google-services.json`, server credentials, a server the phones can reach, and a
+  second device (the emulator can be the contact if its image has Google Play services).
+
 ## Decisions waiting
 - **No server on a real phone.** `BASE_URL` defaults to `10.0.2.2:8000` (emulator only). On the iQOO every payment check falls
   back to offline, trusted-contact alerts are only queued, and the test checkout cannot work. Deploy the server and build with
@@ -26,6 +36,9 @@
 ## Done recently
 - A new payee for Rs 25,000 or more is held for every age band while an unknown call or video is open or ended within 30 minutes
   (`HighValueNewPayee`); the nudge also covers the 30 minutes after a call. Closes the "payment after the call ended" gap and the 60+ gap.
+- **Fingerprint lock** (`ui/lock`): Continue anyway, turning protection off, trusted-contact changes, age change and delete-data need a
+  matched fingerprint (strong biometric only, no PIN fallback); first-run setup needs an enrolled fingerprint. Verified on the emulator:
+  wrong finger and cancel release nothing; the right finger releases the payment to the UPI app.
 - Optional age on the Protection screen (kept on the phone, never sent). Under 22 the same hold starts at Rs 10,000. The app never asked
   for an age before, so the detector always used the pooled threshold; now an age also selects its cohort threshold.
 - Continue anyway releases the held payment and opens the UPI app.
@@ -36,5 +49,7 @@
 - History shows "Payment checked, nothing unusual" for ordinary checks.
 
 ## To check on a phone
+- **Fingerprint lock on the iQOO 7** (real in-display sensor): "Try it" on Protection, Continue anyway on a Stop screen, turning protection
+  off. First-run gating with no fingerprint enrolled is unit-tested only (the state mapping), not run on a phone without one.
 - Reboot and app-update restart of protection (iQOO needs autostart and unrestricted battery).
 - Usage-access fix on the iQOO, the stranger-text burst warning, "Continue anyway", and the split-payment hold.

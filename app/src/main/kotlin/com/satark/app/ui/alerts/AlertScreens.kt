@@ -33,11 +33,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import com.satark.app.ui.lock.rememberLockGate
 
 /** Picks the screen from the AlertUi. Nudge is a dismissible banner; the rest take over the screen. */
 @Composable
 fun AlertHost(alert: AlertUi?, controller: AlertController, dialContactUri: String? = null) {
     val ctx = androidx.compose.ui.platform.LocalContext.current
+    val lock = rememberLockGate()
     when (alert) {
         null -> Unit
         is AlertUi.Nudge -> NudgeBanner(alert, controller::dismiss)
@@ -48,7 +50,9 @@ fun AlertHost(alert: AlertUi?, controller: AlertController, dialContactUri: Stri
                 runCatching { ctx.startActivity(ContactDialer.intent(ctx, dialContactUri)) } // no dialler: still tell the contact
                 controller.escalateToTrustedContact()
             },
-            onHold30 = controller::holdThirtyMinutes, onContinue = controller::continueAnyway,
+            onHold30 = controller::holdThirtyMinutes,
+            // Going on past a Stop screen needs the person's fingerprint: someone driving the screen remotely cannot give it.
+            onContinue = { lock.require("Continue with this payment?") { controller.continueAnyway() } },
         )
         is AlertUi.LongSession -> LongSessionAlert(alert, controller::dismiss)
         is AlertUi.TrustedContact -> TrustedContactAlert(alert, controller::dismiss)
@@ -164,7 +168,7 @@ fun TextBurstBanner(onDismiss: () -> Unit) {
     }
 }
 
-/** Forced pause. The held payment cannot be continued from here: the only ways out are cancel or tell someone. */
+/** Forced pause. The ways out are to tell someone, to hold the payment, or "Continue anyway", which needs the person's fingerprint. */
 @Composable
 fun HardIntervention(a: AlertUi.Hard, onCallContact: () -> Unit, onHold30: () -> Unit, onContinue: () -> Unit) {
     val on = MaterialTheme.colorScheme.onErrorContainer
@@ -183,7 +187,7 @@ fun HardIntervention(a: AlertUi.Hard, onCallContact: () -> Unit, onHold30: () ->
             colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error, contentColor = MaterialTheme.colorScheme.onError),
         ) { Text("Call trusted contact") }
         OutlinedButton(onClick = onHold30, modifier = Modifier.fillMaxWidth()) { Text("Hold payment 30 minutes", color = on) }
-        TextButton(onClick = onContinue, modifier = Modifier.fillMaxWidth()) { Text("Continue anyway", color = on) }
+        TextButton(onClick = onContinue, modifier = Modifier.fillMaxWidth()) { Text("Continue anyway (fingerprint)", color = on) }
     }
 }
 
