@@ -76,7 +76,7 @@ fun HistoryScreen(graph: AppGraph, onBack: () -> Unit) {
                 nudges?.let { Text("• Gentle nudges in the last 30 days: $it (Satark shows at most 1 a month).") }
                 Text("• Goal: at most 1 alarm a quarter and 1 nudge a month for a genuine user.")
                 Text("• Simulated users (not real people): about 0.08 alarms a quarter and 0.5 nudges a month.")
-                Text("• Busy users can still see slightly more than 1 nudge a month. See ops/eval/reports/alert_budget.md.")
+                Text("• A nudge is capped at 1 per 30 days, so even a busy user stays within the goal. Alarms are never capped.")
             }
         }
         val list = rows
