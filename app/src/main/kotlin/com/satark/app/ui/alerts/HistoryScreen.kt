@@ -37,14 +37,12 @@ fun HistoryScreen(graph: AppGraph, onBack: () -> Unit) {
     var rows by remember { mutableStateOf<List<DecisionRow>?>(null) }
     var counts by remember { mutableStateOf<Pair<Int, Int>?>(null) }
     var kept by remember { mutableStateOf<Int?>(null) }
-    var nudges by remember { mutableStateOf<Int?>(null) }
     var held by remember { mutableStateOf<Int?>(null) }
     LaunchedEffect(Unit) {
         rows = runCatching { graph.recentDecisions(30) }.getOrDefault(emptyList())
         counts = runCatching { graph.alertCounts() }.getOrNull()
         kept = runCatching { graph.eventCount() }.getOrNull()
         held = runCatching { graph.heldCount() }.getOrNull()
-        nudges = runCatching { graph.dispatcher.nudgesThisMonth() }.getOrNull()
     }
 
     Column(
@@ -73,10 +71,9 @@ fun HistoryScreen(graph: AppGraph, onBack: () -> Unit) {
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text("How often Satark interrupts", style = MaterialTheme.typography.titleSmall)
                 held?.let { Text("• Payments Satark held for you in the last 30 days: $it.") }
-                nudges?.let { Text("• Gentle nudges in the last 30 days: $it (Satark shows at most 1 a month).") }
                 Text("• Goal: at most 1 alarm a quarter and 1 nudge a month for a genuine user.")
                 Text("• Simulated users (not real people): about 0.08 alarms a quarter and 0.5 nudges a month.")
-                Text("• A nudge is capped at 1 per 30 days, so even a busy user stays within the goal. Alarms are never capped.")
+                Text("• A nudge needs an unknown call, a new payee and an amount at least twice your usual. Busy users can still see slightly more than 1 a month (ops/eval/reports/alert_budget.md).")
             }
         }
         val list = rows

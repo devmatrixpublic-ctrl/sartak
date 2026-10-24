@@ -7,4 +7,6 @@
     <string name="notif_alarm_title">Stop. This may be a scam.</string>
     <string name="notif_alarm_text">Do not send money or install anything. Tap to see why.</string>
     <string name="notif_alarm_long_session">You have been on a long video call with someone you do not know. Tap to see why.</string>
+    <string name="notif_text_burst_title">Many texts from strangers</string>
+    <string name="notif_text_burst_text">Several numbers you do not know have texted you in a few minutes. Do not open links, share an OTP or pay anyone. Tap for advice.</string>
 </resources>

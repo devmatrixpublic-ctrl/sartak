@@ -194,7 +194,7 @@ fun PayHome(
                         } finally { busy = false }
                         when (o) {
                             is PayOutcome.Held -> {
-                                held = ArrayList(o.reasons); graph.pause.start() // saveable type
+                                held = ArrayList(o.reasons) // saveable type
                                 heldAmountInr = amt.toDouble()
                                 holdStatus = null
                                 o.paymentId?.let { id ->

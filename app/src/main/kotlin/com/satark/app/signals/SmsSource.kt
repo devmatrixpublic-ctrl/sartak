@@ -52,6 +52,8 @@ object MessageSender {
         val graph = (ctx.applicationContext as SatarkApp).graph
         if (!graph.capturing) return
         val t = System.currentTimeMillis()
+        // Every stranger text counts towards a burst, even though the detector hears about them at most once a minute.
+        if (graph.textBurst.record(t)) graph.alerts.strangerTextBurst()
         if (t - lastReportMs < MIN_GAP_MS) return
         lastReportMs = t
         val signal = RawSignal.UnknownMessage(t)

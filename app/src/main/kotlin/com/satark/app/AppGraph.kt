@@ -2,7 +2,7 @@ package com.satark.app
 
 import android.app.Application
 import com.satark.app.events.EventDispatcher
-import com.satark.app.events.NudgeLimiter
+import com.satark.app.events.TextBurst
 import com.satark.app.events.SatarkDb
 import com.satark.app.net.DeviceSession
 import com.satark.app.net.NetworkModule
@@ -53,8 +53,9 @@ class AppGraph(private val app: Application) {
     // No auth interceptor: used for /auth/{challenge,device,refresh} so a 401 loop is impossible.
     private val bareApi: SatarkApi by lazy { NetworkModule.api(OkHttpClient.Builder().build(), BuildConfig.BASE_URL) }
 
-    val dispatcher = EventDispatcher(dao, model, store.ageBand, scope, NudgeLimiter(nudgeStore(app)))
+    val dispatcher = EventDispatcher(dao, model, store.ageBand, scope)
     val hub = SignalHub(app)
+    val textBurst = TextBurst(textStore(app))
     val queue = OfflineQueue(dao) { api }
     val payments = PaymentRepository({ api }, dao, dispatcher, PayeeHasher(store.payeeSalt), shadow = { store.shadowMode },
         ready = { runCatching { session.ensureRegistered() } })
@@ -82,7 +83,8 @@ class AppGraph(private val app: Application) {
                 else -> alarmNotifier.show(it.mechanism)
             }
         },
-        onPaymentAppOpened = { alarmOverlay.show(it) })
+        onPaymentAppOpened = { alarmOverlay.show(it) },
+        onTextBurst = { if (!appVisible) alarmNotifier.showTextBurst() })
 
 
     /**
@@ -141,9 +143,9 @@ class AppGraph(private val app: Application) {
     fun stopCapture() { capturing = false; hub.stop() }
 }
 
-/** When nudges were shown, kept in plain private prefs (times only, nothing about who or what). */
-private fun nudgeStore(app: android.content.Context) = object : NudgeLimiter.Store {
-    private val prefs = app.getSharedPreferences("nudges", android.content.Context.MODE_PRIVATE)
+/** When stranger texts arrived, kept in plain private prefs (times only: no number, no text). */
+private fun textStore(app: android.content.Context) = object : TextBurst.Store {
+    private val prefs = app.getSharedPreferences("stranger_texts", android.content.Context.MODE_PRIVATE)
     override var times: List<Long>
         get() = prefs.getString("t", "")!!.split(",").mapNotNull { it.toLongOrNull() }
         set(v) { prefs.edit().putString("t", v.joinToString(",")).apply() }

@@ -7,7 +7,8 @@ package com.satark.app.ui.alerts
  *
  * Rung 1: a scam playbook matched to the reasons Satark gave.
  * Rung 2: "What is this payment for?" Each answer explains the matching scam.
- * Rung 3: a 15-minute pause on payments started in Satark, then a phrase typed once before paying again.
+ * Rung 3: "Hold payment 30 minutes", chosen on the Stop screen, then a phrase typed once before paying again. (There is
+ * no automatic pause after a warning.)
  */
 object Friction {
     data class Playbook(val title: String, val text: String)

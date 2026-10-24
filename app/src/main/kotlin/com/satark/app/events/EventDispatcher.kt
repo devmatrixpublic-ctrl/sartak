@@ -35,7 +35,6 @@ class EventDispatcher(
     private val model: ModelConfig,
     private val ageBand: String?,
     private val scope: CoroutineScope,
-    private val nudgeLimiter: NudgeLimiter = NudgeLimiter(object : NudgeLimiter.Store { override var times: List<Long> = emptyList() }),
     private val now: () -> Long = System::currentTimeMillis,
 ) {
     private val lock = Mutex()
@@ -44,8 +43,6 @@ class EventDispatcher(
     private val baseline = Baseline.coldStart(model)
     private var lastTrace: PaymentTrace? = null
     private val detector = Detector.create(ageBand, baseline, model).also { it.traceSink = { t -> lastTrace = t } }
-    fun nudgesThisMonth(): Int = nudgeLimiter.shownInWindow()
-
     private val splitGuard = SplitGuard(model, ageBand, baseline)
 
     private val policy = SessionPolicy()
@@ -119,7 +116,7 @@ class EventDispatcher(
             if (d.level.showsScreen) {
                 _alarms.tryEmit(Alarm(d, lastTrace, unknownCallActive))
                 if (worst.level == Level.NONE) worst = d
-            } else if (e.type == EventType.PAYMENT_ATTEMPT && NudgePolicy.shouldNudge(unknownCallActive, e.payeeIsNew, e.amountInr, baseline.median) && nudgeLimiter.tryAcquire()) {
+            } else if (e.type == EventType.PAYMENT_ATTEMPT && NudgePolicy.shouldNudge(unknownCallActive, e.payeeIsNew, e.amountInr, baseline.median)) {
                 _nudges.tryEmit(Nudge(NudgePolicy.REASONS))
                 worst = d
             } else if (e.type == EventType.PAYMENT_ATTEMPT && worst.level == Level.NONE) worst = d

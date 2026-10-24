@@ -173,7 +173,7 @@ These are JVM unit tests. They pass on JDK 21 (`./gradlew :app:testDebugUnitTest
 | 39 | Nudge | `PaymentPolicyTest` (9 tests) | Nudge only for a new payee during an unknown call with amount >= 2x the usual payment; bad input never nudges |
 | 40 | Split guard | `SplitGuardVectorsTest` (2 tests), `ops/eval/split_guard.py` | Three part-payments to one new payee within an hour are judged on their total |
 | 41 | Alert budget | History screen card | Shows the simulated alert budget and the nudges shown in the last 30 days; figures come from `ops/eval/reports/alert_budget.md` |
-| 42 | Nudge cap | `NudgeLimiterTest` (3 tests) | At most 1 nudge per 30 days, kept across app restarts; alarms and holds are never capped |
+| 42 | Stranger-text burst | `TextBurstTest` (4 tests) | 3 texts from numbers not in contacts within 10 minutes show a "Many texts from strangers" warning (notification when Satark is not open); the count restarts after a warning and survives an app restart. The nudge has no cooldown and a warning no longer starts a 15-minute pause ("Hold payment 30 minutes" is still offered) |
 | 43 | Why this alert | Nudge banner reasons (`NudgePolicy.REASONS`) | The nudge now lists three plain-language reasons (English and Hindi strings already exist), like an alarm |
 | 44 | Scenarios | `ScenarioTest` (3 tests) | Cloned-voice family emergency is warned; a split payment is no quieter than the whole one; an ordinary call with a known payee stays quiet |
 | 45 | Funnel | History screen | Adds "payments held in the last 30 days" beside warnings, folded repeats and nudges |

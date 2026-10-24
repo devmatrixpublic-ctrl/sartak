@@ -41,6 +41,7 @@ fun AlertHost(alert: AlertUi?, controller: AlertController, dialContactUri: Stri
     when (alert) {
         null -> Unit
         is AlertUi.Nudge -> NudgeBanner(alert, controller::dismiss)
+        is AlertUi.TextBurst -> TextBurstBanner(controller::dismiss)
         is AlertUi.Hard -> HardIntervention(
             alert,
             onCallContact = {
@@ -140,6 +141,29 @@ fun NudgeBanner(a: AlertUi.Nudge, onDismiss: () -> Unit) {
     }
 }
 
+/** Several texts from strangers in a short time: a warning, with what to do. Dismissible. */
+@Composable
+fun TextBurstBanner(onDismiss: () -> Unit) {
+    val on = MaterialTheme.colorScheme.onTertiaryContainer
+    Card(
+        Modifier.safeDrawingPadding().fillMaxWidth().padding(12.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.tertiaryContainer),
+        elevation = CardDefaults.cardElevation(defaultElevation = 6.dp),
+    ) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Icon(Icons.Filled.Warning, contentDescription = null, tint = on)
+                Text("Many texts from strangers", style = MaterialTheme.typography.titleMedium, color = on)
+            }
+            Text("Several numbers you don't know have texted you in a few minutes. Scammers do this to build pressure before they call or ask for money.", color = on)
+            Text("\u2022 Don't open links or install apps from these texts.", color = on)
+            Text("\u2022 Never share your OTP or UPI PIN.", color = on)
+            Text("\u2022 If they ask you to pay, stop and call someone you trust.", color = on)
+            OutlinedButton(onClick = onDismiss) { Text("Got it") }
+        }
+    }
+}
+
 /** Forced pause. The held payment cannot be continued from here: the only ways out are cancel or tell someone. */
 @Composable
 fun HardIntervention(a: AlertUi.Hard, onCallContact: () -> Unit, onHold30: () -> Unit, onContinue: () -> Unit) {
@@ -154,8 +178,6 @@ fun HardIntervention(a: AlertUi.Hard, onCallContact: () -> Unit, onHold30: () ->
         ReadAloudButton("Stop. This looks like a scam.", "Hang up. A real bank or police officer will never ask you to move money or install an app.", a.reasons, on)
         PlaybookCard(a.reasons)
         PurposeQuestion()
-        Text("Payments in Satark are paused for ${Friction.PAUSE_MS / 60_000} minutes so you can talk to someone you trust.",
-            style = MaterialTheme.typography.bodyMedium, color = on)
         Button(
             onClick = onCallContact, modifier = Modifier.fillMaxWidth(),
             colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error, contentColor = MaterialTheme.colorScheme.onError),

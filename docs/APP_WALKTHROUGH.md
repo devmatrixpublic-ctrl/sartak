@@ -12,7 +12,7 @@ only add an alarm, never remove one.
 **What the person sees:**
 - **Hold (alarm):** the payment cannot continue. Stop screen, the reasons, a playbook, call a trusted contact, hold 30 minutes.
 - **Nudge:** a dismissible amber banner when a new payee is paid during an unknown call and the amount is at least twice the
-  person's usual payment. Capped at one per 30 days (`NudgeLimiter`), so a genuine user stays inside the alert budget.
+  person's usual payment. There is no cooldown: it shows each time the rule is met.
 - **Alert history:** warnings, held payments, folded repeats, nudges this month, and what is stored on the phone.
 
 **Restarts:** `RestartReceiver` restarts protection after a reboot or app update. If Android kills the app mid-scam the

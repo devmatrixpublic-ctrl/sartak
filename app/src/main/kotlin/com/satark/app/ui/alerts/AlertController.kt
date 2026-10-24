@@ -18,6 +18,8 @@ import kotlinx.coroutines.launch
 /** What the UI shows. Chosen from Decision.level / mechanism; the detector itself only emits NONE or HARD. */
 sealed interface AlertUi {
     data class Nudge(val reasons: List<String>) : AlertUi
+    /** Several texts from numbers not in the contacts in a short time. A warning only; nothing is held. */
+    data object TextBurst : AlertUi
     data class Hard(val reasons: List<String>) : AlertUi
     data class LongSession(val reasons: List<String>) : AlertUi
     /** Shown after a Hard pause once the trusted contact has been told. */
@@ -42,6 +44,8 @@ class AlertController(
     private val onShown: (Decision) -> Unit = {},
     /** A UPI app came to the front soon after an alarm: warn again, over that app. */
     private val onPaymentAppOpened: (List<String>) -> Unit = {},
+    /** The warning for a burst of stranger texts, when Satark is not on screen: the notification. */
+    private val onTextBurst: () -> Unit = {},
 ) {
     private val reminder = OpenReminder(now)
 
@@ -56,7 +60,7 @@ class AlertController(
                 if (shadow()) { log("level=${d.level} score=${"%.3f".format(d.score)} mechanism=${d.mechanism} reasons=${d.reasons.joinToString(",")}"); return@collect }
                 _current.value = when (d.mechanism) {
                     Mechanism.LONG_SESSION -> AlertUi.LongSession(d.reasons)
-                    else -> AlertUi.Hard(d.reasons).also { pause.start() }
+                    else -> AlertUi.Hard(d.reasons)
                 }
                 reminder.alarmed(d.reasons)
                 onShown(d)
@@ -64,6 +68,13 @@ class AlertController(
             }
         }
         scope.launch { dispatcher.nudges.collect { if (!shadow()) _current.value = it.let { n -> AlertUi.Nudge(n.reasons) } } }
+    }
+
+    /** A burst of texts from strangers. Never replaces a Stop screen that is already showing. */
+    fun strangerTextBurst() {
+        if (shadow()) { log("stranger text burst"); return }
+        if (_current.value == null) _current.value = AlertUi.TextBurst
+        onTextBurst()
     }
 
     /** A UPI app opened. Within 30 minutes of an alarm, remind the person (at most once every 2 minutes). */
