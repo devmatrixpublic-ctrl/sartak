@@ -180,8 +180,8 @@ fun OnboardingFlow(graph: AppGraph, settings: Boolean = false, onDeleted: () -> 
 
         TrustedContactSetup(graph)
 
-        // A fingerprint is needed to use Satark: first run cannot finish without one (see FingerprintCard).
-        val canStart = settings || lock == LockState.READY
+        // The owner check is needed to use Satark: first run cannot finish without a fingerprint or a screen lock (see FingerprintCard).
+        val canStart = settings || lock.ready
         Button(onClick = onDone, enabled = canStart, modifier = Modifier.fillMaxWidth().height(52.dp)) {
             Text(when {
                 settings -> "Back to Pay via Satark"
@@ -189,49 +189,55 @@ fun OnboardingFlow(graph: AppGraph, settings: Boolean = false, onDeleted: () -> 
                 else -> "Continue with limited protection"
             }, style = MaterialTheme.typography.titleSmall)
         }
-        if (!canStart) Text("Set up the fingerprint lock above to start.", style = MaterialTheme.typography.bodySmall,
+        if (!canStart) Text("Set up the lock above to start.", style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 
-/** The fingerprint lock, explained where Satark is set up: a fingerprint is needed to use Satark (see [FingerprintLock]). */
+/** The lock, explained where Satark is set up: the owner's fingerprint (or the screen-lock PIN on a phone with none) is needed to use Satark. */
 @Composable
 private fun FingerprintCard(state: LockState) {
     val ctx = LocalContext.current
     val gate = rememberLockGate()
     var worked by remember { mutableStateOf(false) }
-    val ready = state == LockState.READY
     Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLowest)) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("Fingerprint lock", style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
                 Surface(
-                    color = if (ready) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.errorContainer,
+                    color = if (state.ready) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.errorContainer,
                     shape = MaterialTheme.shapes.small,
                 ) {
                     Text(when (state) {
-                        LockState.READY -> "On"
-                        LockState.NONE_ENROLLED -> "Off: add a fingerprint"
-                        else -> "Not available"
+                        LockState.FINGERPRINT -> "On"
+                        LockState.PIN_FINGERPRINT_NOT_SET, LockState.PIN_NO_SENSOR -> "On: screen-lock PIN"
+                        LockState.NO_SCREEN_LOCK -> "Off: set a screen lock"
+                        LockState.UNAVAILABLE -> "Not available"
                     }, Modifier.padding(horizontal = 10.dp, vertical = 4.dp), style = MaterialTheme.typography.labelMedium,
-                        color = if (ready) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onErrorContainer)
+                        color = if (state.ready) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onErrorContainer)
                 }
             }
-            Text("Satark needs your fingerprint to turn protection off, to change your trusted contact or your age, to delete your data, " +
-                "and to continue past a Stop warning. If a scammer is controlling your screen, they cannot do any of that. " +
-                "Your phone checks the fingerprint; Satark never sees it.",
+            Text("Satark checks that it is you before it turns protection off, changes your trusted contact or your age, deletes your data, " +
+                "or lets you continue past a Stop warning. If a scammer is controlling your screen, they cannot pass the check. " +
+                "Your phone does the check; Satark never sees your fingerprint or PIN.",
+                style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            if (state.usesPin) Text("This phone has no fingerprint set up, so Satark will ask for your screen-lock PIN, pattern or password. " +
+                "A fingerprint is safer: a PIN that you type while someone can see your screen is no longer private.",
                 style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             when (state) {
-                LockState.NONE_ENROLLED -> Button(onClick = {
-                    runCatching { ctx.startActivity(FingerprintLock.enrolIntent()) }
+                LockState.FINGERPRINT, LockState.PIN_FINGERPRINT_NOT_SET, LockState.PIN_NO_SENSOR ->
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        if (state == LockState.PIN_FINGERPRINT_NOT_SET) Button(onClick = {
+                            runCatching { ctx.startActivity(FingerprintLock.enrolIntent()) }
+                                .onFailure { runCatching { ctx.startActivity(Intent(Settings.ACTION_SECURITY_SETTINGS)) } }
+                        }) { Text("Add a fingerprint") }
+                        OutlinedButton(onClick = { gate.require("Try the lock") { worked = true } }) { Text(if (worked) "It works" else "Try it") }
+                    }
+                LockState.NO_SCREEN_LOCK -> Button(onClick = {
+                    runCatching { ctx.startActivity(FingerprintLock.setScreenLockIntent()) }
                         .onFailure { runCatching { ctx.startActivity(Intent(Settings.ACTION_SECURITY_SETTINGS)) } }
-                }) { Text("Add a fingerprint") }
-                LockState.READY -> OutlinedButton(onClick = { gate.require("Try the fingerprint lock") { worked = true } }) {
-                    Text(if (worked) "It works" else "Try it")
-                }
-                LockState.NO_HARDWARE -> Text("This phone has no fingerprint sensor, so Satark cannot be started on it.",
-                    style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onErrorContainer)
-                LockState.UNAVAILABLE -> Text("The fingerprint sensor is not available right now. Try again in a moment.",
+                }) { Text("Set a screen lock") }
+                LockState.UNAVAILABLE -> Text("The lock is not available right now. Try again in a moment.",
                     style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onErrorContainer)
             }
         }

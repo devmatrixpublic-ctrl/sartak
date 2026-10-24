@@ -51,7 +51,7 @@ fun AlertHost(alert: AlertUi?, controller: AlertController, dialContactUri: Stri
                 controller.escalateToTrustedContact()
             },
             onHold30 = controller::holdThirtyMinutes,
-            // Going on past a Stop screen needs the person's fingerprint: someone driving the screen remotely cannot give it.
+            // Going on past a Stop screen needs the owner's fingerprint (or screen-lock PIN on a phone with none): someone driving the screen remotely cannot give it.
             onContinue = { lock.require("Continue with this payment?") { controller.continueAnyway() } },
         )
         is AlertUi.LongSession -> LongSessionAlert(alert, controller::dismiss)
@@ -168,7 +168,7 @@ fun TextBurstBanner(onDismiss: () -> Unit) {
     }
 }
 
-/** Forced pause. The ways out are to tell someone, to hold the payment, or "Continue anyway", which needs the person's fingerprint. */
+/** Forced pause. The ways out are to tell someone, to hold the payment, or "Continue anyway", which needs the owner's fingerprint (or screen-lock PIN on a phone with none). */
 @Composable
 fun HardIntervention(a: AlertUi.Hard, onCallContact: () -> Unit, onHold30: () -> Unit, onContinue: () -> Unit) {
     val on = MaterialTheme.colorScheme.onErrorContainer
@@ -187,7 +187,7 @@ fun HardIntervention(a: AlertUi.Hard, onCallContact: () -> Unit, onHold30: () ->
             colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error, contentColor = MaterialTheme.colorScheme.onError),
         ) { Text("Call trusted contact") }
         OutlinedButton(onClick = onHold30, modifier = Modifier.fillMaxWidth()) { Text("Hold payment 30 minutes", color = on) }
-        TextButton(onClick = onContinue, modifier = Modifier.fillMaxWidth()) { Text("Continue anyway (fingerprint)", color = on) }
+        TextButton(onClick = onContinue, modifier = Modifier.fillMaxWidth()) { Text("Continue anyway (confirm it is you)", color = on) }
     }
 }
 

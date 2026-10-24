@@ -37,8 +37,9 @@
 - A new payee for Rs 25,000 or more is held for every age band while an unknown call or video is open or ended within 30 minutes
   (`HighValueNewPayee`); the nudge also covers the 30 minutes after a call. Closes the "payment after the call ended" gap and the 60+ gap.
 - **Fingerprint lock** (`ui/lock`): Continue anyway, turning protection off, trusted-contact changes, age change and delete-data need a
-  matched fingerprint (strong biometric only, no PIN fallback); first-run setup needs an enrolled fingerprint. Verified on the emulator:
-  wrong finger and cancel release nothing; the right finger releases the payment to the UPI app.
+  matched fingerprint (strong biometric only when one is enrolled). A phone with no fingerprint (no sensor, or none enrolled) falls back to
+  its screen-lock PIN; with neither, setup cannot finish. Verified on the emulator: wrong finger, wrong PIN and cancel release nothing; the
+  right finger releases the payment to the UPI app; the PIN path shows "On: screen-lock PIN" and "It works".
 - Optional age on the Protection screen (kept on the phone, never sent). Under 22 the same hold starts at Rs 10,000. The app never asked
   for an age before, so the detector always used the pooled threshold; now an age also selects its cohort threshold.
 - Continue anyway releases the held payment and opens the UPI app.
@@ -50,6 +51,6 @@
 
 ## To check on a phone
 - **Fingerprint lock on the iQOO 7** (real in-display sensor): "Try it" on Protection, Continue anyway on a Stop screen, turning protection
-  off. First-run gating with no fingerprint enrolled is unit-tested only (the state mapping), not run on a phone without one.
+  off. The "no sensor" PIN fallback and "no screen lock" setup block are unit-tested (the state mapping) but not run on such a phone.
 - Reboot and app-update restart of protection (iQOO needs autostart and unrestricted battery).
 - Usage-access fix on the iQOO, the stranger-text burst warning, "Continue anyway", and the split-payment hold.
