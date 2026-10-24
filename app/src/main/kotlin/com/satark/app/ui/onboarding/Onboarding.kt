@@ -55,7 +55,11 @@ import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.text.input.KeyboardType
 import com.satark.app.AppGraph
+import com.satark.app.events.AgeProfile
 import com.satark.app.net.TrustedContactRequest
 import com.satark.app.push.PairingCode
 import com.satark.app.push.Push
@@ -64,6 +68,7 @@ import com.satark.app.signals.SourceName
 import com.satark.app.signals.SourceState
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -162,6 +167,7 @@ fun OnboardingFlow(graph: AppGraph, settings: Boolean = false, onDeleted: () -> 
                 if (!smsOn) Button(onClick = { perms.launch(arrayOf(Manifest.permission.RECEIVE_SMS)) }) { Text("Allow texts") }
             }
         }
+        AgeCard(graph)
         ProtectionBanners(status)
 
         if (settings) LanguageCard()
@@ -175,6 +181,35 @@ fun OnboardingFlow(graph: AppGraph, settings: Boolean = false, onDeleted: () -> 
                 status.allAvailable -> "Start protection"
                 else -> "Continue with limited protection"
             }, style = MaterialTheme.typography.titleSmall)
+        }
+    }
+}
+
+/** Optional. Under 22, a payment to a new payee is held from a lower amount. The age stays on this phone and is never sent anywhere. */
+@Composable
+private fun AgeCard(graph: AppGraph) {
+    var text by rememberSaveable { mutableStateOf(graph.store.ageYears?.toString() ?: "") }
+    val age = AgeProfile.parse(text)
+    // Saved a moment after the last key, so typing "21" does not save "2" on the way; an invalid number leaves the saved age alone.
+    LaunchedEffect(text) {
+        delay(700)
+        val next = if (text.isEmpty()) null else AgeProfile.parse(text) ?: return@LaunchedEffect
+        if (next != graph.store.ageYears) graph.setAge(next)
+    }
+    Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLowest)) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("Your age (optional)", style = MaterialTheme.typography.titleMedium)
+            Text("Satark holds a payment to a new payee sooner for people under ${AgeProfile.YOUNG_BELOW}, who usually pay smaller amounts. " +
+                "Your age stays on this phone and is never sent anywhere.",
+                style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            OutlinedTextField(text, { v -> text = v.filter(Char::isDigit).take(3) }, label = { Text("Age in years") }, singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.fillMaxWidth())
+            val limit = fun(a: Int?) = "Rs " + "%,d".format(AgeProfile.highValueThreshold(a).toInt())
+            Text(when {
+                text.isEmpty() -> "Not given. A new payee is held from ${limit(null)} while an unknown caller is in touch."
+                age == null -> "Enter your age in years, from ${AgeProfile.MIN_AGE} to ${AgeProfile.MAX_AGE}."
+                else -> "A new payee is held from ${limit(age)} while an unknown caller is in touch."
+            }, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }

@@ -77,5 +77,22 @@
         0.001460852203090311
       ]
     }
-  ]
+  ],
+  "young": {
+    "young_inr": 10000,
+    "other_inr": 25000,
+    "band": "18-35",
+    "scam_sessions_in_band": 148,
+    "legit_sessions_in_band": 4404,
+    "extra_scams_held": 20,
+    "extra_scams_held_single_threshold": 20,
+    "recall_after": 0.9653979238754326,
+    "extra_false_alarms": 20,
+    "extra_false_alarms_single_threshold": 8,
+    "false_alarm_rate_after": 0.0027308587033478306,
+    "false_alarm_ci95_after": [
+      0.0018775415170699588,
+      0.003970454269254231
+    ]
+  }
 }

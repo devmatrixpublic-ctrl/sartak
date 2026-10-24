@@ -26,7 +26,10 @@ class TokenStore(ctx: Context) {
     var accessToken: String? get() = prefs.getString("access", null); set(v) = prefs.edit().putString("access", v).apply()
     var refreshToken: String? get() = prefs.getString("refresh", null); set(v) = prefs.edit().putString("refresh", v).apply()
     var deviceId: String? get() = prefs.getString("device_id", null); set(v) = prefs.edit().putString("device_id", v).apply()
-    var ageBand: String? get() = prefs.getString("age_band", null); set(v) = prefs.edit().putString("age_band", v).apply()
+    /** Age in years, typed by the person (optional). Stays on this phone: it is never sent, and "Delete my data" erases it. */
+    var ageYears: Int?
+        get() = prefs.getInt("age_years", 0).takeIf { it > 0 }
+        set(v) = prefs.edit().apply { if (v == null) remove("age_years") else putInt("age_years", v) }.apply()
     var onboarded: Boolean get() = prefs.getBoolean("onboarded", false); set(v) = prefs.edit().putBoolean("onboarded", v).apply()
     /** Consent to watch for scam signals on this phone. Not asked yet = no protection runs. Revocable in Protection settings. */
     val consentAsked: Boolean get() = prefs.contains("consent")

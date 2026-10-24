@@ -33,7 +33,7 @@ data class Nudge(val reasons: List<String>)
 class EventDispatcher(
     private val dao: SatarkDao,
     private val model: ModelConfig,
-    private val ageBand: String?,
+    ageYears: Int?,
     private val scope: CoroutineScope,
     private val now: () -> Long = System::currentTimeMillis,
 ) {
@@ -42,9 +42,22 @@ class EventDispatcher(
     private val sequencer = EventSequencer()
     private val baseline = Baseline.coldStart(model)
     private var lastTrace: PaymentTrace? = null
-    private val detector = Detector.create(ageBand, baseline, model).also { it.traceSink = { t -> lastTrace = t } }
-    private val splitGuard = SplitGuard(model, ageBand, baseline)
-    private val highValue = HighValueNewPayee()
+    private var detector = newDetector(ageYears)
+    private var splitGuard = SplitGuard(model, AgeProfile.bandOf(ageYears), baseline)
+    private var highValue = HighValueNewPayee(AgeProfile.highValueThreshold(ageYears))
+
+    private fun newDetector(ageYears: Int?) =
+        Detector.create(AgeProfile.bandOf(ageYears), baseline, model).also { it.traceSink = { t -> lastTrace = t } }
+
+    /**
+     * The person typed (or cleared) their age: use the matching cohort threshold and new-payee hold amount from now on. The three
+     * checks start a fresh session, as they do after a long quiet gap, so an age changed in the middle of a call is not remembered.
+     */
+    suspend fun setAge(ageYears: Int?) = lock.withLock {
+        detector = newDetector(ageYears)
+        splitGuard = SplitGuard(model, AgeProfile.bandOf(ageYears), baseline)
+        highValue = HighValueNewPayee(AgeProfile.highValueThreshold(ageYears))
+    }
 
     private val policy = SessionPolicy()
     private val unknownCallActive get() = policy.unknownCallActive

@@ -17,12 +17,17 @@
 - **Rs 25,000 hold threshold costs 8 more genuine sessions held in 9,887** (false alarms 0.071% to 0.152%, over the deck's 0.100%
   target; `ops/eval/reports/high_value_rule.md`). Chosen because "Continue anyway" always lets the person go on. Rs 30,000 would hold
   14 extra scams for 6 extra false holds; the threshold is one constant (`HighValueNewPayee.THRESHOLD_INR`).
+- **Rs 10,000 for under-22s: no support in the simulator.** The whole 18-35 band at Rs 10,000 adds 0 scams and 12 genuine holds
+  (0.152% to 0.273%, upper bound). It rests on the assumption about students; one constant switches it off
+  (`HighValueNewPayee.YOUNG_THRESHOLD_INR`). Decide whether to keep it for the demo.
 - The same amount to the same payee again within 2 minutes counts as a retry, not a second piece (`CumulativeNewPayee.RETRY_MS`).
 - **Trusted-contact push** needs a Firebase project, `app/google-services.json`, and the server credentials.
 
 ## Done recently
 - A new payee for Rs 25,000 or more is held for every age band while an unknown call or video is open or ended within 30 minutes
   (`HighValueNewPayee`); the nudge also covers the 30 minutes after a call. Closes the "payment after the call ended" gap and the 60+ gap.
+- Optional age on the Protection screen (kept on the phone, never sent). Under 22 the same hold starts at Rs 10,000. The app never asked
+  for an age before, so the detector always used the pooled threshold; now an age also selects its cohort threshold.
 - Continue anyway releases the held payment and opens the UPI app.
 - Nudge has no cooldown; no automatic 15-minute pause after a hold ("Hold payment 30 minutes" is still offered).
 - Warning for 3 texts from strangers in 10 minutes (notification only).

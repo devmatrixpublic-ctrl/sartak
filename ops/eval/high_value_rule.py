@@ -31,6 +31,8 @@ REF = ROOT / "detector" / "reference"
 RECENT_S = 30 * 60                       # same as HighValueNewPayee.RECENT_MS
 THRESHOLDS = (10_000, 20_000, 25_000, 30_000, 50_000)
 CHOSEN = 25_000
+YOUNG_INR = 10_000                       # HighValueNewPayee.YOUNG_THRESHOLD_INR, for a person who says they are under 22
+YOUNG_BAND = "18-35"                     # the simulator has age bands only, so "under 22" is bounded by the whole band
 
 
 def unknown_contact_state(ev: pd.DataFrame) -> pd.DataFrame:
@@ -87,7 +89,27 @@ def run(data: Path, alpha: float) -> dict:
             "false_alarm_rate_after": float((base.alarm[legit].sum() + l_new) / n_l),
             "false_alarm_ci95_after": wilson(int(base.alarm[legit].sum() + l_new), n_l),
         })
-    return {"alpha": alpha, "chosen_inr": CHOSEN, "rows": rows}
+    # Under-22 policy. The simulator has no exact ages, only bands, so the whole 18-35 band is held from YOUNG_INR: an upper bound
+    # on the cost (and on the gain), because the real group, people under 22, is smaller than that band.
+    band = sessions.set_index("session_id").age_band.reindex(base.index)
+    in_band = (band == YOUNG_BAND).to_numpy()
+    f_low, f_high = fires(ev, YOUNG_INR), fires(ev, CHOSEN)
+    held = (in_band & base.index.isin(f_low.index)) | (~in_band & base.index.isin(f_high.index))
+    add = held & ~base.alarm.to_numpy()
+    scam, legit = base.label.to_numpy() == "scam", base.label.to_numpy() == "legit"
+    n_s, n_l = int(scam.sum()), int(legit.sum())
+    s_new, l_new = int((add & scam).sum()), int((add & legit).sum())
+    only_high_add = base.index.isin(f_high.index) & ~base.alarm.to_numpy()
+    young = {
+        "young_inr": YOUNG_INR, "other_inr": CHOSEN, "band": YOUNG_BAND,
+        "scam_sessions_in_band": int((in_band & scam).sum()), "legit_sessions_in_band": int((in_band & legit).sum()),
+        "extra_scams_held": s_new, "extra_scams_held_single_threshold": int((only_high_add & scam).sum()),
+        "recall_after": float((base.alarm[scam].sum() + s_new) / n_s),
+        "extra_false_alarms": l_new, "extra_false_alarms_single_threshold": int((only_high_add & legit).sum()),
+        "false_alarm_rate_after": float((base.alarm[legit].sum() + l_new) / n_l),
+        "false_alarm_ci95_after": wilson(int(base.alarm[legit].sum() + l_new), n_l),
+    }
+    return {"alpha": alpha, "chosen_inr": CHOSEN, "rows": rows, "young": young}
 
 
 def render(m: dict) -> str:
@@ -99,6 +121,8 @@ def render(m: dict) -> str:
         lines.append(f"| Rs {r['threshold_inr']:,}{mark} | {r['extra_scams_held']} | {pct(r['recall_after'])} | {r['extra_false_alarms']} | "
                      f"{pct(r['false_alarm_rate_after'])} ({pct(lo)} to {pct(hi)}) |")
     r0 = m["rows"][0]
+    y = m["young"]
+    ylo, yhi = y["false_alarm_ci95_after"]
     return f"""# High-value new-payee rule
 
 **Simulated data only (SatarkSim, validation split).** The rule holds a payment to a payee who was new within the last hour
@@ -109,6 +133,19 @@ same for every age band and only adds holds. Today: {r0['scams_held_before']}/{r
 | Threshold | Extra scams held | Scam recall after | Extra genuine sessions held | False-alarm rate after (95% interval) |
 |---|---|---|---|---|
 {chr(10).join(lines)}
+
+## Lower amount for people under 22
+
+The app asks for an optional age. A person who says they are under 22 is held from Rs {y['young_inr']:,} instead of Rs {y['other_inr']:,}.
+The simulator has age bands, not exact ages, so this measures the whole {y['band']} band at Rs {y['young_inr']:,} and everyone else at
+Rs {y['other_inr']:,}. Under-22s are only part of that band, so these figures are an **upper bound** on both the gain and the cost.
+
+| Policy | Extra scams held | Scam recall after | Extra genuine sessions held | False-alarm rate after (95% interval) |
+|---|---|---|---|---|
+| One amount, Rs {y['other_inr']:,} for everyone | {y['extra_scams_held_single_threshold']} | {pct(r0['scams_held_before'] / r0['scam_sessions'] + y['extra_scams_held_single_threshold'] / r0['scam_sessions'])} | {y['extra_false_alarms_single_threshold']} | {pct(r0['false_alarms_before'] / r0['legit_sessions'] + y['extra_false_alarms_single_threshold'] / r0['legit_sessions'])} |
+| Rs {y['young_inr']:,} for the {y['band']} band, Rs {y['other_inr']:,} for the rest (upper bound) | {y['extra_scams_held']} | {pct(y['recall_after'])} | {y['extra_false_alarms']} | {pct(y['false_alarm_rate_after'])} ({pct(ylo)} to {pct(yhi)}) |
+
+The {y['band']} band holds {y['scam_sessions_in_band']} of the scam sessions and {y['legit_sessions_in_band']} of the genuine ones.
 
 Read it as a trade: a lower threshold holds more scams and more genuine payments. A held genuine payment is not lost, because the
 person can choose "Continue anyway", but it is friction and it counts against the alert budget.

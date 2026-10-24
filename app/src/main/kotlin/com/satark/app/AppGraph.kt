@@ -53,7 +53,13 @@ class AppGraph(private val app: Application) {
     // No auth interceptor: used for /auth/{challenge,device,refresh} so a 401 loop is impossible.
     private val bareApi: SatarkApi by lazy { NetworkModule.api(OkHttpClient.Builder().build(), BuildConfig.BASE_URL) }
 
-    val dispatcher = EventDispatcher(dao, model, store.ageBand, scope)
+    val dispatcher = EventDispatcher(dao, model, store.ageYears, scope)
+
+    /** The person typed or cleared their age (optional, kept on this phone): save it and tell the checks at once. */
+    fun setAge(ageYears: Int?) {
+        store.ageYears = ageYears
+        scope.launch { dispatcher.setAge(ageYears) }
+    }
     val hub = SignalHub(app)
     val textBurst = TextBurst(textStore(app))
     val queue = OfflineQueue(dao) { api }

@@ -1,5 +1,6 @@
 package com.satark.app
 
+import com.satark.app.events.AgeProfile
 import com.satark.app.events.HighValueNewPayee
 import com.satark.app.events.NudgePolicy
 import com.satark.app.events.SessionPolicy
@@ -37,11 +38,11 @@ class ConditionMatrixTest {
     private fun install(t: Long, pkg: String, src: InstallSource) = Event(t, EventType.APP_INSTALL, appPackage = pkg, installSource = src)
     private fun video(t: Long, known: Boolean) = Event(t, EventType.VIDEO_SESSION_START, callerKnown = known, appPackage = "com.whatsapp")
 
-    private fun run(age: String, events: List<Event>, tickAt: Long?): Out {
+    private fun run(age: String, events: List<Event>, tickAt: Long?, ageYears: Int? = null): Out {
         val baseline = Baseline.coldStart(model)
         val main = Detector.create(age, baseline, model)
         val guard = SplitGuard(model, age, baseline)
-        val big = HighValueNewPayee()
+        val big = HighValueNewPayee(AgeProfile.highValueThreshold(ageYears))
         val policy = SessionPolicy()
         var hold = false
         var nudge = false
@@ -79,6 +80,23 @@ class ConditionMatrixTest {
         check("Rs 24,999 is just under it", case(24_999.0), Out.NUDGE)
         check("Rs 50,000", case(50_000.0), Out.HOLD)
         check("Rs 100,000", case(100_000.0), Out.HOLD)
+    }
+
+    @Test fun peopleUnder22AreHeldFromTenThousand() {
+        fun case(a: Double) = listOf(call(0), payee(2 * min - 1), pay(2 * min, a, true))
+        fun after(gapMin: Long, a: Double) = listOf(call(0), end(min), payee((1 + gapMin) * min - 1), pay((1 + gapMin) * min, a, true))
+        fun young(name: String, events: List<Event>, want: Out) = assertEquals(want, run("18-35", events, null, ageYears = 21), "$name (age 21)")
+        fun twentyTwo(name: String, events: List<Event>, want: Out) = assertEquals(want, run("18-35", events, null, ageYears = 22), "$name (age 22)")
+        young("Rs 5,000", case(5_000.0), Out.NUDGE)
+        young("Rs 9,999 is just under it", case(9_999.0), Out.NUDGE)
+        young("Rs 10,000", case(10_000.0), Out.HOLD)
+        young("call ended 5 min ago, Rs 10,000", after(5, 10_000.0), Out.HOLD)
+        young("call ended 45 min ago, Rs 10,000: too long ago", after(45, 10_000.0), Out.QUIET)
+        young("known caller, Rs 10,000", listOf(call(0, known = true), payee(2 * min - 1), pay(2 * min, 10_000.0, true)), Out.QUIET)
+        young("no call, new payee, Rs 10,000", listOf(payee(0), pay(1, 10_000.0, true)), Out.QUIET)
+        young("3 x Rs 4,000 (Rs 12,000 in all)", listOf(call(0), payee(2 * min - 1), pay(2 * min, 4_000.0, true), pay(5 * min, 4_000.0, false), pay(8 * min, 4_000.0, false)), Out.HOLD)
+        twentyTwo("Rs 10,000 is under the Rs 25,000 for 22 and over", case(10_000.0), Out.NUDGE)
+        twentyTwo("Rs 25,000", case(25_000.0), Out.HOLD)
     }
 
     @Test fun aPaymentSoonAfterAnUnknownCallEndedIsStillChecked() {

@@ -2,8 +2,8 @@
 
 Every row below was run through the app's own decision path (`ConditionMatrixTest`): session policy, the detector, the
 split guard and the nudge rule, fed the same events the phone's signals produce. A new person is assumed (usual payment
-about Rs 160). "60+" is the older age band, which is less sensitive. This is the decision logic, not the on-screen text,
-which is checked on a phone.
+about Rs 160). "60+" is the older age band, which is less sensitive. The tables are for a person who gave no age or is 22 or
+older; people under 22 have their own table below. This is the decision logic, not the on-screen text, which is checked on a phone.
 
 **Quiet** = nothing shown. **Nudge** = amber "Take a moment". **Hold** = red "Stop. This looks like a scam."
 
@@ -24,6 +24,19 @@ which is checked on a phone.
 | Ended up to 30 min ago, new payee, Rs 5,000 | nudge |
 | Ended more than 30 min ago | quiet |
 | The call was from a saved contact | quiet |
+
+## People who say they are under 22
+The app asks for an optional age (Protection screen; it stays on the phone and is never sent). Under 22 the new-payee hold starts at
+Rs 10,000 instead of Rs 25,000, on the assumption of a student whose usual payments are small. Everything else is unchanged.
+
+| Situation (age 21) | Result |
+|---|---|
+| Unknown call, new payee, Rs 5,000 or Rs 9,999 | nudge |
+| Unknown call, new payee, Rs 10,000 or more | **hold** |
+| Call ended up to 30 min ago, new payee, Rs 10,000 | **hold** |
+| Call ended more than 30 min ago, or a known caller, or no call | quiet |
+| 3 x Rs 4,000 (Rs 12,000 in all) | **hold** |
+| Age 22, new payee, Rs 10,000 | nudge (22 is held from Rs 25,000) |
 
 ## Installs
 | Situation | Result |
@@ -55,3 +68,9 @@ which is checked on a phone.
 - The detector's own payment score is still less sensitive for the 60+ band. The Rs 25,000 rule (`HighValueNewPayee`) is what holds a
   large payment to a new payee for every age; it costs 8 more genuine sessions held in 9,887 (false alarms 0.071% to 0.152%,
   over the 0.100% target), and "Continue anyway" always lets the person go on (`ops/eval/reports/high_value_rule.md`).
+- **The lower amount for under-22s is not supported by the simulator.** Holding the whole 18-35 band from Rs 10,000 (an upper bound,
+  because the simulator has age bands, not ages) holds no extra scams and 12 more genuine sessions (false alarms 0.152% to 0.273%).
+  The simulator does not model how scam amounts differ by age, so it cannot show a benefit either; the choice rests on the assumption
+  about students, not on a measurement. Set `HighValueNewPayee.YOUNG_THRESHOLD_INR` to 25,000 to switch it off.
+- Until now the app never asked for an age, so every phone used the model's pooled threshold. With an age entered, the model's own cohort
+  thresholds apply too (the 60+ band is less sensitive; the Rs 25,000 rule covers large payments there).
