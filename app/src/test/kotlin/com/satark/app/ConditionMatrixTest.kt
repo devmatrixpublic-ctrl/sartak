@@ -12,13 +12,17 @@ import com.satark.detector.Level
 import com.satark.detector.ModelConfig
 import com.satark.detector.PaymentType
 import kotlin.test.Test
+import kotlin.test.assertEquals
 
 /**
  * Every combination of phone signals a person could meet, run through the app's own decision path (session policy, the
- * detector, the split guard and the nudge rule) exactly as the phone's events would arrive. Prints one line per case so the
- * conditions behind each warning can be read off (docs/WHEN_SATARK_WARNS.md). A new person: usual payment about Rs 160.
+ * detector, the split guard and the nudge rule) exactly as the phone's events would arrive, with the result each one must give
+ * (docs/WHEN_SATARK_WARNS.md). A new person is assumed: usual payment about Rs 160. If a change to the detector, the policies
+ * or the thresholds alters any warning, one of these fails and the table has to be updated on purpose.
  */
 class ConditionMatrixTest {
+    private enum class Out { QUIET, NUDGE, HOLD }
+
     private val model = ModelConfig.loadBundled()
     private val min = 60_000L
     private val hour = 60 * min
@@ -32,72 +36,84 @@ class ConditionMatrixTest {
     private fun install(t: Long, pkg: String, src: InstallSource) = Event(t, EventType.APP_INSTALL, appPackage = pkg, installSource = src)
     private fun video(t: Long, known: Boolean) = Event(t, EventType.VIDEO_SESSION_START, callerKnown = known, appPackage = "com.whatsapp")
 
-    private class Result(val hold: String?, val nudge: Boolean)
-
-    private fun run(age: String, events: List<Event>, tickAt: Long? = null): Result {
+    private fun run(age: String, events: List<Event>, tickAt: Long?): Out {
         val baseline = Baseline.coldStart(model)
         val main = Detector.create(age, baseline, model)
         val guard = SplitGuard(model, age, baseline)
         val policy = SessionPolicy()
-        var hold: String? = null
+        var hold = false
         var nudge = false
         for (raw in events) {
             val step = policy.prepare(raw) ?: continue
             if (step.resetFirst) { main.reset(); guard.reset() }
-            val d = main.onEvent(step.event)
-            val g = guard.onEvent(step.event)
-            if (hold == null && d.level == Level.HARD) hold = "main:${d.mechanism}:${d.reasons.take(3).joinToString("+")}"
-            else if (hold == null && g.level == Level.HARD) hold = "split-guard:${g.reasons.take(3).joinToString("+")}"
+            if (main.onEvent(step.event).level == Level.HARD || guard.onEvent(step.event).level == Level.HARD) hold = true
             if (raw.type == EventType.PAYMENT_ATTEMPT && NudgePolicy.shouldNudge(policy.unknownCallActive, raw.payeeIsNew, raw.amountInr, 161.57)) nudge = true
         }
-        if (tickAt != null && hold == null) main.onTick(tickAt).takeIf { it.level == Level.HARD }?.let { hold = "main:${it.mechanism}:${it.reasons.take(3).joinToString("+")}" }
-        return Result(hold, nudge)
+        if (tickAt != null && !hold && main.onTick(tickAt).level == Level.HARD) hold = true
+        return if (hold) Out.HOLD else if (nudge) Out.NUDGE else Out.QUIET
     }
 
-    private fun show(name: String, events: List<Event>, tickAt: Long? = null) {
-        val r = run("36-59", events, tickAt)
-        val r60 = run("60+", events, tickAt)
-        val out = when {
-            r.hold != null -> "HOLD   ${r.hold}"
-            r.nudge -> "NUDGE"
-            else -> "quiet"
-        }
-        val out60 = when { r60.hold != null -> "HOLD" ; r60.nudge -> "NUDGE"; else -> "quiet" }
-        println("SCEN | $name | $out | 60+: $out60")
+    private fun check(name: String, events: List<Event>, adult: Out, older: Out = adult, tickAt: Long? = null) {
+        assertEquals(adult, run("36-59", events, tickAt), "$name (36-59)")
+        assertEquals(older, run("60+", events, tickAt), "$name (60+)")
     }
 
-    @Test fun printTheConditionMatrix() {
-        val amounts = listOf(300.0, 5_000.0, 20_000.0, 50_000.0, 100_000.0)
-        // No scam signals at all
-        show("no call, known payee, Rs 300", listOf(pay(0, 300.0, false)))
-        show("no call, NEW payee, Rs 50,000", listOf(payee(0), pay(1, 50_000.0, true)))
-        show("unknown call, KNOWN payee, Rs 50,000", listOf(call(0), pay(2 * min, 50_000.0, false)))
-        // Unknown call + new payee at rising amounts
-        for (a in amounts) show("unknown call + NEW payee, Rs ${a.toInt()}", listOf(call(0), payee(2 * min - 1), pay(2 * min, a, true)))
-        show("KNOWN caller + new payee, Rs 50,000", listOf(call(0, known = true), payee(2 * min - 1), pay(2 * min, 50_000.0, true)))
-        show("unknown call ended 5 min ago, new payee, Rs 50,000", listOf(call(0), end(min), payee(6 * min - 1), pay(6 * min, 50_000.0, true)))
-        // Installs
-        show("unknown call + sideloaded app (no payment)", listOf(call(0), install(min, "com.example.supportapp", InstallSource.SIDELOAD)))
-        show("unknown call + sideloaded app + known payee Rs 300", listOf(call(0), install(min, "com.example.supportapp", InstallSource.SIDELOAD), pay(3 * min, 300.0, false)))
-        show("unknown call + Play Store app (no payment)", listOf(call(0), install(min, "com.example.app", InstallSource.PLAY_STORE)))
-        show("unknown call + remote-access app (Play Store), no payment", listOf(call(0), install(min, remote, InstallSource.PLAY_STORE)))
-        show("unknown call + remote-access app opened, no payment", listOf(call(0), Event(min, EventType.APP_FOREGROUND, appPackage = remote)))
-        show("no call, sideloaded app only", listOf(install(0, "com.example.supportapp", InstallSource.SIDELOAD)))
-        show("no call, remote-access app opened only", listOf(Event(0, EventType.APP_FOREGROUND, appPackage = remote)))
-        show("no call, sideloaded app + new payee Rs 50,000", listOf(install(0, "com.example.supportapp", InstallSource.SIDELOAD), payee(2 * min - 1), pay(2 * min, 50_000.0, true)))
-        // Video
-        show("unknown video call 30 min, then new payee Rs 50,000", listOf(video(0, false), payee(30 * min - 1), pay(30 * min, 50_000.0, true)))
-        show("unknown video call for 2 hours (long session rule)", listOf(video(0, false)), tickAt = 2 * hour + min)
-        show("known video call for 3 hours", listOf(video(0, true)), tickAt = 3 * hour)
-        // Split payments
-        for (piece in listOf(3_000.0, 10_000.0, 25_000.0)) {
-            show("unknown call + 3 x Rs ${piece.toInt()} to one NEW payee",
-                listOf(call(0), payee(2 * min - 1), pay(2 * min, piece, true), pay(4 * min, piece, false), pay(6 * min, piece, false)))
-        }
-        // Stranger text (the phone reports it as a short unknown contact)
-        show("stranger text, then new payee Rs 50,000 five minutes later", listOf(call(0), end(1), payee(5 * min - 1), pay(5 * min, 50_000.0, true)))
-        show("stranger text, then sideloaded app", listOf(call(0), end(1), install(2 * min, "com.example.supportapp", InstallSource.SIDELOAD)))
-        // Order
-        show("payee added right after the unknown call, Rs 5,000", listOf(call(0), end(min), payee(2 * min), pay(3 * min, 5_000.0, true)))
+    @Test fun noScamSignalsStayQuiet() {
+        check("no call, known payee, Rs 300", listOf(pay(0, 300.0, false)), Out.QUIET)
+        check("no call, NEW payee, Rs 50,000", listOf(payee(0), pay(1, 50_000.0, true)), Out.QUIET)
+        check("unknown call, KNOWN payee, Rs 50,000", listOf(call(0), pay(2 * min, 50_000.0, false)), Out.QUIET)
+        check("KNOWN caller + new payee, Rs 50,000", listOf(call(0, known = true), payee(2 * min - 1), pay(2 * min, 50_000.0, true)), Out.QUIET)
+    }
+
+    @Test fun unknownCallPlusNewPayeeEscalatesWithTheAmount() {
+        fun case(a: Double) = listOf(call(0), payee(2 * min - 1), pay(2 * min, a, true))
+        check("Rs 300 is under twice the usual", case(300.0), Out.QUIET)
+        check("Rs 5,000", case(5_000.0), Out.NUDGE)
+        check("Rs 20,000", case(20_000.0), Out.NUDGE)
+        check("Rs 50,000", case(50_000.0), Out.HOLD, Out.NUDGE)
+        check("Rs 100,000", case(100_000.0), Out.HOLD)
+    }
+
+    @Test fun anUnknownCallThatHasEndedDoesNotTriggerThePaymentChecks() {
+        check("call ended 5 min ago, new payee, Rs 50,000",
+            listOf(call(0), end(min), payee(6 * min - 1), pay(6 * min, 50_000.0, true)), Out.QUIET)
+    }
+
+    @Test fun installsDuringAnUnknownCall() {
+        val unknown = listOf(call(0))
+        check("sideloaded app, no payment", unknown + install(min, "com.example.supportapp", InstallSource.SIDELOAD), Out.HOLD)
+        check("sideloaded app + known payee Rs 300", unknown + install(min, "com.example.supportapp", InstallSource.SIDELOAD) + pay(3 * min, 300.0, false), Out.HOLD)
+        check("Play Store app, no payment", unknown + install(min, "com.example.app", InstallSource.PLAY_STORE), Out.QUIET)
+        check("remote-access app from Play, no payment", unknown + install(min, remote, InstallSource.PLAY_STORE), Out.QUIET)
+        check("remote-access app opened, no payment", unknown + Event(min, EventType.APP_FOREGROUND, appPackage = remote), Out.QUIET)
+    }
+
+    @Test fun installsWithoutACallStayQuiet() {
+        check("sideloaded app only", listOf(install(0, "com.example.supportapp", InstallSource.SIDELOAD)), Out.QUIET)
+        check("remote-access app opened only", listOf(Event(0, EventType.APP_FOREGROUND, appPackage = remote)), Out.QUIET)
+        check("sideloaded app + new payee Rs 50,000",
+            listOf(install(0, "com.example.supportapp", InstallSource.SIDELOAD), payee(2 * min - 1), pay(2 * min, 50_000.0, true)), Out.QUIET)
+    }
+
+    @Test fun videoCalls() {
+        check("unknown video 30 min, then new payee Rs 50,000", listOf(video(0, false), payee(30 * min - 1), pay(30 * min, 50_000.0, true)), Out.HOLD)
+        check("unknown video call for 2 hours", listOf(video(0, false)), Out.HOLD, tickAt = 2 * hour + min)
+        check("known video call for 3 hours", listOf(video(0, true)), Out.QUIET, tickAt = 3 * hour)
+    }
+
+    @Test fun paymentsSplitIntoPiecesAreAddedUp() {
+        fun split(piece: Double) = listOf(call(0), payee(2 * min - 1), pay(2 * min, piece, true), pay(4 * min, piece, false), pay(6 * min, piece, false))
+        check("3 x Rs 3,000", split(3_000.0), Out.NUDGE)
+        check("3 x Rs 10,000", split(10_000.0), Out.HOLD, Out.NUDGE)
+        check("3 x Rs 25,000", split(25_000.0), Out.HOLD)
+    }
+
+    @Test fun aStrangerTextAloneNeverChangesAPaymentDecision() {
+        // The phone no longer sends texts to the detector (SmsSource), so a text is simply nothing here; these two are the old
+        // behaviour for comparison: a text then a payment is quiet, and only a sideloaded app after it would have held.
+        check("stranger text, then new payee Rs 50,000 five minutes later",
+            listOf(call(0), end(1), payee(5 * min - 1), pay(5 * min, 50_000.0, true)), Out.QUIET)
+        check("payee added right after the unknown call, Rs 5,000",
+            listOf(call(0), end(min), payee(2 * min), pay(3 * min, 5_000.0, true)), Out.QUIET)
     }
 }

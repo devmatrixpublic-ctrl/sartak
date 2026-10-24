@@ -127,7 +127,7 @@ fun ConsentCard(graph: AppGraph, onDeleted: () -> Unit) {
             counts?.let { (shown, merged) ->
                 Text("Warnings shown: $shown. Repeats folded together: $merged.", style = MaterialTheme.typography.bodySmall)
             }
-            if (com.satark.app.BuildConfig.DEBUG) {
+            if (com.satark.app.ui.DevMode.open) {
                 var shadow by remember { mutableStateOf(graph.store.shadowMode) }
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text("Test build: shadow mode (log only, show nothing)", style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f))

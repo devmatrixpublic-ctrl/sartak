@@ -20,3 +20,6 @@ local.properties
 app/google-services.json
 # Kotlin compiler session files
 .kotlin/
+
+# build output of the detector module
+detector/bin/

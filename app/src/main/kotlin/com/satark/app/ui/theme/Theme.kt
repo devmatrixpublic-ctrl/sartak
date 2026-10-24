@@ -2,6 +2,7 @@ package com.satark.app.ui.theme
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -132,10 +133,15 @@ fun SatarkMark(size: Dp = 32.dp, shield: Color = MaterialTheme.colorScheme.prima
 
 /** Top of every main screen: the mark, "Satark", and the screen's title. */
 @Composable
-fun SatarkHeader(title: String, subtitle: String? = null, trailing: (@Composable () -> Unit)? = null) {
+fun SatarkHeader(title: String, subtitle: String? = null, trailing: (@Composable () -> Unit)? = null, onMarkTap: (() -> Unit)? = null) {
     Column(Modifier.padding(top = 8.dp, bottom = 4.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            SatarkMark(28.dp)
+            Box(
+                if (onMarkTap != null) Modifier.clickable(
+                    indication = null,
+                    interactionSource = androidx.compose.runtime.remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                ) { onMarkTap() } else Modifier,
+            ) { SatarkMark(28.dp) }
             Text("Satark", style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.weight(1f))
             trailing?.invoke()

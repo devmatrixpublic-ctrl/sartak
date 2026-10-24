@@ -99,6 +99,13 @@ class AppGraph(private val app: Application) {
         store.wipe()
     }
 
+    /** Debug tools: empty every local table (events, decisions, payees, payments, alert memory) and the payment pause. */
+    suspend fun resetDemoState() {
+        kotlinx.coroutines.withContext(Dispatchers.IO) { db.clearAllTables() }
+        store.pauseUntilMs = 0L
+        store.pausePhraseOwed = false
+    }
+
     /** (alerts shown, repeats merged) since install: simple local counters, nothing leaves the phone. */
     suspend fun alertCounts(): Pair<Int, Int> = dao.alertsShown() to dao.alertsMerged()
 

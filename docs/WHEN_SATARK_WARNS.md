@@ -21,7 +21,6 @@ which is checked on a phone.
 | Situation | Result |
 |---|---|
 | Unknown call + app from outside Google Play (no payment needed) | **hold** |
-| Unknown text, then an app from outside Google Play within minutes | **hold** |
 | Unknown call + app from Google Play, or a remote-access app, with no payment | quiet |
 | No call, sideloaded or remote-access app only | quiet |
 
@@ -42,5 +41,6 @@ which is checked on a phone.
 ## Gaps this exposed (said openly)
 - A payment **after the unknown call or text has ended** is quiet, even for Rs 50,000 to a new payee. The payment checks need the
   unknown contact to be active at the moment of payment.
-- A stranger text on its own never changes a payment decision. It only matters together with a sideloaded app install.
+- A stranger text (or, later, a flagged WhatsApp message) never changes a payment decision. It is kept as evidence for a Stop screen
+  and counted for the repeated-texts warning, which holds nothing.
 - Nudge and hold thresholds are higher for the 60+ band.

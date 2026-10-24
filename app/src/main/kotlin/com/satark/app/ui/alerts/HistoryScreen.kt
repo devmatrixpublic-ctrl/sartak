@@ -93,7 +93,11 @@ private fun HistoryRow(ctx: android.content.Context, r: DecisionRow) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(whenText, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Text(
-                if (r.level == "HARD") "Warning: this looked like a scam" else "Note",
+                when {
+                    r.level == "HARD" -> "Warning: this looked like a scam"
+                    codes.isEmpty() -> "Payment checked, nothing unusual"
+                    else -> "Note"
+                },
                 style = MaterialTheme.typography.titleSmall,
             )
             codes.take(3).forEach { Text("• ${ReasonText.of(ctx, it)}", style = MaterialTheme.typography.bodyMedium) }

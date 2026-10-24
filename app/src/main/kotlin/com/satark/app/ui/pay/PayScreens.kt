@@ -136,7 +136,7 @@ fun PayHome(
         Modifier.verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-        SatarkHeader("Pay via Satark", "Satark checks for signs of a scam before your money moves.")
+        SatarkHeader("Pay via Satark", "Satark checks for signs of a scam before your money moves.", onMarkTap = { com.satark.app.ui.DevMode.tap() })
         if (com.satark.app.BuildConfig.DEBUG && com.satark.app.BuildConfig.LONG_SESSION_TEST_MIN > 0) Text(
             "TEST BUILD: long-session alarm after ${com.satark.app.BuildConfig.LONG_SESSION_TEST_MIN} min (real rule: 2 h)",
             color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.labelLarge,
@@ -198,7 +198,7 @@ fun PayHome(
                                 heldAmountInr = amt.toDouble()
                                 holdStatus = null
                                 o.paymentId?.let { id ->
-                                    // Dual custody: only the person's trusted contact can release this payment.
+                                    // The trusted contact can approve or block this payment; the person can also choose "Continue anyway".
                                     holdStatus = "Asking your trusted contact to approve or block this payment…"
                                     scope.launch {
                                         withContext(Dispatchers.IO) { runCatching { graph.alerts.requestApproval(id, o.reasons) } }
@@ -256,7 +256,7 @@ fun PayHome(
             "Satark can hold payments started here. Payments started directly in other UPI apps can only be warned about.",
             style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
-        if (com.satark.app.BuildConfig.DEBUG) AttestationExportButton(graph)
+        if (com.satark.app.ui.DevMode.open) AttestationExportButton(graph)
     }
 }
 
@@ -427,5 +427,11 @@ private fun AttestationExportButton(graph: AppGraph) {
             }
         }) { Text(if (busy) "Capturing…" else "Export attestation chain for M4") }
         msg?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
+        // Starts a demo again from a clean state: the usual payment, known payees, the repeat-alert memory and the history.
+        var confirmReset by remember { mutableStateOf(false) }
+        OutlinedButton(onClick = {
+            if (!confirmReset) confirmReset = true
+            else scope.launch { graph.resetDemoState(); android.os.Process.killProcess(android.os.Process.myPid()) }
+        }) { Text(if (confirmReset) "Tap again: clear demo data and close Satark" else "Reset demo state") }
     }
 }

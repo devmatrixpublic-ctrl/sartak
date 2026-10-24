@@ -2,8 +2,8 @@ package com.satark.app.ui.alerts
 
 /**
  * The app-side rungs of the friction ladder (docs: satark_novel_improvements_roadmap.md, section 3.4). They only ever
- * add caution on top of the detector's decision: nothing here can release a held payment or lower a score, and
- * nothing here leaves the phone.
+ * add caution on top of the detector's decision: nothing here lowers a score, and nothing here leaves the phone. (Only the
+ * person's own "Continue anyway" releases a held payment, see PaymentRepository.continueAnyway.)
  *
  * Rung 1: a scam playbook matched to the reasons Satark gave.
  * Rung 2: "What is this payment for?" Each answer explains the matching scam.
@@ -108,7 +108,7 @@ object Friction {
 /**
  * Rung 3 state: after a scam warning, payments started in Satark wait [Friction.PAUSE_MS], then the person types
  * [Friction.PHRASE] once. Kept in the encrypted store, so closing the app or restarting the phone does not skip it.
- * The detector still checks every payment afterwards; this never lets a held payment through.
+ * The detector still checks every payment afterwards; this pause does not release a held payment.
  */
 class PaymentPause(private val store: Store, private val now: () -> Long = System::currentTimeMillis) {
     interface Store {
