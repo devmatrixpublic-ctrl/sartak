@@ -7,6 +7,10 @@
     <string name="notif_alarm_title">Stop. This may be a scam.</string>
     <string name="notif_alarm_text">Do not send money or install anything. Tap to see why.</string>
     <string name="notif_alarm_long_session">You have been on a long video call with someone you do not know. Tap to see why.</string>
+    <string name="notif_protection_off_title">Satark protection is off</string>
+    <string name="notif_protection_off_text">You asked to turn it off and the waiting time is over. Open Satark to turn it back on.</string>
+    <string name="notif_removal_guard_off_title">Satark can now be removed</string>
+    <string name="notif_removal_guard_off_text">The guard against removal was switched off. If someone told you to do this, stop and call a person you trust.</string>
     <string name="notif_text_burst_title">Many texts from strangers</string>
     <string name="notif_text_burst_text">Several numbers you do not know have texted you in a few minutes. Do not open links, share an OTP or pay anyone. Tap for advice.</string>
 </resources>

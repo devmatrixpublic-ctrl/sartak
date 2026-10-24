@@ -30,6 +30,8 @@ android {
         // Labelled demo build only: ./gradlew assembleDebug -PsatarkLongSessionTestMin=2 shortens the 2 h long-session
         // rule so it can be shown live. Ignored in release builds (see AppGraph).
         buildConfigField("int", "LONG_SESSION_TEST_MIN", providers.gradleProperty("satarkLongSessionTestMin").getOrElse("0"))
+        // Labelled demo build only: -PsatarkProtectionOffWaitMin=1 shortens the 30-minute wait for turning protection off. Ignored in release builds (see AppGraph).
+        buildConfigField("int", "PROTECTION_OFF_WAIT_MIN", providers.gradleProperty("satarkProtectionOffWaitMin").getOrElse("0"))
         buildConfigField("String", "CERT_PINS", "\"${providers.gradleProperty("satarkPins").getOrElse("")}\"") // M4: contracts/pins.txt
     }
 

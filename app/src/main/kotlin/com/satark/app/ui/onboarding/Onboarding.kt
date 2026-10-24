@@ -61,6 +61,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import com.satark.app.AppGraph
 import com.satark.app.events.AgeProfile
 import com.satark.app.net.TrustedContactRequest
+import com.satark.app.protection.SatarkAdminReceiver
 import com.satark.app.push.PairingCode
 import com.satark.app.push.Push
 import com.satark.app.signals.SignalStatus
@@ -114,6 +115,7 @@ fun OnboardingFlow(graph: AppGraph, settings: Boolean = false, onDeleted: () -> 
         )
         NeverAsksCard()
         FingerprintCard(lock)
+        RemovalGuardCard(tick)
         steps.forEach { s ->
             val st = status.of(s.source)
             Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLowest)) {
@@ -191,6 +193,35 @@ fun OnboardingFlow(graph: AppGraph, settings: Boolean = false, onDeleted: () -> 
         }
         if (!canStart) Text("Set up the lock above to start.", style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+}
+
+/** Android will not uninstall Satark quietly while it is a device administrator (no powers asked); switching it off tells the trusted contact. */
+@Composable
+private fun RemovalGuardCard(tick: Int) {
+    val ctx = LocalContext.current
+    val on = remember(tick) { SatarkAdminReceiver.isActive(ctx) }
+    Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLowest)) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("Protection against removal", style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
+                Surface(
+                    color = if (on) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant,
+                    shape = MaterialTheme.shapes.small,
+                ) {
+                    Text(if (on) "On" else "Off (recommended)", Modifier.padding(horizontal = 10.dp, vertical = 4.dp), style = MaterialTheme.typography.labelMedium,
+                        color = if (on) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+            Text(
+                if (on) "While this is on, Android will not let Satark be uninstalled until you switch it off in Settings, under Security, Device admin apps. " +
+                    "Your trusted contact is told the moment you do. Switch it off only if you truly want to remove Satark."
+                else "A scammer may tell you to delete Satark. With this on, Android will not remove it until it is switched off in Settings, " +
+                    "which gives you time to think, and your trusted contact is told. Satark asks for no power over your phone.",
+                style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            if (!on) Button(onClick = { runCatching { ctx.startActivity(SatarkAdminReceiver.activateIntent(ctx)) } }) { Text("Turn on") }
+        }
     }
 }
 

@@ -10,10 +10,19 @@ logger = logging.getLogger("satark.alerts.service")
 ALERT_TITLES = {
     "alarm": "Satark alert",
     "long_session": "Satark alert",
+    "protection_off_requested": "Satark alert",
+    "protection_off": "Satark alert",
+    "removal_guard_off": "Satark alert",
 }
 
 # ONE short line for every alert: no reasons, amounts, payees or names reach the contact's lock screen.
 ALERT_BODY = "Someone you protect may be in danger. Please call them."
+# Someone switching Satark off, or making it removable, is what a scammer on the phone asks for: say that, in one line.
+ALERT_BODIES = {
+    "protection_off_requested": "Someone you protect has asked to turn off their Satark protection. Please call them.",
+    "protection_off": "Someone you protect has turned off their Satark protection. Please call them.",
+    "removal_guard_off": "Satark on a phone you protect can now be removed. Please call them.",
+}
 
 
 def send_alert(
@@ -54,7 +63,7 @@ def send_alert(
         return alert
 
     title = ALERT_TITLES.get(alert_type, "Satark alert")
-    body = ALERT_BODY
+    body = ALERT_BODIES.get(alert_type, ALERT_BODY)
 
     try:
         fcm_client.send(

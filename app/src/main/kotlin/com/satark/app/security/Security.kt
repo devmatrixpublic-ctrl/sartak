@@ -47,6 +47,9 @@ class TokenStore(ctx: Context) {
     /** Payment pause after a scam warning (ui/alerts/Friction.kt): when it ends, and whether the phrase is still owed. */
     var pauseUntilMs: Long get() = prefs.getLong("pause_until", 0L); set(v) = prefs.edit().putLong("pause_until", v).apply()
     var pausePhraseOwed: Boolean get() = prefs.getBoolean("pause_phrase", false); set(v) = prefs.edit().putBoolean("pause_phrase", v).apply()
+    /** Turning protection off waits (protection/ProtectionOff): when the wait ends on the wall clock (0 = nothing pending), and the uptime clock when it began. */
+    var protectionOffDueMs: Long get() = prefs.getLong("off_due", 0L); set(v) = prefs.edit().putLong("off_due", v).apply()
+    var protectionOffStartedUptimeMs: Long get() = prefs.getLong("off_started", 0L); set(v) = prefs.edit().putLong("off_started", v).apply()
 
     /** Per-install random salt for payee hashes (contracts/upi.md). Generated once. */
     val payeeSalt: ByteArray

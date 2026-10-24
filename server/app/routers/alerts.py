@@ -21,7 +21,10 @@ def fcm_client_dependency(settings: Settings = Depends(get_settings)) -> FcmClie
 
 class AlertIn(StrictInput):
     device_id: str = Field(min_length=1, max_length=36)
-    type: Literal["alarm", "long_session"]
+    # protection_off_requested: the person asked to turn Satark's protection off (it stays on for a waiting period);
+    # protection_off: it is now off (or the data was deleted); removal_guard_off: Android's "device admin" guard that blocks
+    # uninstalling Satark was switched off. None of them carries a reason, a payment or a name.
+    type: Literal["alarm", "long_session", "protection_off_requested", "protection_off", "removal_guard_off"]
     reasons: Optional[list[Annotated[str, Field(max_length=64)]]] = Field(default=None, max_length=10)
     payment_id: Optional[str] = Field(default=None, max_length=36)
 

@@ -184,6 +184,7 @@ class ApiContractTest {
         checkRequest("/alert", "post", AlertRequest(uuid, "alarm", listOf("F_NEW_PAYEE"), paymentId = uuid))
         checkRequest("/alert", "post", AlertRequest(uuid, "alarm", listOf("RULE_SIDELOAD_DURING_CALL")))
         checkRequest("/alert", "post", AlertRequest(uuid, "long_session"))
+        for (t in listOf("protection_off_requested", "protection_off", "removal_guard_off")) checkRequest("/alert", "post", AlertRequest(uuid, t))
         checkRequest("/signature", "post", SignatureRequest("payment_score", mapOf("new_payee" to 1.0, "is_p2p" to 0.0)))
         checkRequest("/trusted-contact", "post", TrustedContactRequest(uuid, "fcm-token"))
     }

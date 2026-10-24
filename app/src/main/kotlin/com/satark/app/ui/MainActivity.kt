@@ -71,6 +71,7 @@ class MainActivity : FragmentActivity(), PaymentResultListener { // FragmentActi
     override fun onStart() {
         super.onStart()
         graph.appVisible = true
+        lifecycleScope.launch(Dispatchers.IO) { runCatching { graph.protectionOff.completeIfDue() } } // a finished wait takes effect now
         graph.hub.screenRecording.register(getSystemService(android.view.WindowManager::class.java), mainExecutor)
     }
 

@@ -58,6 +58,7 @@ object ContactAlertNotifier {
     private const val ID_LONG_SESSION = 4
     private const val ID_CODE_CHANGED = 5
     private const val ID_LINK_REQUEST = 6
+    private const val ID_PROTECTION = 7
 
     fun ensureChannel(ctx: Context) {
         runCatching {
@@ -69,7 +70,7 @@ object ContactAlertNotifier {
     }
 
     fun show(ctx: Context, alert: ContactAlert) =
-        post(ctx, if (alert.isLinkRequest) ID_LINK_REQUEST else if (alert.isLongSession) ID_LONG_SESSION else ID_ALARM, alert.title(), alert.text(), openProtection = alert.isLinkRequest,
+        post(ctx, if (alert.isLinkRequest) ID_LINK_REQUEST else if (alert.isProtectionChange) ID_PROTECTION else if (alert.isLongSession) ID_LONG_SESSION else ID_ALARM, alert.title(), alert.text(), openProtection = alert.isLinkRequest,
             decidePaymentId = alert.paymentId.takeIf { alert.canDecide })
 
     fun showCodeChanged(ctx: Context) = post(

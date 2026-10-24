@@ -20,6 +20,15 @@
   stub push client). Needs: a Firebase project and `app/google-services.json`, server credentials, a server the phones can reach, and a
   second device (the emulator can be the contact if its image has Google Play services).
 
+## Built, to try on the iQOO
+- **Turning protection off waits 30 minutes** and tells the trusted contact at once; **removal guard** (device admin, no powers) stops a quiet
+  uninstall and tells the contact when it is switched off. For a live demo build with a short wait:
+  `./gradlew :app:assembleDebug -PsatarkProtectionOffWaitMin=1` (debug builds only). Server: three new alert types (`protection_off_requested`,
+  `protection_off`, `removal_guard_off`) in `contracts/api.yaml`, `server/app/alerts/service.py`, with tests.
+- Verified end to end on the emulator with a local dev server and a second registered device as the contact: all three alerts reached the contact
+  (push is the stub client; real push still needs Firebase). To confirm on the iQOO: that Funtouch OS also blocks uninstall while the guard is on.
+- Not covered: revoking permissions or force-stopping Satark; the delete-data alert is sent once, directly (lost if the phone is offline at that moment).
+
 ## Decisions waiting
 - **No server on a real phone.** `BASE_URL` defaults to `10.0.2.2:8000` (emulator only). On the iQOO every payment check falls
   back to offline, trusted-contact alerts are only queued, and the test checkout cannot work. Deploy the server and build with

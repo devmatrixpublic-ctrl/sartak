@@ -73,7 +73,36 @@ class AlarmNotifier(private val ctx: Context) {
         runCatching { NotificationManagerCompat.from(ctx).notify(ID_TEXTS, n) }
     }
 
+    /** Protection went off after the waiting time, possibly while Satark was closed: the person should not find out by accident. */
+    fun showProtectionOff() = simple(ID_PROTECTION_OFF, R.string.notif_protection_off_title, R.string.notif_protection_off_text)
+
+    /** The guard against removal was switched off in Settings. */
+    fun showRemovalGuardOff() = simple(ID_REMOVAL_GUARD_OFF, R.string.notif_removal_guard_off_title, R.string.notif_removal_guard_off_text)
+
+    private fun simple(id: Int, title: Int, text: Int) {
+        if (Build.VERSION.SDK_INT >= 33 &&
+            ContextCompat.checkSelfPermission(ctx, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) return
+        val open = PendingIntent.getActivity(
+            ctx, id,
+            Intent(ctx, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP),
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+        )
+        val body = ctx.getString(text)
+        val n = NotificationCompat.Builder(ctx, CHANNEL)
+            .setSmallIcon(android.R.drawable.stat_sys_warning)
+            .setContentTitle(ctx.getString(title))
+            .setContentText(body)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(body))
+            .setPriority(NotificationCompat.PRIORITY_MAX)
+            .setContentIntent(open)
+            .setAutoCancel(true)
+            .build()
+        runCatching { NotificationManagerCompat.from(ctx).notify(id, n) }
+    }
+
     companion object {
+        private const val ID_PROTECTION_OFF = 4
+        private const val ID_REMOVAL_GUARD_OFF = 5
         private const val ID_TEXTS = 3
         private const val CHANNEL = "satark_alarm"
         private const val ID = 2

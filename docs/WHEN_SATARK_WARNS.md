@@ -76,6 +76,22 @@ against a remote controller, not against a victim who is being coached and gives
 | No fingerprint enrolled, or no sensor | the screen-lock PIN is asked instead; wrong PIN releases nothing |
 | No fingerprint and no screen lock | "Set a screen lock first"; nothing is released |
 
+## Turning Satark off, and removing it
+A scammer's other goal is to get Satark out of the way. The trusted contact is told at once in each case (one plain line, no name or amount).
+
+| Situation | What happens |
+|---|---|
+| Turn protection off | owner check, then a **30-minute wait**; protection stays ON during it; the contact is told **immediately** ("asked to turn off"); "Keep protection on" cancels at once |
+| The wait ends | protection goes off, the person gets a notification, the contact is told again ("turned off") |
+| Turn protection back on | at once, no check |
+| Delete my data | owner check; the contact is told first; no wait |
+| Uninstall Satark with the removal guard on | Android refuses until the guard is switched off in Settings (Device admin apps); Android shows Satark's warning there; the contact is told the moment it is switched off ("can now be removed") |
+| Uninstall with the guard off | Android allows it; Satark cannot stop or announce it (it is gone) |
+
+The wait runs on two clocks, so moving the phone's date does not skip it. A coached person can still wait it out; the point is time and a
+witness, not a wall. Not covered: revoking permissions or force-stopping Satark in Settings, and a phone that is offline (the contact's
+alert is queued and goes when it is back online).
+
 ## Gaps this exposed (said openly)
 - A payment more than **30 minutes after** the unknown call ended is quiet. Text messages never count as unknown contact.
 - The same amount to the same payee again **within 2 minutes** is counted as a retry of one payment, not a second piece.

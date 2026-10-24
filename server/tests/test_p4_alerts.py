@@ -117,3 +117,63 @@ def test_trusted_contact_link_endpoint(client, db):
     )
     assert resp.status_code == 200
     assert resp.json()["linked"] is True
+
+
+class _Recorder:
+    """A push client that keeps what it was asked to send."""
+
+    def __init__(self):
+        self.sent = []
+
+    def send(self, token, title, body, data):
+        self.sent.append({"token": token, "title": title, "body": body, "data": data})
+        return "recorded"
+
+
+import pytest  # noqa: E402
+
+from app.alerts.service import ALERT_BODY  # noqa: E402
+
+PROTECTION_ALERTS = {
+    "protection_off_requested": "Someone you protect has asked to turn off their Satark protection. Please call them.",
+    "protection_off": "Someone you protect has turned off their Satark protection. Please call them.",
+    "removal_guard_off": "Satark on a phone you protect can now be removed. Please call them.",
+}
+
+
+@pytest.mark.parametrize("alert_type,text", PROTECTION_ALERTS.items())
+def test_switching_protection_off_tells_the_accepted_contact_in_one_plain_line(db, alert_type, text):
+    _link(db)
+    rec = _Recorder()
+    alert = send_alert(db, owner_device_id="owner-device", alert_type=alert_type, reasons=[], fcm_client=rec)
+    assert alert.delivered is True
+    assert len(rec.sent) == 1
+    sent = rec.sent[0]
+    assert sent["body"] == text
+    assert sent["data"] == {"type": alert_type, "owner_device_id": "owner-device"}  # no payment, reason or name
+
+
+def test_ordinary_alarms_keep_the_original_line(db):
+    _link(db)
+    rec = _Recorder()
+    send_alert(db, owner_device_id="owner-device", alert_type="alarm", reasons=["unknown_contact"], fcm_client=rec)
+    assert rec.sent[0]["body"] == ALERT_BODY
+
+
+@pytest.mark.parametrize("alert_type", PROTECTION_ALERTS)
+def test_protection_alerts_are_accepted_over_http_and_unknown_types_are_not(client, db, alert_type):
+    _link(db)
+    ok = client.post("/alert", json={"device_id": "owner-device", "type": alert_type}, headers=OWNER)
+    assert ok.status_code == 200 and ok.json()["accepted"] is True
+    bad = client.post("/alert", json={"device_id": "owner-device", "type": "made_up"}, headers=OWNER)
+    assert bad.status_code == 422
+
+
+def test_a_contact_who_has_not_accepted_gets_no_protection_alert(db):
+    db.add(Device(id="owner-device", public_key="pk-o", attestation_level="TEE", verified_boot_state="verified"))
+    db.add(Device(id="trusted-device", public_key="pk-t", attestation_level="TEE", verified_boot_state="verified", fcm_token="tok"))
+    db.add(TrustedLink(owner_device_id="owner-device", trusted_device_id="trusted-device", status="pending"))
+    db.commit()
+    rec = _Recorder()
+    alert = send_alert(db, owner_device_id="owner-device", alert_type="protection_off", reasons=[], fcm_client=rec)
+    assert alert.delivered is False and rec.sent == []

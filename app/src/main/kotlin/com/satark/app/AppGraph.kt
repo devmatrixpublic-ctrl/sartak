@@ -70,6 +70,38 @@ class AppGraph(private val app: Application) {
         override var phraseOwed: Boolean by store::pausePhraseOwed
     })
     private val alarmNotifier by lazy { com.satark.app.ui.alerts.AlarmNotifier(app) }
+
+    /** Tell the trusted contact (queued if offline). Nothing to do when this phone has no linked contact. */
+    private suspend fun tellContact(type: String) {
+        if (store.linkedContactId == null) return
+        val id = store.deviceId ?: return
+        queue.alert(com.satark.app.net.AlertRequest(id, type))
+    }
+
+    /** Turning protection off waits 30 minutes and tells the contact at once (protection/ProtectionOff). */
+    val protectionOff = com.satark.app.protection.ProtectionOff(
+        store = object : com.satark.app.protection.ProtectionOff.Store {
+            override var dueAtMs: Long by store::protectionOffDueMs
+            override var startedUptimeMs: Long by store::protectionOffStartedUptimeMs
+        },
+        wallNow = System::currentTimeMillis,
+        uptimeNow = android.os.SystemClock::elapsedRealtime,
+        tell = ::tellContact,
+        turnOff = {
+            store.consent = false
+            com.satark.app.signals.SignalService.stop(app)
+            alarmNotifier.showProtectionOff()
+        },
+        schedule = { delayMs -> com.satark.app.protection.ProtectionOffWorker.schedule(app, delayMs) },
+        waitMs = if (BuildConfig.DEBUG && BuildConfig.PROTECTION_OFF_WAIT_MIN > 0) BuildConfig.PROTECTION_OFF_WAIT_MIN * 60_000L
+                 else com.satark.app.protection.ProtectionOff.WAIT_MS,
+    )
+
+    /** Android's guard against uninstalling Satark was switched off (protection/SatarkAdminReceiver). */
+    suspend fun removalGuardSwitchedOff() {
+        alarmNotifier.showRemovalGuardOff()
+        tellContact(com.satark.app.protection.ProtectionOff.TYPE_REMOVAL_GUARD_OFF)
+    }
     val evidence = com.satark.app.signals.Evidence(labelOf = { pkg ->
         runCatching { app.packageManager.getApplicationLabel(app.packageManager.getApplicationInfo(pkg, 0)).toString() }.getOrNull()
     })
@@ -98,6 +130,14 @@ class AppGraph(private val app: Application) {
      * local table and forgets tokens, ids and the payee salt.
      */
     suspend fun deleteAllData() {
+        // Deleting everything also ends protection, so the contact hears it first. Sent directly, not queued: the queue is emptied below.
+        val contact = store.linkedContactId
+        val me = store.deviceId
+        if (contact != null && me != null) kotlinx.coroutines.withContext(Dispatchers.IO) {
+            kotlinx.coroutines.withTimeoutOrNull(5_000) {
+                runCatching { api.alert(com.satark.app.net.AlertRequest(me, com.satark.app.protection.ProtectionOff.TYPE_OFF)) }
+            }
+        }
         com.satark.app.signals.SignalService.stop(app)
         // Best effort, while the sign-in still exists: DELETE /device erases the server's rows for this phone.
         kotlinx.coroutines.withContext(Dispatchers.IO) { runCatching { api.deleteDevice() } }
