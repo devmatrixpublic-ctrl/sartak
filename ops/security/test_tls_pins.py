@@ -131,4 +131,38 @@ def test_cli_writes_a_pin_file(tls_server, tmp_path):
     out = tmp_path / "pins.txt"
     assert tp.main(["--host", "localhost", "--port", str(port), "--cafile", ca, "--write", str(out)]) == 0
     lines = [l for l in out.read_text().splitlines() if l.startswith("sha256/")]
-    assert len(lines) >= 2 and lines[0].endswith("# primary")
+    assert len(lines) >= 2 and "# primary leaf localhost" in lines[0]                 # says what the primary pin is
+    assert any("# backup" in l for l in lines[1:])
+
+
+@needs_chain
+def test_describe_pins_says_which_certificate_each_pin_is(tls_server):
+    port, ca, _ = tls_server()
+    rep = tp.fetch("localhost", port, cafile=ca)
+    infos = tp.describe_pins(rep)
+    assert [i.role for i in infos][0] == "leaf" and infos[0].subject == "localhost" and infos[0].issuer == "Test Inter"
+    assert {i.role for i in infos[1:]} <= {"intermediate", "root"} and len(infos) >= 2
+    assert all(i.pin.startswith("sha256/") for i in infos)
+
+
+@needs_chain
+def test_a_short_lived_leaf_gets_a_plain_warning_and_a_long_one_does_not(tls_server):
+    port, ca, _ = tls_server(leaf_days=60)                         # like an automatically renewed 90-day certificate
+    short = tp.advice(tp.describe_pins(tp.fetch("localhost", port, cafile=ca)))
+    assert any("renewed automatically" in n and "NEW key" in n for n in short)
+    port2, ca2, _ = tls_server(leaf_days=365)
+    assert tp.advice(tp.describe_pins(tp.fetch("localhost", port2, cafile=ca2))) == []
+
+
+@needs_chain
+def test_the_written_pin_file_carries_the_certificate_details_and_the_advice(tls_server, tmp_path):
+    port, ca, _ = tls_server(leaf_days=60)
+    out = tmp_path / "pins.txt"
+    assert tp.main(["--host", "localhost", "--port", str(port), "--cafile", ca, "--write", str(out)]) == 0
+    text = out.read_text()
+    assert "issued by" in text and "expires" in text and "# NOTE:" in text and "NEW key" in text
+
+
+def test_render_pins_still_works_without_certificate_details():
+    text = tp.render_pins("h", ["sha256/a", "sha256/b"])
+    assert "sha256/a  # primary" in text and "sha256/b  # backup" in text and "# NOTE:" not in text
