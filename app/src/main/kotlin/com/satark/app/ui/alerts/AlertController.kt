@@ -110,23 +110,22 @@ class AlertController(
     }
 }
 
-/** After an alarm, a UPI app opening within 30 minutes earns a reminder, at most one every 2 minutes. */
+/** After an alarm, the first UPI app to open within 30 minutes earns one reminder. One per incident, so it never nags. */
 class OpenReminder(private val now: () -> Long) {
     private var alarmMs = 0L
     private var reasons: List<String> = emptyList()
-    private var lastMs = 0L
+    private var reminded = false
 
-    fun alarmed(r: List<String>) { alarmMs = now(); reasons = r; lastMs = 0L }
+    fun alarmed(r: List<String>) { alarmMs = now(); reasons = r; reminded = false }
 
     /** The reasons to warn with, or null when no reminder is due. */
     fun due(): List<String>? {
-        val t = now()
-        if (alarmMs == 0L || t - alarmMs > WINDOW_MS || (lastMs != 0L && t - lastMs < GAP_MS)) return null
-        lastMs = t
+        if (alarmMs == 0L || reminded || now() - alarmMs > WINDOW_MS) return null
+        reminded = true
         return reasons
     }
 
-    companion object { const val WINDOW_MS = 30 * 60_000L; const val GAP_MS = 2 * 60_000L }
+    companion object { const val WINDOW_MS = 30 * 60_000L }
 }
 
 /**

@@ -143,8 +143,7 @@ fun OnboardingFlow(graph: AppGraph, settings: Boolean = false, onDeleted: () -> 
             }
         }
         val smsOn = remember(tick) { com.satark.app.signals.SmsReceiver.granted(ctx) }
-        val notifOn = remember(tick) { com.satark.app.signals.MessageWatcher.enabled(ctx) }
-        val messagesOn = smsOn || notifOn
+        val messagesOn = smsOn
         Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLowest)) {
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -158,14 +157,9 @@ fun OnboardingFlow(graph: AppGraph, settings: Boolean = false, onDeleted: () -> 
                             color = if (messagesOn) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
-                Text("Satark notices when a text or WhatsApp message comes from a number that is not in your contacts. It sees only who sent it, never what it says.",
+                Text("Satark notices when a text comes from a number that is not in your contacts. It sees only who sent it, never what it says.",
                     style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    if (!smsOn) Button(onClick = { perms.launch(arrayOf(Manifest.permission.RECEIVE_SMS)) }) { Text("Allow texts") }
-                    if (!notifOn) OutlinedButton(onClick = {
-                        runCatching { ctx.startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)) }
-                    }) { Text("Allow WhatsApp") }
-                }
+                if (!smsOn) Button(onClick = { perms.launch(arrayOf(Manifest.permission.RECEIVE_SMS)) }) { Text("Allow texts") }
             }
         }
         ProtectionBanners(status)

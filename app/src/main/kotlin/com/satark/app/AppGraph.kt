@@ -34,6 +34,8 @@ class SatarkApp : Application() {
 /** Hand-wired dependency graph (small app; no DI framework). */
 class AppGraph(private val app: Application) {
     val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    /** True while one of Satark's own screens is in front: its Stop screen is then the alert, so no banner or notification is added. */
+    @Volatile var appVisible = false
     val store = TokenStore(app)
     val model: ModelConfig = ModelConfig.loadBundled().let { m ->
         if (BuildConfig.DEBUG && BuildConfig.LONG_SESSION_TEST_MIN > 0)
@@ -69,7 +71,16 @@ class AppGraph(private val app: Application) {
             override suspend fun get(key: String) = dao.alertStat(key)
             override suspend fun put(stat: com.satark.app.events.AlertStat) = dao.putAlertStat(stat)
         }),
-        onShown = { alarmNotifier.show(it.mechanism); alarmOverlay.show(it.reasons) },
+        onShown = {
+            // One alert per incident. If Satark is already on screen, its own Stop screen is the alert. Otherwise the
+            // banner over the open app, or the notification (permission off, or the phone is locked).
+            val locked = app.getSystemService(android.app.KeyguardManager::class.java)?.isKeyguardLocked == true
+            when {
+                appVisible -> Unit
+                alarmOverlay.canShow() && !locked -> alarmOverlay.show(it.reasons)
+                else -> alarmNotifier.show(it.mechanism)
+            }
+        },
         onPaymentAppOpened = { alarmOverlay.show(it) })
 
 
@@ -87,6 +98,9 @@ class AppGraph(private val app: Application) {
 
     /** (alerts shown, repeats merged) since install: simple local counters, nothing leaves the phone. */
     suspend fun alertCounts(): Pair<Int, Int> = dao.alertsShown() to dao.alertsMerged()
+
+    suspend fun recentDecisions(n: Int) = dao.recentDecisions(n)
+    suspend fun eventCount() = dao.eventCount()
 
     /** Called by [com.satark.app.events.EventPurgeWorker]: delete event_queue rows older than 7 days. */
     suspend fun purgeOldEvents(nowMs: Long) = dao.pruneEvents(com.satark.app.events.EventPurgeWorker.cutoff(nowMs))

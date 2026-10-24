@@ -43,6 +43,7 @@ class EventDispatcher(
     private val baseline = Baseline.coldStart(model)
     private var lastTrace: PaymentTrace? = null
     private val detector = Detector.create(ageBand, baseline, model).also { it.traceSink = { t -> lastTrace = t } }
+    private val splitGuard = SplitGuard(model, ageBand, baseline)
 
     private val policy = SessionPolicy()
     private val unknownCallActive get() = policy.unknownCallActive
@@ -115,7 +116,7 @@ class EventDispatcher(
             if (d.level.showsScreen) {
                 _alarms.tryEmit(Alarm(d, lastTrace, unknownCallActive))
                 if (worst.level == Level.NONE) worst = d
-            } else if (e.type == EventType.PAYMENT_ATTEMPT && unknownCallActive && e.payeeIsNew == true) {
+            } else if (e.type == EventType.PAYMENT_ATTEMPT && NudgePolicy.shouldNudge(unknownCallActive, e.payeeIsNew, e.amountInr, baseline.median)) {
                 _nudges.tryEmit(Nudge(emptyList()))
                 worst = d
             } else if (e.type == EventType.PAYMENT_ATTEMPT && worst.level == Level.NONE) worst = d
@@ -131,9 +132,13 @@ class EventDispatcher(
     /** One event into the detector, with the app's session policy. Null when the event is ignored. Call under [lock]. */
     private fun feed(raw: Event): Decision? {
         val step = policy.prepare(raw) ?: return null
-        if (step.resetFirst) detector.reset()
+        if (step.resetFirst) { detector.reset(); splitGuard.reset() }
         lastTrace = null
-        return detector.onEvent(step.event)
+        val main = detector.onEvent(step.event)
+        // A second look for payments split into pieces. It only ever adds an alarm; the main decision is never lowered.
+        val extra = splitGuard.onEvent(step.event)
+        if (!main.level.showsScreen && extra.level.showsScreen) { lastTrace = splitGuard.lastTrace; return extra }
+        return main
     }
 
     /**

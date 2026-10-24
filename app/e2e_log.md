@@ -162,6 +162,21 @@ tests pass; debug, release and androidTest builds succeed; no new stubs.
 Note for the Razorpay run: webhooks only arrive if the dashboard account is the account the API keys belong to (checked with
 `GET https://api.razorpay.com/v1/webhooks`, which lists the webhooks of the key's account).
 
+### Phase 4: restart after reboot, tighter nudge, split-payment guard, alert budget (unit level only)
+
+These are JVM unit tests. They have **not** been run on the emulator or a phone yet, and the Gradle run was not repeated
+on the machine that wrote this entry (it has no JDK 21), so rerun `./gradlew :app:testDebugUnitTest` before relying on them.
+
+| # | Area | Test | Expected |
+|---|---|---|---|
+| 38 | Restart | `RestartPolicyTest` (3 tests) | Boot and app update restart protection; other broadcasts do not |
+| 39 | Nudge | `PaymentPolicyTest` (9 tests) | Nudge only for a new payee during an unknown call with amount >= 2x the usual payment; bad input never nudges |
+| 40 | Split guard | `SplitGuardVectorsTest` (2 tests), `ops/eval/split_guard.py` | Three part-payments to one new payee within an hour are judged on their total |
+| 41 | Alert budget | History screen card | Shows the simulated alert budget; figures come from `ops/eval/reports/alert_budget.md` |
+
+Still to run on a device: reboot the emulator and check the protection notice returns without opening Satark; the same
+after `adb install -r`; a 3-part split to a new payee during an unknown call (`app/tools/phone_check.py` is the place to add it).
+
 ## Defects found and fixed (all on `role_1`)
 
 | | Defect | Fix | Commit |

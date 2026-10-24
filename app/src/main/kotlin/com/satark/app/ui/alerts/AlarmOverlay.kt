@@ -91,9 +91,18 @@ class AlarmOverlay(
                 background = GradientDrawable().apply { shape = GradientDrawable.OVAL; setColor(red) }
                 layoutParams = LinearLayout.LayoutParams(dp(36), dp(36)).apply { rightMargin = dp(12) } })
             addView(text, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
-            addView(Button(ctx).apply {
-                this.text = "Fix"
-                setOnClickListener { showFull(reasons) }
+            addView(LinearLayout(ctx).apply {
+                orientation = LinearLayout.VERTICAL
+                addView(Button(ctx).apply {
+                    this.text = "Fix"
+                    setOnClickListener { showFull(reasons) }
+                })
+                // A warning that cannot be waved away becomes noise.
+                addView(Button(ctx, null, android.R.attr.borderlessButtonStyle).apply {
+                    this.text = "Dismiss"
+                    setTextColor(Color.parseColor("#E6E1E5"))
+                    setOnClickListener { hide() }
+                })
             })
         }
         return FrameLayout(ctx).apply { setPadding(dp(12), 0, dp(12), 0); addView(row) }
@@ -125,13 +134,13 @@ class AlarmOverlay(
             setPadding(dp(22), dp(22), dp(22), dp(18))
             background = GradientDrawable().apply { setColor(Color.WHITE); cornerRadius = dp(20).toFloat(); setStroke(dp(4), red) }
             addView(label("STOP. Do not pay.", 28f, red, bold = true))
-            addView(label(p.title, 19f, ink, bold = true))
-            addView(label(p.text, 17f, ink))
             val seen = evidence()
             if (seen.isNotEmpty()) {
                 addView(label("What Satark saw", 17f, red, bold = true))
                 addView(label(seen.joinToString("\n") { "• $it" }, 16f, ink))
             }
+            addView(label(p.title, 19f, ink, bold = true))
+            addView(label(p.text, 17f, ink))
             addView(label("Do this now", 17f, red, bold = true))
             addView(label(
                 "1. Stop talking to them: hang up, or stop replying.\n2. Do not install or open any app they ask for.\n3. Never tell anyone your UPI PIN or OTP.",

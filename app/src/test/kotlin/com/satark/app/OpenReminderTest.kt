@@ -14,16 +14,15 @@ class OpenReminderTest {
         assertNull(OpenReminder { 1_000_000 }.due())
     }
 
-    @Test fun openingAUpiAppSoonAfterAnAlarmRemindsOnceThenWaits() {
+    @Test fun openingAUpiAppSoonAfterAnAlarmRemindsExactlyOncePerIncident() {
         var now = 1_000_000L
         val r = OpenReminder { now }
         r.alarmed(reasons)
         now += 10_000
         assertEquals(reasons, r.due())
-        now += 30_000
-        assertNull(r.due(), "not again within 2 minutes")
-        now += 2 * 60_000
-        assertEquals(reasons, r.due())
+        now += 10 * 60_000
+        assertNull(r.due(), "never a second reminder for the same incident")
+        assertNull(r.due())
     }
 
     @Test fun noReminderAfterThirtyMinutes() {
