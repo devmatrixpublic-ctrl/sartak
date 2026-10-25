@@ -75,6 +75,8 @@ class MainActivity : FragmentActivity(), PaymentResultListener { // FragmentActi
         super.onStart()
         graph.appVisible = true
         lifecycleScope.launch(Dispatchers.IO) { runCatching { graph.protectionOff.completeIfDue() } } // a finished wait takes effect now
+        // The download guard starts watching once file access is granted, which happens in Settings: restart it when the person comes back.
+        lifecycleScope.launch(Dispatchers.IO) { runCatching { graph.downloadGuard.refresh(); graph.downloadGuard.sweep() } }
         graph.hub.screenRecording.register(getSystemService(android.view.WindowManager::class.java), mainExecutor)
     }
 

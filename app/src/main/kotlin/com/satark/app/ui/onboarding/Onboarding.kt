@@ -69,6 +69,7 @@ import com.satark.app.push.Push
 import com.satark.app.signals.SignalStatus
 import com.satark.app.signals.SourceName
 import com.satark.app.signals.SourceState
+import com.satark.app.ui.guard.DownloadGuardCard
 import com.satark.app.ui.lock.FingerprintLock
 import com.satark.app.ui.lock.LockState
 import com.satark.app.ui.lock.rememberLockGate
@@ -176,6 +177,7 @@ fun OnboardingFlow(graph: AppGraph, settings: Boolean = false, onDeleted: () -> 
                 if (!smsOn) Button(onClick = { perms.launch(arrayOf(Manifest.permission.RECEIVE_SMS)) }) { Text("Allow texts") }
             }
         }
+        DownloadGuardCard(graph, tick)
         AgeCard(graph)
         ProtectionBanners(status)
 

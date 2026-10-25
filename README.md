@@ -60,6 +60,8 @@ primary source before quoting one as fact.)*
   strangers, and how long a video session runs.
 - A small explainable detector (16 features, per-age-band conformal thresholds, two rules) plus app policies for split payments, large first payments and
   unusually large amounts.
+- A **download guard** (opt-in): it watches Downloads and chat documents for file names scam files commonly use ("RTO Challan.apk", "SBI KYC Update.apk",
+  "Wedding Invitation.apk"), moves a scam-named app into a private quarantine, stops a download still in progress, warns about suspicious documents, and reads only file names.
 - A **device check** when you go to pay: it looks for remote-access apps, root tools, modified copies of popular apps, payment apps from outside a store and other
   sideloaded apps, and tells the person their phone may be vulnerable. A warning only; it never holds a payment.
 
@@ -361,6 +363,10 @@ Satark. Wider coverage means embedding it in a payment or banking app, which nee
 the message body, and a message never changes a payment decision.
 
 **What happens if my trusted contact does not answer?** The payment stays held. Nothing is released by waiting.
+
+**What is the download guard?** An opt-in feature (Android 11+, "All files access"). When a file with a name like "RTO Challan.apk" or "SBI KYC Update.apk" appears in Downloads or a chat's
+documents, Satark moves the app into a private quarantine you can restore (behind your fingerprint) or delete, and warns you. A suspicious document is warned about and left alone.
+It reads only file names, never contents. It cannot cancel another app's download from outside; it removes the file as it appears.
 
 **What is the device check?** When you tap *Check and pay*, Satark lists the apps on the phone and flags remote-access apps, root tools, modified copies of popular apps and apps
 installed from outside an official store. It sends a notification, shows a card with a *Remove* button, and asks before the payment. It is a warning only and it keeps no app names.

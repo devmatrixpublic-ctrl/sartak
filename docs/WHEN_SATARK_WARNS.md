@@ -112,6 +112,25 @@ The notification is sent at most once a day for the same set of apps. Each findi
 fingerprint of what it showed, never app names. The package lists are a curated starting point (`security/DeviceCheck.kt`), not a complete catalogue.
 If the phone does not let Satark list its apps, the check says nothing instead of warning. It is covered by `DeviceCheckTest`.
 
+## Download guard (scam file names)
+Opt-in (Protection screen, *Download guard*). It needs Android 11 or newer and "All files access", and it reads only file **names**, never what is inside a file.
+It watches the Download folder, Documents, and the document folders of WhatsApp, WhatsApp Business and Telegram, and compares a new file's name with the
+names scam files commonly use (`app/.../guard/ScamFileRules.kt`: traffic fines and RTO challans, bank KYC and rewards, government schemes, Aadhaar and PAN
+updates, electricity and gas bills, tax refunds, wedding invitations, SIM and telecom KYC, parcel, customs and police notices, fake customer support, instant
+loans and trading, prizes and free recharge). Separators, capitals and run-together names do not hide a match ("RTO_Challan", "SBIKYCUpdate").
+
+| The file | What happens |
+|---|---|
+| An **app file** (`.apk`, `.apks`, `.xapk`, `.apkm`) with a matching name | **Moved into a private quarantine** within moments, with a notification: *Scam warning: file blocked* |
+| A download **still in progress** under a matching name (`.crdownload`, `.part`, Android's `.pending-…`) | **Deleted**, so the download cannot finish; *Scam warning: download stopped* |
+| A **document or archive** (`.pdf`, `.docx`, `.xlsx`, `.zip`, and similar) with a matching name | **Warned about, left where it is**; *Scam warning: suspicious file* |
+| Photos, videos, anything with no matching name | Nothing |
+
+A held file can be **restored** (behind the fingerprint or PIN, because "put it back" is what a scammer would ask for) or deleted for good. Documents are not moved
+because a genuine electricity bill, tax notice or wedding invitation can have the same name; `ScamFileRules.QUARANTINE_DOCUMENTS` switches that on. These are
+name heuristics, not proof: a real app can have a name like these, and a scam can have an unrelated one. Android does not let an app cancel another app's download,
+so Satark acts on the file as it appears, which is within moments but not before the first byte.
+
 ## Gaps this exposed (said openly)
 - A payment more than **30 minutes after** the unknown call ended is quiet. Text messages never count as unknown contact.
 - The same amount to the same payee again **within 2 minutes** is counted as a retry of one payment, not a second piece.

@@ -14,6 +14,7 @@ This document goes one level below the README: how the pieces talk to each other
 | Component | Where | Responsibility |
 |---|---|---|
 | Signal sources | `app/.../signals/` | Unknown calls and video, installs (Play, sideload, remote-access watch-list), strangers' texts (sender only), usage access. Raw signals become events. |
+| Download guard | `app/.../guard/` | Opt-in. Watches Downloads and chat document folders for new files whose names look like common scam files; quarantines scam-named apps, stops in-progress downloads, warns about documents. Reads names only. |
 | Device check | `app/.../security/DeviceCheck.kt` | When the person goes to pay, lists installed apps and flags remote-access apps, root tools, modified copies, payment apps from outside a store and other sideloaded apps. A warning only. |
 | Detector | `detector/` (Kotlin library, used by the app) | Turns events into a decision (`NONE` or `HARD`, a score, one to three reason codes). Deterministic, no clock, no randomness. |
 | App policies | `app/.../events/` | Split guard, high-value new payee, nudge, text burst, alert merging. They add warnings; they never remove the detector's. |
@@ -130,6 +131,7 @@ Redis, when used, holds rate-limit counters only. It never holds payment or sess
 | Data | Where it lives | Leaves the phone? |
 |---|---|---|
 | Calls, installs and which app is in use | Processed on the phone to make events | No. Events are kept briefly in a local queue and purged. |
+| File names in Downloads and chat documents | Compared on the phone with a list of scam-like names; a match is kept as a local record (name, category, time) | No. Never sent, and a file's contents are never read. |
 | Text messages | Only the sender's number is checked against contacts; the arrival time is kept for the burst count | No. The message body is never read. |
 | Amount and payee of a payment | On the phone, to make a decision | The server receives an **amount band** and a **keyed hash** of the payee. |
 | Usual payment size | Local table of completed payments (used for the baseline) | No. |

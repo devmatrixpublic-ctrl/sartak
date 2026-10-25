@@ -48,6 +48,10 @@ class TokenStore(ctx: Context) {
     var linkedContactId: String? get() = prefs.getString("linked_contact", null); set(v) = prefs.edit().putString("linked_contact", v).apply()
     /** Shadow mode: the detector still scores and the app logs it, but nothing is shown, paused, pushed or held. */
     var shadowMode: Boolean get() = prefs.getBoolean("shadow", false); set(v) = prefs.edit().putBoolean("shadow", v).apply()
+    /** Download guard: opt-in, and what it did (names of files it held or warned about, kept on this phone only). */
+    var downloadGuardOn: Boolean get() = prefs.getBoolean("download_guard", false); set(v) = prefs.edit().putBoolean("download_guard", v).apply()
+    var guardRecordsJson: String get() = prefs.getString("guard_records", "[]")!!; set(v) = prefs.edit().putString("guard_records", v).apply()
+    var guardAllowedJson: String get() = prefs.getString("guard_allowed", "[]")!!; set(v) = prefs.edit().putString("guard_allowed", v).apply()
     /** The device check remembers a short fingerprint of what it last showed or sent, never the names of apps. */
     var deviceAckFp: String? get() = prefs.getString("device_ack_fp", null); set(v) = prefs.edit().apply { if (v == null) remove("device_ack_fp") else putString("device_ack_fp", v) }.apply()
     var deviceAckMs: Long get() = prefs.getLong("device_ack_ms", 0L); set(v) = prefs.edit().putLong("device_ack_ms", v).apply()

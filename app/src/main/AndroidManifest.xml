@@ -21,6 +21,8 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
     <!-- Install source of every new package (Play vs sideload). Play policy review needed for a store release. -->
     <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" />
+    <!-- Download guard (opt-in): lets Satark see the names of new files in Downloads and chat document folders. It never opens a file. -->
+    <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" tools:ignore="ScopedStorage" />
     <!-- Granted by the user in Settings > Usage access, not a runtime dialog. -->
     <uses-permission android:name="android.permission.PACKAGE_USAGE_STATS" tools:ignore="ProtectedPermissions" />
 

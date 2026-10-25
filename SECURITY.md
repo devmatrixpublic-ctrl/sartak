@@ -48,6 +48,12 @@ These are documented, not secret:
 - A legacy `POST /trusted-contact` route lets the device owner supply the contact's push address. The app no longer uses it, and it should be removed or guarded.
 - All detection accuracy figures are from a simulator.
 
+## Permissions worth knowing about
+
+- `MANAGE_EXTERNAL_STORAGE` ("All files access") is used only by the opt-in download guard, to see the names of new files in Downloads and chat document folders and to move a scam-named app into
+  Satark's private storage. The app never opens or reads a file's contents. It is requested only when the person turns the guard on.
+- `QUERY_ALL_PACKAGES` is used by the device check and the install signal to list installed apps.
+
 ## What is already in place
 
 Strict request models, owner-scoped lookups, HMAC-verified webhooks, request-body caps, rate limits, single-use refresh tokens with reuse revocation, Key Attestation checks, keyed hashing

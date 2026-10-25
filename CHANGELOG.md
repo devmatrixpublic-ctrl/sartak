@@ -6,6 +6,10 @@ All notable changes to Satark are recorded here. The format follows [Keep a Chan
 ## [Unreleased]
 
 ### Added
+- **Download guard (opt-in).** Watches Downloads, Documents and the WhatsApp, WhatsApp Business and Telegram document folders (Android 11+, "All files access") and compares new file names with the
+  names scam files commonly use across twelve categories (RTO challan, bank KYC, government schemes, Aadhaar and PAN, bills, tax refund, wedding invitation, SIM KYC, parcel and police notice,
+  fake support, loans and trading, prizes and recharge). A scam-named app is moved into a private quarantine and a download still in progress is deleted; a scam-named document is warned about and
+  left in place. A held file can be restored (behind the lock) or deleted. Only names are read. 26 new tests, and checked on a real phone.
 - **Device check at payment time.** Tapping *Check and pay* looks at the installed apps and warns if the phone is vulnerable: remote-access apps, root or hooking tools, known modified
   messaging clones and well-known payment apps that arrived through a file or browser (serious), and any other app from outside an official store or with no known installer (weak). It sends a notification (at most one a day
   for the same set), shows a card with a *Remove* button, and asks before the payment. A warning only: it never holds a payment or reaches the detector. Trusted stores include Google Play and
