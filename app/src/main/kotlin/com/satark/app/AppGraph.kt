@@ -66,6 +66,14 @@ class AppGraph(private val app: Application) {
     private val deviceNotifier by lazy { com.satark.app.ui.alerts.DeviceCheckNotifier(app) }
     private val guardNotifier by lazy { com.satark.app.guard.DownloadGuardNotifier(app) }
     private val guardJson = kotlinx.serialization.json.Json { ignoreUnknownKeys = true }
+    /** The practice call in progress, kept here so turning the phone (which restarts the screen) resumes it instead of dropping the person out. */
+    @Volatile var activeDrill: com.satark.app.drill.DrillSession? = null
+    /** Scam Inoculation Mode: the practice calls the person has done. Local only; it never feeds a payment decision. */
+    val drillHistory = com.satark.app.drill.DrillHistory(object : com.satark.app.drill.DrillStore {
+        override var records: List<com.satark.app.drill.DrillRecord>
+            get() = runCatching { guardJson.decodeFromString<List<com.satark.app.drill.DrillRecord>>(store.drillRecordsJson) }.getOrDefault(emptyList())
+            set(v) { store.drillRecordsJson = guardJson.encodeToString(v) }
+    })
     /** Watches Downloads and chat documents; moves a scam-named app into quarantine and warns. Opt-in, and reads only file names. */
     val downloadGuard = com.satark.app.guard.DownloadGuard(
         watchedDirs = { com.satark.app.guard.watchedDownloadDirs() },

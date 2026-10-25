@@ -30,6 +30,7 @@ import com.satark.app.signals.SignalService
 import com.satark.app.ui.alerts.AlertHost
 import com.satark.app.ui.alerts.ContactDecisionScreen
 import com.satark.app.ui.alerts.HistoryScreen
+import com.satark.app.ui.drill.DrillScreen
 import com.satark.app.ui.login.LoginFlow
 import com.satark.app.ui.onboarding.ConsentScreen
 import com.satark.app.ui.onboarding.OnboardingFlow
@@ -52,6 +53,7 @@ class MainActivity : FragmentActivity(), PaymentResultListener { // FragmentActi
     private var consentAsked by mutableStateOf(false)
     private var decidePaymentId by mutableStateOf<String?>(null) // trusted contact opened a held-payment alert
     private var showHistory by mutableStateOf(false)
+    private var showDrill by mutableStateOf(false) // Scam Inoculation Mode: practice a scam call
     private var showLogin by mutableStateOf(false) // sign in from the Protection screen
     private var signInDone by mutableStateOf(false) // first run: signed in, or chose to continue without an account
 
@@ -95,6 +97,7 @@ class MainActivity : FragmentActivity(), PaymentResultListener { // FragmentActi
         }
         if (graph.store.onboarded && graph.store.consent) SignalService.start(this)
         consentAsked = graph.store.consentAsked
+        showDrill = graph.activeDrill != null // a practice call interrupted by turning the phone picks up where it was
         signInDone = graph.store.signedIn || graph.store.signInSkipped
         handleOpen(intent)
         setContent { SatarkTheme { Root() } }
@@ -143,9 +146,12 @@ class MainActivity : FragmentActivity(), PaymentResultListener { // FragmentActi
             } else if (showHistory) {
                 BackHandler { showHistory = false }
                 HistoryScreen(graph) { showHistory = false }
+            } else if (showDrill) {
+                BackHandler { showDrill = false }
+                DrillScreen(graph) { showDrill = false }
             } else {
                 PayHome(graph, status, ::onOutcome, onOpenProtection = { showProtection = true }, onNewPayment = { status = null },
-                    onOpenHistory = { showHistory = true })
+                    onOpenHistory = { showHistory = true }, onOpenDrill = { showDrill = true })
             }
         }
     }

@@ -15,6 +15,7 @@ This document goes one level below the README: how the pieces talk to each other
 |---|---|---|
 | Signal sources | `app/.../signals/` | Unknown calls and video, installs (Play, sideload, remote-access watch-list), strangers' texts (sender only), usage access. Raw signals become events. |
 | Download guard | `app/.../guard/` | Opt-in. Watches Downloads and chat document folders for new files whose names look like common scam files; quarantines scam-named apps, stops in-progress downloads, warns about documents. Reads names only. |
+| Scam Inoculation Mode | `app/.../drill/`, `app/.../ui/drill/` | Optional rehearsal of a scam call. Scripts are data (`DrillScripts.kt`); a pure state machine (`DrillSession`) moves Caller, Decide, Lesson, Debrief; the result is kept on the phone only. Emits no signal to the detector and never affects a payment decision. See [SCAM_DRILL.md](SCAM_DRILL.md). |
 | Device check | `app/.../security/DeviceCheck.kt` | When the person goes to pay, lists installed apps and flags remote-access apps, root tools, modified copies, payment apps from outside a store and other sideloaded apps. A warning only. |
 | Detector | `detector/` (Kotlin library, used by the app) | Turns events into a decision (`NONE` or `HARD`, a score, one to three reason codes). Deterministic, no clock, no randomness. |
 | App policies | `app/.../events/` | Split guard, high-value new payee, nudge, text burst, alert merging. They add warnings; they never remove the detector's. |

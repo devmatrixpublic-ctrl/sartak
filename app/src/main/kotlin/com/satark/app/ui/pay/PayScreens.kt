@@ -28,6 +28,7 @@ import android.net.Uri
 import com.satark.app.security.DeviceReport
 import com.satark.app.security.Severity
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.filled.Call
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.AlertDialog
@@ -108,6 +109,7 @@ fun PayHome(
     onOpenProtection: () -> Unit = {},
     onNewPayment: () -> Unit = {},
     onOpenHistory: () -> Unit = {},
+    onOpenDrill: () -> Unit = {},
 ) {
     // rememberSaveable: typed values survive the activity being recreated (rotation, call screen, process trim).
     var scanning by rememberSaveable { mutableStateOf(false) }
@@ -217,6 +219,8 @@ fun PayHome(
         if (graph.deviceCheck.visible) deviceReport?.let { DeviceCheckCard(it) }
         ProtectionLink(onOpenProtection)
         ToolLink("Alert history", "What Satark saw, and what it keeps", Icons.Filled.Info, onOpenHistory)
+        // Re-read on every return to this screen, so finishing a practice call updates the line.
+        ToolLink("Practice a scam call", remember(resumed) { graph.drillHistory.summary() }, Icons.Filled.Call, onOpenDrill)
         PauseCard(pause, graph.pause)
 
         Card(

@@ -6,6 +6,11 @@ All notable changes to Satark are recorded here. The format follows [Keep a Chan
 ## [Unreleased]
 
 ### Added
+- **Scam Inoculation Mode.** *Practice a scam call* on the home screen: three short rehearsals (a "digital arrest" call, a "KYC update" call, a "parcel seized" call) in which Satark plays the caller. At each
+  point where a real scammer pushes (a code, installing AnyDesk, staying on video, paying, card details, a UPI PIN "to receive" money, a tracking link, secrecy) the call pauses, the person chooses, and the screen explains
+  why a real caller would never need it. Choices are shuffled, the caller pushes back when refused, a pressure bar climbs, and a summary gives the rule for each missed move and what to do on a real call (including 1930).
+  Optional read-aloud of the caller with the phone's own voice (off by default). Always labelled as practice, never asks for a real code, PIN or card number, kept on the phone only, and never changes what Satark
+  warns about. 31 new tests. See `docs/SCAM_DRILL.md`.
 - **Download guard (opt-in).** Watches Downloads, Documents and the WhatsApp, WhatsApp Business and Telegram document folders (Android 11+, "All files access") and compares new file names with the
   names scam files commonly use across twelve categories (RTO challan, bank KYC, government schemes, Aadhaar and PAN, bills, tax refund, wedding invitation, SIM KYC, parcel and police notice,
   fake support, loans and trading, prizes and recharge). A scam-named app is moved into a private quarantine and a download still in progress is deleted; a scam-named document is warned about and
@@ -27,6 +32,8 @@ All notable changes to Satark are recorded here. The format follows [Keep a Chan
   can no longer supply (or replace) it.
 
 ### Fixed
+- A "you have been on a video call for hours" warning could appear when no call was on. A video app that was merely in front of the screen counted as a call, and when Android did not report it leaving, the
+  "call" ran on until the two-hour warning. A video session now needs a real call (the phone's in-communication audio mode) and ends when the call stops.
 - The "protection turned off" and "removal guard off" alerts were skipped for a contact who was linked without the old pairing code, because the phone never recorded that it
   had a contact. They are now always sent, and the server decides who receives them.
 - The hold card on the Pay screen stayed until the next payment.

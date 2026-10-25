@@ -52,6 +52,9 @@ class TokenStore(ctx: Context) {
     var downloadGuardOn: Boolean get() = prefs.getBoolean("download_guard", false); set(v) = prefs.edit().putBoolean("download_guard", v).apply()
     var guardRecordsJson: String get() = prefs.getString("guard_records", "[]")!!; set(v) = prefs.edit().putString("guard_records", v).apply()
     var guardAllowedJson: String get() = prefs.getString("guard_allowed", "[]")!!; set(v) = prefs.edit().putString("guard_allowed", v).apply()
+    /** Scam Inoculation Mode: which practice calls were finished and how they went (this phone only), and whether the caller is read aloud. */
+    var drillRecordsJson: String get() = prefs.getString("drill_records", "[]")!!; set(v) = prefs.edit().putString("drill_records", v).apply()
+    var drillVoiceOn: Boolean get() = prefs.getBoolean("drill_voice", false); set(v) = prefs.edit().putBoolean("drill_voice", v).apply()
     /** The device check remembers a short fingerprint of what it last showed or sent, never the names of apps. */
     var deviceAckFp: String? get() = prefs.getString("device_ack_fp", null); set(v) = prefs.edit().apply { if (v == null) remove("device_ack_fp") else putString("device_ack_fp", v) }.apply()
     var deviceAckMs: Long get() = prefs.getLong("device_ack_ms", 0L); set(v) = prefs.edit().putLong("device_ack_ms", v).apply()
