@@ -62,6 +62,20 @@ class AppGraph(private val app: Application) {
     }
     val hub = SignalHub(app)
     val textBurst = TextBurst(textStore(app))
+    private val deviceNotifier by lazy { com.satark.app.ui.alerts.DeviceCheckNotifier(app) }
+    /** Looks at the apps on the phone as the person goes to pay, and warns if it is a weaker place to pay from. A warning only. */
+    val deviceCheck = com.satark.app.security.DeviceCheck(
+        scanner = com.satark.app.security.AndroidPhoneScanner(app),
+        policy = com.satark.app.security.DevicePolicy(object : com.satark.app.security.DeviceCheckStore {
+            override var ackFingerprint: String? by store::deviceAckFp
+            override var ackAtMs: Long by store::deviceAckMs
+            override var notifiedFingerprint: String? by store::deviceNotifiedFp
+            override var notifiedAtMs: Long by store::deviceNotifiedMs
+        }),
+        selfPackage = app.packageName,
+        notify = { deviceNotifier.show(it) },
+        shadow = { store.shadowMode },
+    )
     /** One instance for the whole sign-in, so a screen rotation does not lose the code Firebase is waiting for. */
     val phoneAuth: com.satark.app.account.PhoneAuth by lazy {
         when {

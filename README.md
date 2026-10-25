@@ -60,6 +60,8 @@ primary source before quoting one as fact.)*
   strangers, and how long a video session runs.
 - A small explainable detector (16 features, per-age-band conformal thresholds, two rules) plus app policies for split payments, large first payments and
   unusually large amounts.
+- A **device check** when you go to pay: it looks for remote-access apps, root tools, modified copies of popular apps, payment apps from outside a store and other
+  sideloaded apps, and tells the person their phone may be vulnerable. A warning only; it never holds a payment.
 
 **A response that fits the risk**
 - **Quiet** for ordinary payments. **Nudge**: a "Take a moment" step before anything is sent. **Hold**: a full-screen *Stop. This looks like a scam.*
@@ -359,6 +361,9 @@ Satark. Wider coverage means embedding it in a payment or banking app, which nee
 the message body, and a message never changes a payment decision.
 
 **What happens if my trusted contact does not answer?** The payment stays held. Nothing is released by waiting.
+
+**What is the device check?** When you tap *Check and pay*, Satark lists the apps on the phone and flags remote-access apps, root tools, modified copies of popular apps and apps
+installed from outside an official store. It sends a notification, shows a card with a *Remove* button, and asks before the payment. It is a warning only and it keeps no app names.
 
 **Does it work without an account?** Yes. Without sign-in the contact simply does not see a name.
 

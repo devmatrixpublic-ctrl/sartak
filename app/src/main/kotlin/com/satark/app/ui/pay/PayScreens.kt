@@ -22,6 +22,11 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Warning
+import android.content.Intent
+import android.net.Uri
+import com.satark.app.security.DeviceReport
+import com.satark.app.security.Severity
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Settings
@@ -85,6 +90,9 @@ import kotlinx.coroutines.withContext
 import java.math.BigDecimal
 import java.util.concurrent.Executors
 
+/** The device check found something and the person is deciding whether to go on to the payment. */
+private class PendingDeviceWarning(val report: DeviceReport, val req: UpiRequest, val amt: BigDecimal)
+
 /** A payment that is allowed but earns a nudge, waiting for the person to read it and choose. */
 private class PendingNudge(val n: PayOutcome.Nudged, val req: UpiRequest, val amt: BigDecimal)
 
@@ -117,11 +125,15 @@ fun PayHome(
     var holdJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) } // waiting on the contact; closing the card ends it
     var busy by remember { mutableStateOf(false) }
     var nudge by remember { mutableStateOf<PendingNudge?>(null) }
+    var deviceReport by remember { mutableStateOf<DeviceReport?>(null) } // what the last look at this phone's apps found
+    var deviceWarning by remember { mutableStateOf<PendingDeviceWarning?>(null) }
     val scope = rememberCoroutineScope()
     val pause by graph.pause.state.collectAsState()
     var resumed by remember { mutableIntStateOf(0) }
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { graph.pause.refresh(); resumed++ }
     val signals = remember(resumed) { graph.hub.status() } // re-read after Settings or a permission dialog
+    // Looked at again on every return to this screen, so removing an app (which leaves Satark) clears the card.
+    androidx.compose.runtime.LaunchedEffect(resumed) { deviceReport = withContext(Dispatchers.IO) { graph.deviceCheck.scan() } }
 
     if (scanning) {
         QrScanScreen(onResult = { text ->
@@ -177,6 +189,20 @@ fun PayHome(
                         }
     }
 
+    val startPayment: (UpiRequest, BigDecimal) -> Unit = { req, amt ->
+        busy = true
+        scope.launch {
+            val o = try {
+                withContext(Dispatchers.IO) { graph.payments.start(req, amt, source, method) }
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                PayOutcome.Failed("Something went wrong. No payment was made.")
+            } finally { busy = false }
+            handle(o, req, amt)
+        }
+    }
+
     val paused = pause != PaymentPause.State.Clear
     Column(
         Modifier.verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 16.dp),
@@ -188,6 +214,7 @@ fun PayHome(
             color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.labelLarge,
         )
         ProtectionSummary(signals)
+        if (graph.deviceCheck.visible) deviceReport?.let { DeviceCheckCard(it) }
         ProtectionLink(onOpenProtection)
         ToolLink("Alert history", "What Satark saw, and what it keeps", Icons.Filled.Info, onOpenHistory)
         PauseCard(pause, graph.pause)
@@ -231,14 +258,11 @@ fun PayHome(
                     if (req == null || amt == null) { error = "Enter a valid UPI ID and an amount."; return@Button }
                     busy = true
                     scope.launch {
-                        val o = try {
-                            withContext(Dispatchers.IO) { graph.payments.start(req, amt, source, method) }
-                        } catch (e: kotlinx.coroutines.CancellationException) {
-                            throw e
-                        } catch (e: Exception) {
-                            PayOutcome.Failed("Something went wrong. No payment was made.")
-                        } finally { busy = false }
-                        handle(o, req, amt)
+                        // Look at the apps on this phone first. Anything found is a warning; the payment itself is decided as before.
+                        val report = withContext(Dispatchers.IO) { graph.deviceCheck.checkAndNotify() }
+                        busy = false
+                        if (graph.deviceCheck.shouldAsk(report)) deviceWarning = PendingDeviceWarning(report, req, amt)
+                        else startPayment(req, amt)
                     }
                 }) { Text(if (busy) "Checking…" else "Check and pay", style = MaterialTheme.typography.titleSmall) }
             }
@@ -276,6 +300,17 @@ fun PayHome(
                     }) { Text("I'm sure, continue") }
                 },
                 dismissButton = { TextButton(onClick = { nudge = null }) { Text("Go back") } },
+            )
+        }
+        deviceWarning?.let { w ->
+            AlertDialog(
+                onDismissRequest = { deviceWarning = null },
+                title = { Text("Your phone may be vulnerable") },
+                text = { DeviceFindingsText(w.report) },
+                confirmButton = {
+                    TextButton(onClick = { deviceWarning = null; graph.deviceCheck.acknowledge(w.report); startPayment(w.req, w.amt) }) { Text("Continue to payment") }
+                },
+                dismissButton = { TextButton(onClick = { deviceWarning = null }) { Text("Go back") } },
             )
         }
         error?.let { Notice(it, MaterialTheme.colorScheme.errorContainer, MaterialTheme.colorScheme.onErrorContainer) }
@@ -479,5 +514,52 @@ private fun AttestationExportButton(graph: AppGraph) {
             if (!confirmReset) confirmReset = true
             else scope.launch { graph.resetDemoState(); android.os.Process.killProcess(android.os.Process.myPid()) }
         }) { Text(if (confirmReset) "Tap again: clear demo data and close Satark" else "Reset demo state") }
+    }
+}
+
+private const val SHOWN_FINDINGS = 6
+
+/** What the device check found, in plain words, for the dialog before a payment. */
+@Composable
+private fun DeviceFindingsText(report: DeviceReport) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(
+            if (report.severity == Severity.HIGH)
+                "Apps like these can let a scammer watch your screen or make payments in your name. Remove any you do not recognise before you pay."
+            else "These apps were not installed from an official store. If you installed them yourself and trust them, you can continue.",
+        )
+        report.findings.take(SHOWN_FINDINGS).forEach { Text("• ${it.label} ${it.sentence}.", style = MaterialTheme.typography.bodyMedium) }
+        if (report.findings.size > SHOWN_FINDINGS) Text("…and ${report.findings.size - SHOWN_FINDINGS} more.", style = MaterialTheme.typography.bodyMedium)
+    }
+}
+
+/** On the Pay screen: what is on this phone that makes a payment less safe, with a way to remove each app. */
+@Composable
+private fun DeviceCheckCard(report: DeviceReport) {
+    if (report.severity == Severity.NONE) return
+    val ctx = LocalContext.current
+    val high = report.severity == Severity.HIGH
+    val container = if (high) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.secondaryContainer
+    val on = if (high) MaterialTheme.colorScheme.onErrorContainer else MaterialTheme.colorScheme.onSecondaryContainer
+    Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = container)) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Icon(Icons.Filled.Warning, contentDescription = null, tint = on)
+                Text(if (high) "Your phone may be vulnerable" else "Apps from outside an official store", style = MaterialTheme.typography.titleSmall, color = on)
+            }
+            report.findings.take(SHOWN_FINDINGS).forEach { f ->
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("${f.label} ${f.sentence}.", Modifier.weight(1f), color = on, style = MaterialTheme.typography.bodyMedium)
+                    if (f.removable) TextButton(onClick = {
+                        runCatching { ctx.startActivity(Intent(Intent.ACTION_DELETE, Uri.parse("package:${f.pkg}"))) }
+                    }) { Text("Remove", color = on) }
+                }
+            }
+            if (report.findings.size > SHOWN_FINDINGS) Text("…and ${report.findings.size - SHOWN_FINDINGS} more.", color = on, style = MaterialTheme.typography.bodyMedium)
+            Text(
+                if (high) "Remove any you do not recognise before you pay." else "Fine if you installed them yourself and trust them.",
+                color = on, style = MaterialTheme.typography.bodySmall,
+            )
+        }
     }
 }

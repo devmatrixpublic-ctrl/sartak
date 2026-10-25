@@ -95,6 +95,23 @@ The wait runs on two clocks, so moving the phone's date does not skip it. A coac
 witness, not a wall. Not covered: revoking permissions or force-stopping Satark in Settings, and a phone that is offline (the contact's
 alert is queued and goes when it is back online).
 
+## Device check (when you go to pay)
+Tapping *Check and pay* first looks at the apps on the phone. It is a warning beside the detector: it never holds a payment, never reaches the
+detector, and never makes Satark quieter. Satark itself and system apps are left out.
+
+| What is found | Level | What the person sees |
+|---|---|---|
+| A remote-access or screen-share app (AnyDesk, TeamViewer, RustDesk, AirDroid and others), even from Google Play | **Serious** | A notification, a red card on the Pay screen, and a dialog before every payment: *Your phone may be vulnerable* |
+| Root or hooking tools (Magisk, KernelSU, LSPosed, a `su` binary) | **Serious** | Same |
+| A known modified copy of a messaging app (for example GBWhatsApp) | **Serious** | Same |
+| A well-known payment app (PhonePe, Google Pay, Paytm, BHIM and others) installed from outside a store | **Serious** | Same |
+| Any other app installed from outside an official store (a downloaded file, adb) | Weak | A notification and an amber card; the dialog asks once, then stays quiet for a week for the same set of apps |
+| Apps from Google Play or a phone maker's store (Samsung, Xiaomi, Huawei, vivo, OPPO and realme, Amazon) | None | Nothing |
+
+The notification is sent at most once a day for the same set of apps. Each finding on the card has a *Remove* button. The check keeps only a short
+fingerprint of what it showed, never app names. The package lists are a curated starting point (`security/DeviceCheck.kt`), not a complete catalogue.
+If the phone does not let Satark list its apps, the check says nothing instead of warning. It is covered by `DeviceCheckTest`.
+
 ## Gaps this exposed (said openly)
 - A payment more than **30 minutes after** the unknown call ended is quiet. Text messages never count as unknown contact.
 - The same amount to the same payee again **within 2 minutes** is counted as a retry of one payment, not a second piece.

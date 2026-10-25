@@ -48,6 +48,11 @@ class TokenStore(ctx: Context) {
     var linkedContactId: String? get() = prefs.getString("linked_contact", null); set(v) = prefs.edit().putString("linked_contact", v).apply()
     /** Shadow mode: the detector still scores and the app logs it, but nothing is shown, paused, pushed or held. */
     var shadowMode: Boolean get() = prefs.getBoolean("shadow", false); set(v) = prefs.edit().putBoolean("shadow", v).apply()
+    /** The device check remembers a short fingerprint of what it last showed or sent, never the names of apps. */
+    var deviceAckFp: String? get() = prefs.getString("device_ack_fp", null); set(v) = prefs.edit().apply { if (v == null) remove("device_ack_fp") else putString("device_ack_fp", v) }.apply()
+    var deviceAckMs: Long get() = prefs.getLong("device_ack_ms", 0L); set(v) = prefs.edit().putLong("device_ack_ms", v).apply()
+    var deviceNotifiedFp: String? get() = prefs.getString("device_notified_fp", null); set(v) = prefs.edit().apply { if (v == null) remove("device_notified_fp") else putString("device_notified_fp", v) }.apply()
+    var deviceNotifiedMs: Long get() = prefs.getLong("device_notified_ms", 0L); set(v) = prefs.edit().putLong("device_notified_ms", v).apply()
     /** Pointer (content URI) to the phone contact "Call trusted contact" dials. Never the number itself. */
     var dialContactUri: String? get() = prefs.getString("dial_contact", null); set(v) = prefs.edit().putString("dial_contact", v).apply()
     /** SHA-256 of the push token last shown as this phone's pairing code (to notice it changed). Not the token. */

@@ -14,6 +14,7 @@ This document goes one level below the README: how the pieces talk to each other
 | Component | Where | Responsibility |
 |---|---|---|
 | Signal sources | `app/.../signals/` | Unknown calls and video, installs (Play, sideload, remote-access watch-list), strangers' texts (sender only), usage access. Raw signals become events. |
+| Device check | `app/.../security/DeviceCheck.kt` | When the person goes to pay, lists installed apps and flags remote-access apps, root tools, modified copies, payment apps from outside a store and other sideloaded apps. A warning only. |
 | Detector | `detector/` (Kotlin library, used by the app) | Turns events into a decision (`NONE` or `HARD`, a score, one to three reason codes). Deterministic, no clock, no randomness. |
 | App policies | `app/.../events/` | Split guard, high-value new payee, nudge, text burst, alert merging. They add warnings; they never remove the detector's. |
 | Payments | `app/.../payments/` | Starts a payment, asks the detector and policies, then nudges, holds, or hands off to a UPI app or a Razorpay checkout. |
