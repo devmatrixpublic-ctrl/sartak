@@ -12,6 +12,8 @@ class AccountRepository(
     private val store: TokenStore,
     /** Registers this phone with the server first, if it has not been. Must not throw. */
     private val ready: suspend () -> Unit = {},
+    /** This phone's push address, or null when push is not set up. Asked for only once the person has signed in. */
+    private val pushToken: suspend () -> String? = { null },
 ) {
     sealed interface SignIn {
         /** [created]: a brand-new account, so the person is asked for a name; otherwise they have signed in to an existing one. */
@@ -30,6 +32,7 @@ class AccountRepository(
             store.phoneMasked = PhoneNumber.masked(phoneE164)
             store.accountName = r.name
             store.signInSkipped = false
+            refreshPush()
             SignIn.Ok(r.name, r.created)
         } catch (e: kotlinx.coroutines.CancellationException) {
             throw e
@@ -43,6 +46,15 @@ class AccountRepository(
             SignIn.Failed("Can't reach Satark. Check your connection and try again.")
         } catch (e: Exception) {
             SignIn.Failed("Sign-in failed. Try again.")
+        }
+    }
+
+    /** Lets people who know this phone's number reach it as a trusted contact. Best effort; harmless to repeat. */
+    suspend fun refreshPush(token: String? = null) {
+        if (!store.signedIn) return
+        runCatching {
+            val t = token ?: pushToken() ?: return
+            api().putPushToken(com.satark.app.net.PushTokenRequest(t))
         }
     }
 

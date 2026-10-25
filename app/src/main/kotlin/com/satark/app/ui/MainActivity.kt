@@ -87,7 +87,10 @@ class MainActivity : FragmentActivity(), PaymentResultListener { // FragmentActi
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge() // Android 15 draws behind the system bars anyway; Root() keeps content clear of them
         super.onCreate(savedInstanceState)
-        lifecycleScope.launch(Dispatchers.IO) { runCatching { graph.session.ensureRegistered() } }
+        lifecycleScope.launch(Dispatchers.IO) {
+            runCatching { graph.session.ensureRegistered() }
+            graph.accounts.refreshPush() // keeps a signed-in phone reachable after Google changes its push address
+        }
         if (graph.store.onboarded && graph.store.consent) SignalService.start(this)
         consentAsked = graph.store.consentAsked
         signInDone = graph.store.signedIn || graph.store.signInSkipped

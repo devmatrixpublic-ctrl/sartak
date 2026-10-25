@@ -8,6 +8,7 @@ import retrofit2.http.GET
 import retrofit2.http.Header
 import retrofit2.http.PATCH
 import retrofit2.http.POST
+import retrofit2.http.PUT
 import retrofit2.http.Path
 
 // Hand-written mirror of contracts/api.yaml (the plan calls for generation; the schemas are small and the contract
@@ -34,7 +35,12 @@ import retrofit2.http.Path
     @SerialName("fcm_token") val fcmToken: String,
 )
 @Serializable data class TrustedContactResponse(val linked: Boolean, val status: String? = null) // pending | accepted | revoked
-@Serializable data class TrustedRequest(@SerialName("owner_device_id") val ownerDeviceId: String)
+@Serializable data class TrustedRequest(@SerialName("owner_device_id") val ownerDeviceId: String, @SerialName("owner_name") val ownerName: String? = null)
+@Serializable data class TrustedByPhoneRequest(val phone: String)
+@Serializable data class TrustedByPhoneResponse(val requested: Boolean)
+@Serializable data class MyContact(@SerialName("trusted_device_id") val trustedDeviceId: String, val name: String? = null)
+@Serializable data class TrustedContactsResponse(val contacts: List<MyContact>)
+@Serializable data class PushTokenRequest(@SerialName("fcm_token") val fcmToken: String)
 @Serializable data class TrustedRequestsResponse(val requests: List<TrustedRequest>)
 @Serializable data class TrustedRespondRequest(@SerialName("owner_device_id") val ownerDeviceId: String, val decision: String) // accept | decline
 @Serializable data class DecisionDto(val level: String, val score: Double, val reasons: List<String>)
@@ -94,6 +100,9 @@ interface SatarkApi {
     @POST("auth/refresh") suspend fun refresh(@Body b: RefreshRequest): TokenResponse
     @POST("auth/dev-token") suspend fun devToken(@Body b: DevTokenRequest): TokenResponse
     @POST("trusted-contact") suspend fun trustedContact(@Body b: TrustedContactRequest): TrustedContactResponse
+    @GET("trusted-contact") suspend fun myTrustedContacts(): TrustedContactsResponse
+    @POST("trusted-contact/by-phone") suspend fun trustedContactByPhone(@Body b: TrustedByPhoneRequest): TrustedByPhoneResponse
+    @PUT("device/push-token") suspend fun putPushToken(@Body b: PushTokenRequest): retrofit2.Response<Unit>
     @retrofit2.http.GET("trusted-contact/requests") suspend fun trustedRequests(): TrustedRequestsResponse
     @POST("trusted-contact/respond") suspend fun trustedRespond(@Body b: TrustedRespondRequest): TrustedContactResponse
     @DELETE("trusted-contact/{id}") suspend fun removeTrustedContact(@Path("id") id: String): TrustedContactResponse

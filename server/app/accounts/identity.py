@@ -10,9 +10,11 @@ import hmac
 import re
 
 from fastapi import Depends
+from sqlalchemy.orm import Session
 
 from app.core.errors import ApiError
 from app.core.settings import Settings, get_settings
+from app.db.models import Account, Device
 
 E164 = re.compile(r"^\+[1-9]\d{7,14}$")
 DEV_PREFIX = "dev:"
@@ -21,6 +23,15 @@ DEV_PREFIX = "dev:"
 def phone_hash(phone_e164: str, settings: Settings) -> str:
     pepper = (settings.phone_pepper or settings.jwt_secret).encode()
     return hmac.new(pepper, phone_e164.encode(), hashlib.sha256).hexdigest()
+
+
+def display_name(db: Session, device_id: str) -> str | None:
+    """The name the person signed in with, for a trusted contact's notification. None when the phone has no account or no name.
+    Control characters are dropped so a name can never break a one-line notification."""
+    device = db.get(Device, device_id)
+    account = db.get(Account, device.account_id) if device is not None and device.account_id else None
+    name = "".join(ch for ch in (account.name or "") if ch.isprintable()).strip() if account is not None else ""
+    return name or None
 
 
 class PhoneVerifier:

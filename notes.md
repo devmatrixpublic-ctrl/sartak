@@ -15,9 +15,9 @@ production-mode server on the laptop; judges' Q&A PDF (`~/Downloads/JUDGES_QNA.p
       the DB role script, and `ops/e2e/smoke_deployed.py`. Decision wanted.
 - [ ] **Push to a second physical phone.** Service key and app config are ready; the contact phone must show "Show my pairing code" with a real code.
 - [ ] **Razorpay test checkout.** Needs the key id (public), key secret and webhook secret in a file outside the repo, and a public webhook URL.
-- [ ] **Accounts (C), see the next section.**
+- [~] **Accounts (C).** Built and tested (server 286 tests, app 190): phone-number sign-in, link a trusted contact by number (`POST /trusted-contact/by-phone`, same answer whether or not the number has Satark, 10 tries an hour), a phone registers its own push address at sign-in (`PUT /device/push-token`), the asker sees accepted contacts by name (`GET /trusted-contact`), alerts and requests name the person. Phone sign-in itself was seen working on the Realme against the dev server. Not yet seen on a device: the by-phone screen. Not live: Firebase Phone provider (console steps), real push.
 
-**2. Features not built:** login page with phone number and OTP; names in alerts; WhatsApp message flags (approved design below).
+**2. Features not built:** WhatsApp message flags (approved design below); Razorpay checkout wiring.
 
 **3. Decisions waiting:** a smaller amount to the same payee after a Stop (allow with the nudge, or keep stopping); keep or drop the Rs 10,000 under-22 rule.
 

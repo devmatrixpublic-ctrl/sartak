@@ -17,6 +17,9 @@ import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
 import com.satark.app.SatarkApp
 import com.satark.app.ui.MainActivity
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withTimeoutOrNull
 import java.security.MessageDigest
@@ -120,8 +123,9 @@ class SatarkMessagingService : FirebaseMessagingService() {
      * token means they must link again. Say so, but only if a code was already shown on this phone.
      */
     override fun onNewToken(token: String) {
-        val store = runCatching { (application as SatarkApp).graph.store }.getOrNull() ?: return
-        val shown = store.sharedPushTokenHash ?: return
+        val graph = runCatching { (application as SatarkApp).graph }.getOrNull() ?: return
+        if (graph.store.signedIn) CoroutineScope(Dispatchers.IO).launch { graph.accounts.refreshPush(token) }
+        val shown = graph.store.sharedPushTokenHash ?: return
         if (shown != Push.hash(token)) ContactAlertNotifier.showCodeChanged(this)
     }
 }

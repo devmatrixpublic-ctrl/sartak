@@ -18,6 +18,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.layout.padding
 import com.satark.app.AppGraph
+import com.satark.app.net.TrustedRequest
 import com.satark.app.net.TrustedRespondRequest
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -25,18 +26,18 @@ import kotlinx.coroutines.withContext
 
 /**
  * On the contact's phone: people who asked this phone to be their trusted contact. Nothing reaches this phone for them
- * until the person taps Accept, and Decline ends the request. No names or numbers are shown (none are known).
+ * until the person taps Accept, and Decline ends the request. The name is whatever they signed in with; never a number.
  */
 @Composable
 fun LinkRequestsPanel(graph: AppGraph) {
-    var requests by remember { mutableStateOf<List<String>>(emptyList()) }
+    var requests by remember { mutableStateOf<List<TrustedRequest>>(emptyList()) }
     var note by remember { mutableStateOf<String?>(null) }
     var busy by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
 
     suspend fun load() {
         requests = withContext(Dispatchers.IO) {
-            runCatching { graph.api.trustedRequests().requests.map { it.ownerDeviceId } }.getOrDefault(emptyList())
+            runCatching { graph.api.trustedRequests().requests }.getOrDefault(emptyList())
         }
     }
     LaunchedEffect(Unit) { load() }
@@ -44,8 +45,12 @@ fun LinkRequestsPanel(graph: AppGraph) {
     if (requests.isEmpty() && note == null) return
     Column(Modifier.padding(vertical = 4.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         if (requests.isNotEmpty()) Text("Someone asked you to be their trusted contact", style = MaterialTheme.typography.titleSmall)
-        requests.forEachIndexed { i, owner ->
-            Text("Request ${i + 1}. Only accept if you know the person and they asked you to.", style = MaterialTheme.typography.bodyMedium)
+        requests.forEachIndexed { i, request ->
+            val owner = request.ownerDeviceId
+            Text(
+                (request.ownerName?.let { "$it asked you." } ?: "Request ${i + 1}.") + " Only accept if you know the person and they asked you to.",
+                style = MaterialTheme.typography.bodyMedium,
+            )
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 for ((label, decision) in listOf("Accept" to "accept", "Decline" to "decline")) {
                     val primary = decision == "accept"

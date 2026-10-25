@@ -36,6 +36,8 @@ class TokenStore(ctx: Context) {
     val signedIn: Boolean get() = phoneMasked != null
     /** "Continue without an account": the sign-in screen is not shown again on its own. */
     var signInSkipped: Boolean get() = prefs.getBoolean("sign_in_skipped", false); set(v) = prefs.edit().putBoolean("sign_in_skipped", v).apply()
+    /** The number last asked to be a trusted contact, masked, while no answer has come. Local only: the server will not say whether a number has Satark. */
+    var waitingContactMasked: String? get() = prefs.getString("waiting_contact", null); set(v) = prefs.edit().apply { if (v == null) remove("waiting_contact") else putString("waiting_contact", v) }.apply()
     var onboarded: Boolean get() = prefs.getBoolean("onboarded", false); set(v) = prefs.edit().putBoolean("onboarded", v).apply()
     /** Consent to watch for scam signals on this phone. Not asked yet = no protection runs. Revocable in Protection settings. */
     val consentAsked: Boolean get() = prefs.contains("consent")

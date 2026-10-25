@@ -63,6 +63,8 @@ import com.satark.app.events.AgeProfile
 import com.satark.app.net.TrustedContactRequest
 import com.satark.app.protection.SatarkAdminReceiver
 import com.satark.app.push.PairingCode
+import com.satark.app.account.PhoneNumber
+import com.satark.app.net.TrustedByPhoneRequest
 import com.satark.app.push.Push
 import com.satark.app.signals.SignalStatus
 import com.satark.app.signals.SourceName
@@ -413,11 +415,94 @@ fun TrustedContactSetup(graph: AppGraph) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Text("Trusted contact", style = MaterialTheme.typography.titleMedium)
             Text("A person who gets an alert on their phone if Satark thinks you may be being scammed. They need Satark too.")
+            ContactsByPhone(graph)
+            HorizontalDivider(Modifier.padding(vertical = 4.dp))
             LinkTrustedContact(graph)
             HorizontalDivider(Modifier.padding(vertical = 4.dp))
             MyPairingCode(graph)
         }
     }
+}
+
+/**
+ * Add a trusted contact by their mobile number, and see who has said yes (by name). The server answers the same whether or not the number
+ * has Satark, so "waiting" is only what this phone remembers asking; a contact appears once they have accepted.
+ */
+@Composable
+private fun ContactsByPhone(graph: AppGraph) {
+    var digits by rememberSaveable { mutableStateOf("") }
+    var msg by rememberSaveable { mutableStateOf<String?>(null) }
+    var busy by remember { mutableStateOf(false) }
+    var contacts by remember { mutableStateOf<List<com.satark.app.net.MyContact>>(emptyList()) }
+    var waiting by remember { mutableStateOf(graph.store.waitingContactMasked) }
+    val scope = rememberCoroutineScope()
+    val lock = rememberLockGate()
+    val national = PhoneNumber.normalize(digits)
+
+    suspend fun load() {
+        val list = withContext(Dispatchers.IO) { runCatching { graph.api.myTrustedContacts().contacts }.getOrNull() }
+        if (list != null) {
+            contacts = list
+            if (list.isNotEmpty() && waiting != null) { graph.store.waitingContactMasked = null; waiting = null }
+        }
+    }
+    LaunchedEffect(Unit) { load() }
+
+    Text("Your trusted contact", style = MaterialTheme.typography.titleSmall)
+    contacts.forEach { c ->
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
+            Text(c.name ?: "A trusted contact", style = MaterialTheme.typography.bodyLarge)
+            OutlinedButton(enabled = !busy, onClick = { lock.require("Remove your trusted contact") {
+                busy = true
+                scope.launch {
+                    val ok = withContext(Dispatchers.IO) { runCatching { graph.api.removeTrustedContact(c.trustedDeviceId) }.isSuccess }
+                    if (ok) { if (graph.store.linkedContactId == c.trustedDeviceId) graph.store.linkedContactId = null; msg = "Removed. They will not get any more alerts."; load() }
+                    else msg = "Could not remove them. Check your connection and try again."
+                    busy = false
+                }
+            } }) { Text("Remove") }
+        }
+    }
+    if (contacts.isEmpty()) Text(
+        waiting?.let { "Waiting for $it to accept. They need to open Satark and tap Accept." } ?: "Nobody yet.",
+        style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+    Text("Type their mobile number. If they have Satark and have signed in, they are asked to accept. Satark does not keep the number.")
+    OutlinedTextField(
+        digits, { v -> digits = v.filter { it.isDigit() || it == ' ' }.take(15); msg = null },
+        label = { Text("Their 10-digit number") }, singleLine = true, modifier = Modifier.fillMaxWidth(),
+        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
+    )
+    OutlinedButton(enabled = national != null && !busy, onClick = {
+        val n = national ?: return@OutlinedButton
+        lock.require("Ask a trusted contact") {
+            busy = true
+            scope.launch {
+                msg = withContext(Dispatchers.IO) {
+                    try {
+                        graph.session.ensureRegistered()
+                        graph.api.trustedContactByPhone(TrustedByPhoneRequest(PhoneNumber.e164(n)))
+                        val masked = PhoneNumber.masked(PhoneNumber.e164(n))
+                        graph.store.waitingContactMasked = masked; waiting = masked; digits = ""
+                        "Request sent. If that number has Satark and is signed in, they will be asked. Ask them to open Satark and tap Accept."
+                    } catch (e: CancellationException) {
+                        throw e
+                    } catch (e: retrofit2.HttpException) {
+                        if (e.code() == 429) "Too many tries. Wait a while and try again." else "Could not send the request (error ${e.code()}). Try again later."
+                    } catch (e: Exception) {
+                        "Could not reach Satark. Check your internet connection and try again."
+                    }
+                }
+                busy = false
+                load()
+            }
+        }
+    }) { Text(if (busy) "Sending…" else "Ask them") }
+    msg?.let { Text(it) }
+    if (graph.accounts.signedIn.not()) Text(
+        "Tip: sign in (the Account card) so they see your name on the request and on any alert.",
+        style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
 }
 
 /** The protected person pastes the contact's code: POST /trusted-contact {trusted_device_id, fcm_token}. */

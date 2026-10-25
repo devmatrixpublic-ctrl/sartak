@@ -70,7 +70,8 @@ class AppGraph(private val app: Application) {
             else -> com.satark.app.account.UnavailablePhoneAuth()
         }
     }
-    val accounts = com.satark.app.account.AccountRepository({ api }, store, ready = { runCatching { session.ensureRegistered() } })
+    val accounts = com.satark.app.account.AccountRepository({ api }, store, ready = { runCatching { session.ensureRegistered() } },
+        pushToken = { com.satark.app.push.Push.token(app) })
     val queue = OfflineQueue(dao) { api }
     val payments = PaymentRepository({ api }, dao, dispatcher, PayeeHasher(store.payeeSalt), shadow = { store.shadowMode },
         ready = { runCatching { session.ensureRegistered() } })

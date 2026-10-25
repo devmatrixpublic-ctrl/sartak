@@ -1,12 +1,28 @@
 from fastapi import APIRouter, Depends, Response
+from pydantic import Field
 from sqlalchemy import delete, or_, select
 from sqlalchemy.orm import Session
 
 from app.auth.dependencies import require_device
+from app.core.schemas import StrictInput
 from app.db.models import Account, Alert, Device, Payment, RefreshToken, TrustedLink
 from app.db.session import get_db
 
 router = APIRouter(tags=["device"])
+
+
+class PushTokenIn(StrictInput):
+    fcm_token: str = Field(min_length=1, max_length=4096)
+
+
+@router.put("/device/push-token", status_code=204)
+async def put_push_token(body: PushTokenIn, device_id: str = Depends(require_device), db: Session = Depends(get_db)) -> Response:
+    """A phone tells the server where its own notifications go, so a person who knows only its owner's phone number can reach it."""
+    device = db.get(Device, device_id)
+    if device is not None:
+        device.fcm_token = body.fcm_token
+        db.commit()
+    return Response(status_code=204)
 
 
 @router.delete("/device", status_code=204)

@@ -113,6 +113,50 @@ components:
           type: string
           enum: [pending, accepted, revoked]
 
+    TrustedContactsResponse:
+      type: object
+      required: [contacts]
+      properties:
+        contacts:
+          type: array
+          items:
+            type: object
+            required: [trusted_device_id]
+            properties:
+              trusted_device_id:
+                type: string
+              name:
+                type: string
+                description: The name the contact signed in with. Absent when they did not give one.
+
+    TrustedByPhoneRequest:
+      type: object
+      additionalProperties: false
+      required: [phone]
+      properties:
+        phone:
+          type: string
+          pattern: '^\+[1-9]\d{7,14}$'
+          description: The contact's number in E.164. It is hashed and forgotten; it is never stored.
+
+    TrustedByPhoneResponse:
+      type: object
+      required: [requested]
+      properties:
+        requested:
+          type: boolean
+          description: Always true for a well-formed request, whether or not that number has Satark.
+
+    PushTokenRequest:
+      type: object
+      additionalProperties: false
+      required: [fcm_token]
+      properties:
+        fcm_token:
+          type: string
+          minLength: 1
+          maxLength: 4096
+
     TrustedRequestsResponse:
       type: object
       required: [requests]
@@ -125,6 +169,9 @@ components:
             properties:
               owner_device_id:
                 type: string
+              owner_name:
+                type: string
+                description: The name the asking person signed in with. Absent when they did not give one.
 
     TrustedRespondRequest:
       type: object
@@ -419,6 +466,19 @@ paths:
                 $ref: '#/components/schemas/Error'
 
   /trusted-contact:
+    get:
+      summary: The people who accepted being this device's trusted contact
+      description: Accepted contacts only; a pending request is not shown, so this cannot reveal whether a phone number has Satark.
+      operationId: getTrustedContacts
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Accepted contacts
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TrustedContactsResponse'
     post:
       summary: Link a trusted contact's device
       operationId: postTrustedContact
@@ -437,6 +497,36 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/TrustedContactResponse'
+
+  /trusted-contact/by-phone:
+    post:
+      summary: Ask the person with this phone number to be a trusted contact
+      description: >
+        The server hashes the number, finds the account, and asks that person's newest phone that has registered a push address
+        (PUT /device/push-token). The reply is the same whether or not the number has Satark, so this cannot be used to find out who
+        does. Limited to 10 tries per hour per phone.
+      operationId: postTrustedContactByPhone
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TrustedByPhoneRequest'
+      responses:
+        '200':
+          description: Requested (or nobody to ask; indistinguishable)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TrustedByPhoneResponse'
+        '429':
+          description: Too many tries
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
 
   /trusted-contact/requests:
     get:
@@ -638,6 +728,22 @@ paths:
       responses:
         '204':
           description: Payments, alerts, trusted links, refresh tokens and the device record were deleted.
+
+  /device/push-token:
+    put:
+      summary: This phone registers where its own notifications go
+      operationId: putPushToken
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PushTokenRequest'
+      responses:
+        '204':
+          description: Saved
 
   /account:
     post:
