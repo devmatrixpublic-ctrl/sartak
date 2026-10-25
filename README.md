@@ -65,6 +65,15 @@ primary source before quoting one as fact.)*
 - A **device check** when you go to pay: it looks for remote-access apps, root tools, modified copies of popular apps, payment apps from outside a store and other
   sideloaded apps, and tells the person their phone may be vulnerable. A warning only; it never holds a payment.
 
+**Practice before it happens: Scam Inoculation Mode**
+- *Practice a scam call* is a short rehearsal inside the app. Satark plays a scam caller (a "digital arrest" officer, a "KYC update" bank agent or a "parcel seized" customs officer)
+  for a little over a minute. Each time a real scammer would push (read out a code, install AnyDesk, stay on video, pay now) the call **pauses**, the person chooses what to do, and
+  Satark explains *why a real caller would never need it*.
+- Three scenarios and ten pressure tactics. The choices are shuffled, the caller pushes back when refused, a pressure bar climbs, and a summary gives the rule for each missed move
+  and what to do on a real call (hang up, check on an official number, call 1930).
+- Safe by design: always labelled as practice, no text boxes (it never asks for a real code, PIN or card number), optional read-aloud, kept on the phone only, and it never changes
+  what Satark warns about or holds. Details and limits: [docs/SCAM_DRILL.md](docs/SCAM_DRILL.md).
+
 **A response that fits the risk**
 - **Quiet** for ordinary payments. **Nudge**: a "Take a moment" step before anything is sent. **Hold**: a full-screen *Stop. This looks like a scam.*
 - Payments are started inside Satark (scan a UPI QR or type a UPI ID), then handed to the person's own UPI app, or paid through a Razorpay test checkout.
@@ -224,6 +233,8 @@ python detector/tools/export_model.py            # retrain and export model.json
 
 More cases: [docs/DEMO_SPLIT_GUARD.md](docs/DEMO_SPLIT_GUARD.md), [docs/RUN_THE_APP.md](docs/RUN_THE_APP.md).
 
+**No second phone to call from?** Open **Practice a scam call** on the home screen instead. It needs no permissions, no account and no network, and it takes about two minutes.
+
 ### Link a trusted contact
 
 1. **On the contact's phone:** *Protection and trusted contact* → *Get an invite code*. It shows a code such as `K7M4-Q2XH`.
@@ -233,7 +244,7 @@ More cases: [docs/DEMO_SPLIT_GUARD.md](docs/DEMO_SPLIT_GUARD.md), [docs/RUN_THE_
 ## Project structure
 
 ```
-app/          Android app: signals, events, payments, policies, UI, push, sign-in, lock
+app/          Android app: signals, events, payments, policies, device check, download guard, scam practice (drill/), UI, push, sign-in, lock
 detector/     On-device detector (Kotlin library), model, Python reference and simulator, reports
 server/       FastAPI backend: auth, accounts, payments, alerts, webhooks, migrations, tests
 contracts/    Shared contracts: API (OpenAPI), detector schema, reason codes, UPI mapping, auth
@@ -264,7 +275,7 @@ The full contract is [`contracts/api.yaml`](contracts/api.yaml) (OpenAPI 3). Eve
 | Suite | What it covers | Where |
 |---|---|---|
 | Server | Payments, state machines, auth and attestation (synthetic chains), accounts, invites, alerts, webhook signatures, IDOR and mass-assignment guards, contract-versus-implementation check | `cd server && pytest` (293 pass, 18 skipped at the time of writing) |
-| App | Detector policies, nudge and hold decisions, protection-off wait, lock, API contract, push and invite-code logic | `./gradlew :app:testDebugUnitTest` (187 pass) |
+| App | Detector policies, nudge and hold decisions, protection-off wait, lock, API contract, push and invite-code logic, device check, download guard, scam-practice scripts and state machine | `./gradlew :app:testDebugUnitTest` (284 pass) |
 | Detector | 36 test vectors, 732-session parity with the Python reference, fuzz, explainer, baseline | `cd detector && gradle test` |
 | Ops | Evaluation pipeline, held-out runner guards, strings, TLS pinning tool, release stub check | `pytest ops` |
 
@@ -326,7 +337,8 @@ sleeps when idle. Production needs the steps listed under [Status and limitation
 
 **Verified on real phones:** payments, the nudge step, the Stop screen and the trusted-contact flow; phone-number sign-in against a test server using a fixed test code; a real
 Firebase push delivered to a second phone, naming the person; hardware-backed device registration accepted by the server; the 30-minute protection-off wait and the
-device-admin removal guard. The lock's PIN fallback works; a fingerprint sensor on the second phone has not been tested.
+device-admin removal guard. The device check and the download guard were run on a real phone. The practice call's list, call, pause and explanation screens were checked on a real
+phone; its read-aloud voice, its summary screen and turning the phone mid-call were not. The lock's PIN fallback works; a fingerprint sensor on the second phone has not been tested.
 
 **Working, in test mode only:** the public test server; Razorpay checkout against a test account.
 
@@ -341,15 +353,16 @@ device-admin removal guard. The lock's PIN fallback works; a fingerprint sensor 
 - **Android only.** The signals and the hold flow rely on Android permissions that iOS does not offer.
 - **UPI results are app-reported, not verified.** Only a Razorpay checkout is verified, by its webhook.
 - **Unknown-caller signals depend on phone permissions and the phone maker.** Without them the detector falls back to amount, payee and install signals.
-- **Hindi warnings are machine-drafted** and need a native speaker's review.
+- **Hindi warnings are machine-drafted** and need a native speaker's review. The practice-call scripts are English only.
+- **The practice call is not proven to change behaviour.** It teaches the moves; whether that helps in a real, frightening call has not been studied.
 - A legacy `POST /trusted-contact` route (the owner supplies the contact's push address) is still on the server; the app no longer uses it, and it should be removed or guarded.
 
 ## Roadmap
 
 - **Next (days):** pin the Google attestation roots, move the server to production mode, enable real SMS sign-in, the sealed held-out run on two phones, and an on-device
   timing measurement.
-- **Then (weeks):** WhatsApp message flags (read-only, strangers only, no effect on payment decisions), a native-speaker review of the Hindi strings, certificate pinning,
-  a load test, and a shadow-mode pilot with real users.
+- **Then (weeks):** WhatsApp message flags (read-only, strangers only, no effect on payment decisions), a native-speaker review of the Hindi strings, Hindi practice-call scripts,
+  certificate pinning, a load test, and a shadow-mode pilot with real users, including whether practising changes what people do.
 - **Later:** embedding in a payment or banking app, a merchant risk API, and learning from real overrides.
 
 The full list, with why each item was left out, is in [docs/ROADMAP.md](docs/ROADMAP.md).
@@ -368,6 +381,10 @@ the message body, and a message never changes a payment decision.
 documents, Satark moves the app into a private quarantine you can restore (behind your fingerprint) or delete, and warns you. A suspicious document is warned about and left alone.
 It reads only file names, never contents. It cannot cancel another app's download from outside; it removes the file as it appears.
 
+**What is Scam Inoculation Mode?** A short rehearsal inside the app (*Practice a scam call*) where Satark plays a scam caller for a little over a minute (about two minutes with the pauses to explain). When the caller pushes for a code, an app install,
+staying on video or a payment, the call pauses, you choose what to do, and Satark explains why a real caller would never need it. It is practice only: no call is made, nothing is sent, and you only tap buttons.
+It never changes what Satark warns about or holds. It is not proven to change behaviour in a real call.
+
 **What is the device check?** When you tap *Check and pay*, Satark lists the apps on the phone and flags remote-access apps, root tools, modified copies of popular apps and apps
 installed from outside an official store. It sends a notification, shows a card with a *Remove* button, and asks before the payment. It is a warning only and it keeps no app names.
 
@@ -381,6 +398,7 @@ installed from outside an official store. It sends a notification, shows a card 
 |---|---|
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Sequence diagrams, data model, trust boundaries, data inventory |
 | [docs/WHEN_SATARK_WARNS.md](docs/WHEN_SATARK_WARNS.md) | Every situation, and what Satark does in it |
+| [docs/SCAM_DRILL.md](docs/SCAM_DRILL.md) | Scam Inoculation Mode: the scenarios, the safety rules, how to add one |
 | [docs/APP_WALKTHROUGH.md](docs/APP_WALKTHROUGH.md) | The app, screen by screen |
 | [docs/BACKEND.md](docs/BACKEND.md) | API, state machines, configuration, deployment and security notes |
 | [docs/ROADMAP.md](docs/ROADMAP.md) | What was left out on purpose |
