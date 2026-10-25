@@ -84,12 +84,39 @@ class DeviceRulesTest {
         for (p in DeviceRules.MODDED_APPS) assertEquals(FindingKind.MODDED_APP, reportFor(app(p)).findings.single().kind, p)
     }
 
-    @Test fun aWellKnownPaymentAppFromOutsideAStoreIsHigh() {
+    @Test fun aWellKnownPaymentAppFromAFileOrABrowserIsHigh() {
         assertEquals(Severity.NONE, reportFor(app("com.phonepe.app", PLAY)).severity)
         assertEquals(Severity.NONE, reportFor(app("com.phonepe.app", "com.vivo.appstore")).severity)
+        for (installer in listOf("com.google.android.packageinstaller", "com.android.packageinstaller", "com.android.chrome")) {
+            val r = reportFor(app("com.phonepe.app", installer, label = "PhonePe"))
+            assertEquals(Severity.HIGH, r.severity, installer)
+            assertEquals(FindingKind.PAYMENT_APP_FROM_UNOFFICIAL_SOURCE, r.findings.single().kind)
+        }
+    }
+
+    @Test fun aPaymentAppWithNoInstallerIsOnlyTheWeakFinding() {
+        // No installer also happens after a backup restore or a phone-clone tool, so it must not be called tampered.
         val r = reportFor(app("com.phonepe.app", null, label = "PhonePe"))
-        assertEquals(Severity.HIGH, r.severity)
-        assertEquals(FindingKind.PAYMENT_APP_FROM_UNOFFICIAL_SOURCE, r.findings.single().kind)
+        assertEquals(Severity.MEDIUM, r.severity)
+        assertEquals(FindingKind.SIDELOADED, r.findings.single().kind)
+    }
+
+    @Test fun aPhoneMakersOwnPartsWithNoInstallerAreLeftAlone() {
+        for (p in listOf("com.coloros.translate", "com.oplus.notes", "andes.oplus.documentsreader", "com.vivo.browser", "com.samsung.android.app.notes"))
+            assertEquals(Severity.NONE, reportFor(app(p, null)).severity, p)
+    }
+
+    @Test fun aFileInstallUnderAPhoneMakersNameIsStillReported() {
+        assertEquals(Severity.MEDIUM, reportFor(app("com.coloros.fake", "com.google.android.packageinstaller")).severity)
+    }
+
+    @Test fun aPreloadToolIsNotASuspiciousInstaller() {
+        assertEquals(Severity.NONE, reportFor(app("com.facebook.katana", "com.facebook.system")).severity)
+    }
+
+    @Test fun patchedGoogleAndYouTubeAppsAreHigh() {
+        for (p in listOf("app.revanced.android.youtube", "app.revanced.android.gms", "app.revanced.android.photos", "com.mgoogle.android.gms", "com.vanced.android.youtube"))
+            assertEquals(FindingKind.MODDED_APP, reportFor(app(p, "com.google.android.packageinstaller")).findings.single().kind, p)
     }
 
     @Test fun anAppGetsOnlyItsStrongestFinding() {

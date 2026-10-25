@@ -103,10 +103,10 @@ detector, and never makes Satark quieter. Satark itself and system apps are left
 |---|---|---|
 | A remote-access or screen-share app (AnyDesk, TeamViewer, RustDesk, AirDroid and others), even from Google Play | **Serious** | A notification, a red card on the Pay screen, and a dialog before every payment: *Your phone may be vulnerable* |
 | Root or hooking tools (Magisk, KernelSU, LSPosed, a `su` binary) | **Serious** | Same |
-| A known modified copy of a messaging app (for example GBWhatsApp) | **Serious** | Same |
-| A well-known payment app (PhonePe, Google Pay, Paytm, BHIM and others) installed from outside a store | **Serious** | Same |
-| Any other app installed from outside an official store (a downloaded file, adb) | Weak | A notification and an amber card; the dialog asks once, then stays quiet for a week for the same set of apps |
-| Apps from Google Play or a phone maker's store (Samsung, Xiaomi, Huawei, vivo, OPPO and realme, Amazon) | None | Nothing |
+| A known modified copy of a popular app: messaging clones such as GBWhatsApp, and patched Google apps (the ReVanced and Vanced families, microG stand-ins for Google services) | **Serious** | Same |
+| A well-known payment app (PhonePe, Google Pay, Paytm, BHIM and others) that arrived through a file installer or a browser | **Serious** | Same |
+| Any other app installed from outside an official store (a downloaded file, adb), or with no known installer (including a payment app with none, which also happens after a backup restore) | Weak | A notification and an amber card; the dialog asks once, then stays quiet for a week for the same set of apps |
+| Apps from Google Play or a phone maker's store (Samsung, Xiaomi, Huawei, vivo, OPPO and realme, Amazon), a phone maker's preload tool, and the maker's own parts that list no installer | None | Nothing |
 
 The notification is sent at most once a day for the same set of apps. Each finding on the card has a *Remove* button. The check keeps only a short
 fingerprint of what it showed, never app names. The package lists are a curated starting point (`security/DeviceCheck.kt`), not a complete catalogue.

@@ -15,7 +15,7 @@ import java.security.MessageDigest
  *  - an app that can let someone see or control the phone (remote access, screen share);
  *  - root or hooking tools, which give other apps deep control;
  *  - a known modified copy of a popular app;
- *  - a well-known payment app installed from outside an official store, so it may have been tampered with;
+ *  - a well-known payment app that arrived through a file installer or a browser, so it may have been tampered with;
  *  - any other app installed from outside an official store (the weakest signal: many people do this on purpose).
  *
  * The package lists below are a curated starting point, not a complete catalogue, and are meant to be extended.
@@ -43,7 +43,7 @@ data class Finding(val pkg: String, val label: String, val kind: FindingKind) {
         FindingKind.ROOT_OR_HOOK_TOOL -> "gives other apps deep control of your phone"
         FindingKind.MODDED_APP -> "is a modified copy of a popular app"
         FindingKind.PAYMENT_APP_FROM_UNOFFICIAL_SOURCE -> "is a payment app installed from outside an official store, so it may have been tampered with"
-        FindingKind.SIDELOADED -> "was installed from outside an official app store"
+        FindingKind.SIDELOADED -> "was not installed from an official app store"
     }
 }
 
@@ -87,9 +87,28 @@ object DeviceRules {
         "eu.chainfire.supersu", "com.noshufou.android.su", "com.koushikdutta.superuser", "com.thirdparty.superuser",
     )
 
-    /** Known modified clones of messaging apps. */
+    /** Known modified copies of popular apps: messaging clones, and patched Google apps and their stand-ins for Google services. */
     val MODDED_APPS = setOf(
         "com.gbwhatsapp", "com.yowhatsapp", "com.fmwhatsapp", "com.obwhatsapp", "com.whatsapp.plus",
+        "com.mgoogle.android.gms",
+    )
+
+    /** Whole families of patched apps (ReVanced, Vanced). */
+    val MODDED_PREFIXES = listOf("app.revanced.", "com.vanced.")
+
+    /**
+     * Installers that are not stores but are not suspicious: a phone maker's or social app's own preload tool. Their apps show up as
+     * "third party" on many budget phones.
+     */
+    val PRELOAD_INSTALLERS = setOf("com.facebook.system", "com.facebook.appmanager")
+
+    /**
+     * Parts of the phone maker's own software that some phones list as ordinary apps with no installer. With no installer only, so a file
+     * install under one of these names is still reported.
+     */
+    val PHONE_MAKER_PREFIXES = listOf(
+        "com.coloros.", "com.oplus.", "andes.oplus.", "com.heytap.", "com.oppo.", "com.realme.",
+        "com.vivo.", "com.iqoo.", "com.bbk.", "com.samsung.", "com.sec.android.", "com.miui.", "com.xiaomi.", "com.huawei.",
     )
 
     /** Well-known payment apps. Their real copies come from a store; one that did not may have been changed. */
@@ -101,20 +120,25 @@ object DeviceRules {
     /** The packages the scanner needs a display name for even when they are system apps. */
     private val LISTED = REMOTE_ACCESS + ROOT_OR_HOOK_TOOLS + MODDED_APPS + PAYMENT_APPS
 
-    fun isListed(pkg: String) = pkg in LISTED
+    fun isListed(pkg: String) = pkg in LISTED || MODDED_PREFIXES.any { pkg.startsWith(it) }
+
+    private fun isModded(pkg: String) = pkg in MODDED_APPS || MODDED_PREFIXES.any { pkg.startsWith(it) }
 
     /** One finding per app (the strongest), worst first. [selfPackage] is Satark itself, which a developer may have installed from a file. */
     fun evaluate(apps: List<InstalledApp>, selfPackage: String, rootBinaryFound: Boolean = false): DeviceReport {
         val out = mutableListOf<Finding>()
         for (a in apps) {
             if (a.pkg == selfPackage) continue
-            val trusted = a.installer in TRUSTED_STORES
+            val trusted = a.installer in TRUSTED_STORES || a.installer in PRELOAD_INSTALLERS
             val kind = when {
                 a.pkg in REMOTE_ACCESS -> FindingKind.REMOTE_ACCESS
                 a.pkg in ROOT_OR_HOOK_TOOLS -> FindingKind.ROOT_OR_HOOK_TOOL
-                a.pkg in MODDED_APPS -> FindingKind.MODDED_APP
+                isModded(a.pkg) -> FindingKind.MODDED_APP
                 a.isSystem || trusted -> null
-                a.pkg in PAYMENT_APPS -> FindingKind.PAYMENT_APP_FROM_UNOFFICIAL_SOURCE
+                a.installer == null && PHONE_MAKER_PREFIXES.any { a.pkg.startsWith(it) } -> null
+                // No installer at all is ambiguous (adb, a backup restore, a phone-clone tool), so it is only the weak finding. A payment app that
+                // arrived through a file installer or a browser is the serious one: that is how a tampered copy is usually delivered.
+                a.pkg in PAYMENT_APPS && a.installer != null -> FindingKind.PAYMENT_APP_FROM_UNOFFICIAL_SOURCE
                 else -> FindingKind.SIDELOADED
             } ?: continue
             out += Finding(a.pkg, a.label, kind)

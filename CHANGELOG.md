@@ -7,7 +7,7 @@ All notable changes to Satark are recorded here. The format follows [Keep a Chan
 
 ### Added
 - **Device check at payment time.** Tapping *Check and pay* looks at the installed apps and warns if the phone is vulnerable: remote-access apps, root or hooking tools, known modified
-  messaging clones and well-known payment apps from outside a store (serious), and any other app installed from outside an official store (weak). It sends a notification (at most one a day
+  messaging clones and well-known payment apps that arrived through a file or browser (serious), and any other app from outside an official store or with no known installer (weak). It sends a notification (at most one a day
   for the same set), shows a card with a *Remove* button, and asks before the payment. A warning only: it never holds a payment or reaches the detector. Trusted stores include Google Play and
   the phone makers' own stores. 32 new tests.
 - **Short invite code for linking a trusted contact.** The contact taps *Get an invite code* and reads out eight characters such as `K7M4-Q2XH`; the person being protected types it.
