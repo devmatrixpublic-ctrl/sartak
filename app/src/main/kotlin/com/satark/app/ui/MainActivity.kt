@@ -30,6 +30,7 @@ import com.satark.app.signals.SignalService
 import com.satark.app.ui.alerts.AlertHost
 import com.satark.app.ui.alerts.ContactDecisionScreen
 import com.satark.app.ui.alerts.HistoryScreen
+import com.satark.app.ui.login.LoginFlow
 import com.satark.app.ui.onboarding.ConsentScreen
 import com.satark.app.ui.onboarding.OnboardingFlow
 import com.satark.app.ui.pay.PayHome
@@ -51,6 +52,8 @@ class MainActivity : FragmentActivity(), PaymentResultListener { // FragmentActi
     private var consentAsked by mutableStateOf(false)
     private var decidePaymentId by mutableStateOf<String?>(null) // trusted contact opened a held-payment alert
     private var showHistory by mutableStateOf(false)
+    private var showLogin by mutableStateOf(false) // sign in from the Protection screen
+    private var signInDone by mutableStateOf(false) // first run: signed in, or chose to continue without an account
 
     private val upiLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { r ->
         val p = pending ?: return@registerForActivityResult
@@ -87,6 +90,7 @@ class MainActivity : FragmentActivity(), PaymentResultListener { // FragmentActi
         lifecycleScope.launch(Dispatchers.IO) { runCatching { graph.session.ensureRegistered() } }
         if (graph.store.onboarded && graph.store.consent) SignalService.start(this)
         consentAsked = graph.store.consentAsked
+        signInDone = graph.store.signedIn || graph.store.signInSkipped
         handleOpen(intent)
         setContent { SatarkTheme { Root() } }
     }
@@ -121,11 +125,16 @@ class MainActivity : FragmentActivity(), PaymentResultListener { // FragmentActi
                 ContactDecisionScreen(graph.payments, deciding) { decidePaymentId = null }
             } else if (!consentAsked) {
                 ConsentScreen { agreed -> graph.store.consent = agreed; consentAsked = true }
+            } else if (!onboarded && !signInDone) {
+                LoginFlow(graph) { signInDone = true }
+            } else if (showLogin) {
+                BackHandler { showLogin = false }
+                LoginFlow(graph) { showLogin = false }
             } else if (!onboarded) {
                 OnboardingFlow(graph) { graph.store.onboarded = true; onOnboarded(); if (graph.store.consent) SignalService.start(this@MainActivity) }
             } else if (showProtection) {
                 BackHandler { showProtection = false }
-                OnboardingFlow(graph, settings = true, onDeleted = { showProtection = false; recreate() }) { showProtection = false }
+                OnboardingFlow(graph, settings = true, onDeleted = { showProtection = false; recreate() }, onSignIn = { showLogin = true }) { showProtection = false }
             } else if (showHistory) {
                 BackHandler { showHistory = false }
                 HistoryScreen(graph) { showHistory = false }

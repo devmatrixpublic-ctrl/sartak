@@ -28,6 +28,8 @@ class Settings(BaseSettings):
     razorpay_webhook_secret: str = ""
 
     firebase_credentials_json: str = ""
+    # Secret for hashing phone numbers (app/accounts/identity.py). Empty = the JWT secret is used.
+    phone_pepper: str = ""
 
     rate_limit_per_minute: int = 60
     # Mule fan-in: hold a payment when this many OTHER devices paid the same payee within the window. 0 disables.

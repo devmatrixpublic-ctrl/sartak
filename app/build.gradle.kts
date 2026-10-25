@@ -32,6 +32,8 @@ android {
         buildConfigField("int", "LONG_SESSION_TEST_MIN", providers.gradleProperty("satarkLongSessionTestMin").getOrElse("0"))
         // Labelled demo build only: -PsatarkProtectionOffWaitMin=1 shortens the 30-minute wait for turning protection off. Ignored in release builds (see AppGraph).
         buildConfigField("int", "PROTECTION_OFF_WAIT_MIN", providers.gradleProperty("satarkProtectionOffWaitMin").getOrElse("0"))
+        // Local development only: -PsatarkDevOtp=true makes sign-in accept the fixed code 123456 (a dev server only; debug builds only).
+        buildConfigField("boolean", "DEV_OTP", providers.gradleProperty("satarkDevOtp").getOrElse("false"))
         buildConfigField("String", "CERT_PINS", "\"${providers.gradleProperty("satarkPins").getOrElse("")}\"") // M4: contracts/pins.txt
     }
 
@@ -101,6 +103,7 @@ dependencies {
     // 33.x on purpose: newer BoMs pull a Kotlin stdlib newer than this project's Kotlin 2.0.21 compiler can read.
     implementation(platform("com.google.firebase:firebase-bom:33.7.0"))
     implementation("com.google.firebase:firebase-messaging")
+    implementation("com.google.firebase:firebase-auth") // phone number sign-in (account/PhoneAuth.kt)
 
     testImplementation(kotlin("test"))
     androidTestImplementation("androidx.test.ext:junit:1.2.1")

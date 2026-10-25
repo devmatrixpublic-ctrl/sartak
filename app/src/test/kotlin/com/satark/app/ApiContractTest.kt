@@ -1,6 +1,8 @@
 package com.satark.app
 
 import com.satark.app.net.Accepted
+import com.satark.app.net.AccountNameRequest
+import com.satark.app.net.AccountRequest
 import com.satark.app.net.AlertRequest
 import com.satark.app.net.ChallengeResponse
 import com.satark.app.net.DecisionDto
@@ -185,6 +187,9 @@ class ApiContractTest {
         checkRequest("/alert", "post", AlertRequest(uuid, "alarm", listOf("RULE_SIDELOAD_DURING_CALL")))
         checkRequest("/alert", "post", AlertRequest(uuid, "long_session"))
         for (t in listOf("protection_off_requested", "protection_off", "removal_guard_off")) checkRequest("/alert", "post", AlertRequest(uuid, t))
+        checkRequest("/account", "post", AccountRequest("dev:+919876543210", "Ved"))
+        checkRequest("/account", "post", AccountRequest("dev:+919876543210"))
+        checkRequest("/account", "patch", AccountNameRequest("Ved"))
         checkRequest("/signature", "post", SignatureRequest("payment_score", mapOf("new_payee" to 1.0, "is_p2p" to 0.0)))
         checkRequest("/trusted-contact", "post", TrustedContactRequest(uuid, "fcm-token"))
     }

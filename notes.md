@@ -1,14 +1,37 @@
 # Satark: working notes
 
-## Still to build
-- [ ] **Login page.** Not started. Needs a decision first: what a person signs in with (phone number and OTP, or a UPI-linked
-      identity), and whether sign-in stays optional (today the app registers the device silently and works without any login).
-      The Stitch reference screens are in `~/Downloads/stitch_sarvam_inspired_unique_interface_design*.zip`; use the same theme
-      as the rest of the app (`ui/theme/Theme.kt`).
-- [ ] **WhatsApp message flags** (agreed design): read WhatsApp notification text on the phone through notification access,
-      match a short keyword list, ignore saved contacts and group chats, store only the time and category, and never let a
-      message change a payment decision. Needs a "WhatsApp messages: Off, needs notifications" status row and an updated
-      consent and privacy text.
+## Status and what is left (25 Oct, after the iQOO and Realme tests)
+**Built and pushed to `role_1`:** detector and app pipeline; Stop screen on every held payment; "Take a moment" step before an allowed payment;
+Rs 25,000 rule (Rs 10,000 under 22, an assumption); split guard; stranger-text warning; owner check (fingerprint, screen-lock PIN fallback)
+on Continue anyway / protection off / trusted-contact and age changes / delete data; protection-off wait with the contact told at once;
+removal guard (device admin); three new server alert types; Firebase config in place (`app/google-services.json`, service key in
+`~/.satark-secrets/firebase-admin.json`, both outside git); real hardware sign-in worked once on a Realme against a
+production-mode server on the laptop; judges' Q&A PDF (`~/Downloads/JUDGES_QNA.pdf`).
+
+**1. Backend (order agreed: A deploy, B push, C accounts)**
+- [ ] **Pin the Google attestation roots.** A person compares the SHA-256 fingerprints in `server/certs/CANDIDATE_ROOTS.md` with Google's page
+      in a browser; then they go into `server/certs/google_attestation_roots.pem`. Today only a scratch copy was used for the local test.
+- [ ] **Deploy.** Render (blueprint exists, never run) or a public tunnel to the laptop. Needs the release signing digest, `SATARK_TRUSTED_PROXY_HOPS`,
+      the DB role script, and `ops/e2e/smoke_deployed.py`. Decision wanted.
+- [ ] **Push to a second physical phone.** Service key and app config are ready; the contact phone must show "Show my pairing code" with a real code.
+- [ ] **Razorpay test checkout.** Needs the key id (public), key secret and webhook secret in a file outside the repo, and a public webhook URL.
+- [ ] **Accounts (C), see the next section.**
+
+**2. Features not built:** login page with phone number and OTP; names in alerts; WhatsApp message flags (approved design below).
+
+**3. Decisions waiting:** a smaller amount to the same payee after a Stop (allow with the nudge, or keep stopping); keep or drop the Rs 10,000 under-22 rule.
+
+**4. On-device checks still to do:** the 5 demo cases and "payment right after the call ends" on a phone; the real iQOO fingerprint sensor; whether Funtouch OS
+blocks uninstall while the removal guard is on; USB keeps dropping, so use wireless debugging.
+
+**5. Evidence gaps:** sealed held-out run (needs the 36 vectors on two physical phones and the `detector-freeze` tag); 100 ms on-device scoring target unmeasured;
+false alarms 0.152% against the 0.100% target after the Rs 25,000 rule; Hindi text needs a native speaker; family-emergency recall 43.9%.
+
+**6. Housekeeping:** a production-mode test server may still be running on the laptop (port 8000); stop it when done.
+
+### WhatsApp message flags (agreed design, not built)
+Read WhatsApp notification text through notification access, match a short keyword list, ignore saved contacts and group chats, store only the time
+and category, never let a message change a payment decision. Needs a "WhatsApp messages: Off, needs notifications" status row and updated consent text.
 
 ## Login and trusted-contact notification (decided in discussion, not built)
 - Sign-up keeps **phone number + OTP** (chosen over a no-OTP profile). Needs an SMS provider; a Firebase project would serve both OTP and push.

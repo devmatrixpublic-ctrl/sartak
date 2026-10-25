@@ -62,6 +62,15 @@ class AppGraph(private val app: Application) {
     }
     val hub = SignalHub(app)
     val textBurst = TextBurst(textStore(app))
+    /** One instance for the whole sign-in, so a screen rotation does not lose the code Firebase is waiting for. */
+    val phoneAuth: com.satark.app.account.PhoneAuth by lazy {
+        when {
+            BuildConfig.DEBUG && BuildConfig.DEV_OTP -> com.satark.app.account.DevPhoneAuth()
+            com.satark.app.push.Push.isConfigured(app) -> com.satark.app.account.FirebasePhoneAuth()
+            else -> com.satark.app.account.UnavailablePhoneAuth()
+        }
+    }
+    val accounts = com.satark.app.account.AccountRepository({ api }, store, ready = { runCatching { session.ensureRegistered() } })
     val queue = OfflineQueue(dao) { api }
     val payments = PaymentRepository({ api }, dao, dispatcher, PayeeHasher(store.payeeSalt), shadow = { store.shadowMode },
         ready = { runCatching { session.ensureRegistered() } })

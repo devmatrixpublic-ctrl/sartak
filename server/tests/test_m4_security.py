@@ -142,11 +142,19 @@ def test_no_cors_headers_are_emitted(raw_client):
 # --- P1: privacy by schema and by logging ----------------------------------------------
 def test_no_table_has_a_raw_personal_data_column():
     banned = ("phone", "msisdn", "email", "vpa", "upi_id", "name", "address", "aadhaar", "pan", "contact_number")
+    # Reviewed exceptions, both on `accounts` (phone-number sign-in): a KEYED HASH of the number (HMAC, never the number), and the display
+    # name the person typed so their trusted contact sees who is in danger. Anything else that looks personal still fails this test.
+    reviewed = {("accounts", "phone_hash"), ("accounts", "name")}
     for table in Base.metadata.tables.values():
         for col in table.columns:
             lowered = col.name.lower()
+            if (table.name, col.name) in reviewed:
+                continue
             assert not any(b in lowered for b in banned if not (b == "name" and lowered in {"tablename"})), \
                 f"{table.name}.{col.name} looks like raw personal data"
+    accounts = Base.metadata.tables["accounts"].columns
+    assert accounts["phone_hash"].type.length == 64, "phone_hash must be a SHA-256 hex digest, not a number"
+    assert {c.name for c in accounts} == {"id", "phone_hash", "name", "created_at"}, "a new accounts column needs a privacy review"
 
 
 def test_signatures_cannot_be_linked_to_a_device():

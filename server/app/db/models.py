@@ -16,6 +16,17 @@ def _now() -> datetime:
     return datetime.now(timezone.utc)
 
 
+class Account(Base):
+    """A person, identified by a keyed hash of their verified phone number (never the number). Several phones can share one."""
+
+    __tablename__ = "accounts"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    phone_hash: Mapped[str] = mapped_column(String(64), nullable=False, unique=True, index=True)
+    name: Mapped[str | None] = mapped_column(String(60), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+
+
 class Device(Base):
     __tablename__ = "devices"
 
@@ -24,6 +35,7 @@ class Device(Base):
     attestation_level: Mapped[str] = mapped_column(String(32), nullable=False)
     verified_boot_state: Mapped[str] = mapped_column(String(32), nullable=False)
     fcm_token: Mapped[str | None] = mapped_column(String, nullable=True)
+    account_id: Mapped[str | None] = mapped_column(ForeignKey("accounts.id"), nullable=True, index=True)
     role: Mapped[str] = mapped_column(String(16), nullable=False, default="device")
     # Set when a refresh token is replayed; cleared only by a fresh hardware attestation (M4).
     revoked: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default=sa.false())

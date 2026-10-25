@@ -30,6 +30,12 @@ class TokenStore(ctx: Context) {
     var ageYears: Int?
         get() = prefs.getInt("age_years", 0).takeIf { it > 0 }
         set(v) = prefs.edit().apply { if (v == null) remove("age_years") else putInt("age_years", v) }.apply()
+    /** The name a trusted contact sees, and the phone number as shown to the person (masked). Never the number itself. */
+    var accountName: String? get() = prefs.getString("account_name", null); set(v) = prefs.edit().apply { if (v == null) remove("account_name") else putString("account_name", v) }.apply()
+    var phoneMasked: String? get() = prefs.getString("phone_masked", null); set(v) = prefs.edit().apply { if (v == null) remove("phone_masked") else putString("phone_masked", v) }.apply()
+    val signedIn: Boolean get() = phoneMasked != null
+    /** "Continue without an account": the sign-in screen is not shown again on its own. */
+    var signInSkipped: Boolean get() = prefs.getBoolean("sign_in_skipped", false); set(v) = prefs.edit().putBoolean("sign_in_skipped", v).apply()
     var onboarded: Boolean get() = prefs.getBoolean("onboarded", false); set(v) = prefs.edit().putBoolean("onboarded", v).apply()
     /** Consent to watch for scam signals on this phone. Not asked yet = no protection runs. Revocable in Protection settings. */
     val consentAsked: Boolean get() = prefs.contains("consent")

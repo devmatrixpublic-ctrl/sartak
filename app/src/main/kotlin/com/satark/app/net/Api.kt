@@ -6,6 +6,7 @@ import retrofit2.http.Body
 import retrofit2.http.DELETE
 import retrofit2.http.GET
 import retrofit2.http.Header
+import retrofit2.http.PATCH
 import retrofit2.http.POST
 import retrofit2.http.Path
 
@@ -76,6 +77,9 @@ import retrofit2.http.Path
     @SerialName("payment_id") val paymentId: String? = null,
 )
 @Serializable data class Accepted(val accepted: Boolean)
+@Serializable data class AccountRequest(@SerialName("id_token") val idToken: String, val name: String? = null)
+@Serializable data class AccountNameRequest(val name: String)
+@Serializable data class AccountResponse(val name: String? = null, val created: Boolean = false)
 @Serializable data class SignatureRequest(@SerialName("pattern_id") val patternId: String, val features: Map<String, Double>)
 @Serializable data class ApiError(val code: String, val message: String)
 /** M4's dev-token stub body (hidden from api.yaml; contracts/auth.md "Dev token stub"). */
@@ -98,6 +102,9 @@ interface SatarkApi {
     @POST("payments/{id}/result") suspend fun paymentResult(@Path("id") id: String, @Body b: PaymentResultRequest): PaymentResponse
     @POST("payments/{id}/decision") suspend fun paymentDecision(@Path("id") id: String, @Body b: PaymentDecisionRequest): PaymentResponse
     @DELETE("device") suspend fun deleteDevice(): retrofit2.Response<Unit>
+    @POST("account") suspend fun account(@Body b: AccountRequest): AccountResponse
+    @PATCH("account") suspend fun renameAccount(@Body b: AccountNameRequest): AccountResponse
+    @DELETE("account") suspend fun signOut(): retrofit2.Response<Unit>
     @POST("alert") suspend fun alert(@Body b: AlertRequest, @Header(RETRY_HEADER) retry: String = "1"): Accepted
     @POST("signature") suspend fun signature(@Body b: SignatureRequest, @Header(RETRY_HEADER) retry: String = "1"): Accepted
 }

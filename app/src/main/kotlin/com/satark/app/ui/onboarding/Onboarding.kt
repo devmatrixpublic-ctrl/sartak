@@ -87,7 +87,7 @@ private val steps = listOf(
 
 /** First run, and later the "Protection and trusted contact" screen ([settings] = true) reached from the pay screen. */
 @Composable
-fun OnboardingFlow(graph: AppGraph, settings: Boolean = false, onDeleted: () -> Unit = {}, onDone: () -> Unit) {
+fun OnboardingFlow(graph: AppGraph, settings: Boolean = false, onDeleted: () -> Unit = {}, onSignIn: () -> Unit = {}, onDone: () -> Unit) {
     val ctx = LocalContext.current
     var tick by remember { mutableIntStateOf(0) }
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { tick++ }
@@ -178,6 +178,7 @@ fun OnboardingFlow(graph: AppGraph, settings: Boolean = false, onDeleted: () -> 
         ProtectionBanners(status)
 
         if (settings) LanguageCard()
+        if (settings) AccountCard(graph, onSignIn)
         if (settings) ConsentCard(graph, onDeleted)
 
         TrustedContactSetup(graph)
@@ -221,6 +222,29 @@ private fun RemovalGuardCard(tick: Int) {
                 style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             if (!on) Button(onClick = { runCatching { ctx.startActivity(SatarkAdminReceiver.activateIntent(ctx)) } }) { Text("Turn on") }
+        }
+    }
+}
+
+/** Who is signed in, and how to sign in or out. Signing in is optional; the card says what it is for. */
+@Composable
+private fun AccountCard(graph: AppGraph, onSignIn: () -> Unit) {
+    var name by remember { mutableStateOf(graph.accounts.name) }
+    var phone by remember { mutableStateOf(graph.accounts.phoneMasked) }
+    val scope = rememberCoroutineScope()
+    Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLowest)) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("Account", style = MaterialTheme.typography.titleMedium)
+            if (phone != null) {
+                Text(listOfNotNull(name ?: "No name set", phone).joinToString("  \u00B7  "), style = MaterialTheme.typography.bodyLarge)
+                Text("Your trusted contact sees this name, never your number. Signing out removes this phone from the account; your payments and settings here stay.",
+                    style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                OutlinedButton(onClick = { scope.launch { graph.accounts.signOut(); name = null; phone = null } }) { Text("Sign out") }
+            } else {
+                Text("Not signed in. With an account your family can find you as a trusted contact by name, and your settings can follow you to a new phone.",
+                    style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Button(onClick = onSignIn) { Text("Sign in with my phone number") }
+            }
         }
     }
 }
