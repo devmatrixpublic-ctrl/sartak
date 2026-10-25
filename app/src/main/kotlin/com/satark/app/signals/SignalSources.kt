@@ -1,5 +1,6 @@
 package com.satark.app.signals
 
+import android.media.AudioManager
 import android.Manifest
 import android.app.AppOpsManager
 import android.app.usage.UsageEvents
@@ -164,6 +165,11 @@ class UsageSignalSource(
         return if (on) SourceState.AVAILABLE else SourceState.DENIED
     }
 
+    /** A calling app sets the phone's audio mode to "in communication" for the whole call and puts it back after. Needs no permission. */
+    private fun callIsUp(): Boolean = runCatching {
+        ctx.getSystemService(AudioManager::class.java).mode == AudioManager.MODE_IN_COMMUNICATION
+    }.getOrDefault(false)
+
     private fun returnsUsageData(): Boolean = runCatching {
         val t = now()
         ctx.getSystemService(UsageStatsManager::class.java).queryUsageStats(UsageStatsManager.INTERVAL_DAILY, t - 24 * 3600_000L, t).isNotEmpty()
@@ -175,7 +181,7 @@ class UsageSignalSource(
         thread = Thread({
             val usm = ctx.getSystemService(UsageStatsManager::class.java)
             var cursor = now()
-            val video = VideoSessionTracker(videoApps, graceMs, emit)
+            val video = VideoSessionTracker(videoApps, graceMs, inCall = ::callIsUp, emit = emit)
             // Current state at start: if a video app is in front, track it; otherwise report "no video now"
             // (package null) so a session restored from before a restart is closed.
             runCatching {
@@ -227,25 +233,33 @@ class UsageSignalSource(
 }
 
 /**
- * Video session = from the first time a video app comes to the front until it has been off-screen for [graceMs].
- * Staying in the call (no new events) keeps the session open; before, it was closed after ~2 min of silence, so the
- * 2 h long-session rule could never be reached.
+ * Video session = a video app is in front AND a call is actually going on ([inCall]), until that has stopped for [graceMs].
+ * Staying in the call (no new events) keeps the session open, so the 2 h long-session rule can be reached by a real call.
+ *
+ * A video app being in front is not a call: WhatsApp and Telegram are chat apps first. Counting "in front" as "on a call" made a
+ * chat left open (or a phone locked with the app in front, when Android does not report the app leaving) look like an endless
+ * video call, and the long-call warning fired hours later with no call at all. The call itself shows as the phone's audio mode
+ * (MODE_IN_COMMUNICATION), which every calling app sets while a call is up.
  */
 class VideoSessionTracker(
     private val videoApps: Set<String>,
     private val graceMs: Long,
+    /** True while a voice or video call in a calling app is up. The default keeps older callers and tests working. */
+    private val inCall: () -> Boolean = { true },
     private val emit: (RawSignal) -> Unit,
 ) {
     private var sessionPkg: String? = null
     private var foreground: String? = null
     private var lastSeen = 0L
 
+    private fun begin(pkg: String, t: Long) {
+        if (sessionPkg == null) { emit(RawSignal.VideoStarted(t, pkg, null)); sessionPkg = pkg }
+    }
+
     fun resumed(pkg: String, t: Long) {
         if (pkg in videoApps) {
-            if (sessionPkg == null) emit(RawSignal.VideoStarted(t, pkg, null))
-            sessionPkg = sessionPkg ?: pkg
             foreground = pkg
-            lastSeen = t
+            if (inCall()) { begin(pkg, t); lastSeen = t }
         } else {
             if (foreground != null) lastSeen = t
             foreground = null
@@ -258,12 +272,14 @@ class VideoSessionTracker(
     }
 
     fun poll(now: Long) {
-        if (foreground != null) lastSeen = now else endIfIdle(now)
+        val fg = foreground
+        if (fg != null && inCall()) { begin(fg, now); lastSeen = now } else endIfIdle(now)
     }
 
     private fun endIfIdle(now: Long) {
         val pkg = sessionPkg ?: return
-        if (foreground == null && now - lastSeen > graceMs) { emit(RawSignal.VideoEnded(lastSeen, pkg)); sessionPkg = null }
+        val live = foreground != null && inCall()
+        if (!live && now - lastSeen > graceMs) { emit(RawSignal.VideoEnded(lastSeen, pkg)); sessionPkg = null }
     }
 }
 

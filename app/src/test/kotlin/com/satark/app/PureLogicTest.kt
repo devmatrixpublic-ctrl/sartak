@@ -169,6 +169,48 @@ class EventPipelineTest {
         assertEquals(3 * 3600_000L + 40_000, out.last().tMs)
     }
 
+    @Test fun aChatAppLeftInFrontIsNotAVideoCall() {
+        val out = mutableListOf<com.satark.app.signals.RawSignal>()
+        val v = com.satark.app.signals.VideoSessionTracker(setOf("com.whatsapp"), graceMs = 30_000, emit = { out += it }, inCall = { false })
+        v.resumed("com.whatsapp", 0) // opened to read messages
+        for (t in 3_000L..4 * 3600_000L step 3_000L) v.poll(t) // four hours with the chat app "in front" (phone locked, no pause event)
+        assertTrue(out.isEmpty(), "no call, so no session: nothing for the long-call warning to count")
+    }
+
+    @Test fun aSessionStartsWhenTheCallStartsAfterTheAppOpened() {
+        val out = mutableListOf<com.satark.app.signals.RawSignal>()
+        var call = false
+        val v = com.satark.app.signals.VideoSessionTracker(setOf("com.whatsapp"), graceMs = 30_000, emit = { out += it }, inCall = { call })
+        v.resumed("com.whatsapp", 0)
+        v.poll(3_000); assertTrue(out.isEmpty())
+        call = true
+        v.poll(6_000)
+        assertEquals(1, out.size)
+        assertTrue(out.single() is com.satark.app.signals.RawSignal.VideoStarted)
+        assertEquals(6_000L, out.single().tMs)
+    }
+
+    @Test fun aSessionEndsWhenTheCallEndsEvenIfTheAppIsStillInFront() {
+        val out = mutableListOf<com.satark.app.signals.RawSignal>()
+        var call = true
+        val v = com.satark.app.signals.VideoSessionTracker(setOf("com.whatsapp"), graceMs = 30_000, emit = { out += it }, inCall = { call })
+        v.resumed("com.whatsapp", 0)
+        for (t in 3_000L..600_000L step 3_000L) v.poll(t) // ten minutes in the call
+        call = false // hung up; Android never reports the app leaving
+        for (t in 603_000L..3 * 3600_000L step 3_000L) v.poll(t)
+        assertEquals(2, out.size)
+        assertTrue(out.last() is com.satark.app.signals.RawSignal.VideoEnded)
+        assertEquals(600_000L, out.last().tMs, "the session ends where the call stopped, not hours later")
+    }
+
+    @Test fun aRealThreeHourCallStillCountsAsOneSession() {
+        val out = mutableListOf<com.satark.app.signals.RawSignal>()
+        val v = com.satark.app.signals.VideoSessionTracker(setOf("com.whatsapp"), graceMs = 30_000, emit = { out += it }, inCall = { true })
+        v.resumed("com.whatsapp", 0)
+        for (t in 3_000L..3 * 3600_000L step 3_000L) v.poll(t)
+        assertEquals(1, out.size)
+    }
+
     @Test fun outOfOrderEventsReleasedInTimestampOrder() {
         val s = EventSequencer()
         s.add(Event(300, EventType.CALL_END))
