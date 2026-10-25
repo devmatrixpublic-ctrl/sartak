@@ -81,9 +81,8 @@ class AppGraph(private val app: Application) {
     })
     private val alarmNotifier by lazy { com.satark.app.ui.alerts.AlarmNotifier(app) }
 
-    /** Tell the trusted contact (queued if offline). Nothing to do when this phone has no linked contact. */
+    /** Tell the trusted contact (queued if offline). The server knows who the contact is and does nothing when there is none. */
     private suspend fun tellContact(type: String) {
-        if (store.linkedContactId == null) return
         val id = store.deviceId ?: return
         queue.alert(com.satark.app.net.AlertRequest(id, type))
     }
@@ -141,9 +140,8 @@ class AppGraph(private val app: Application) {
      */
     suspend fun deleteAllData() {
         // Deleting everything also ends protection, so the contact hears it first. Sent directly, not queued: the queue is emptied below.
-        val contact = store.linkedContactId
         val me = store.deviceId
-        if (contact != null && me != null) kotlinx.coroutines.withContext(Dispatchers.IO) {
+        if (me != null) kotlinx.coroutines.withContext(Dispatchers.IO) {
             kotlinx.coroutines.withTimeoutOrNull(5_000) {
                 runCatching { api.alert(com.satark.app.net.AlertRequest(me, com.satark.app.protection.ProtectionOff.TYPE_OFF)) }
             }

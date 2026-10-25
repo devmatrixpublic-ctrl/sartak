@@ -192,7 +192,8 @@ class ApiContractTest {
         checkRequest("/account", "patch", AccountNameRequest("Ved"))
         checkRequest("/signature", "post", SignatureRequest("payment_score", mapOf("new_payee" to 1.0, "is_p2p" to 0.0)))
         checkRequest("/trusted-contact", "post", TrustedContactRequest(uuid, "fcm-token"))
-        checkRequest("/trusted-contact/by-phone", "post", com.satark.app.net.TrustedByPhoneRequest("+919876543210"))
+        checkRequest("/trusted-contact/invite", "post", com.satark.app.net.TrustedInviteRequest("fcm-token"))
+        checkRequest("/trusted-contact/join", "post", com.satark.app.net.TrustedJoinRequest("K7M4-Q2XH"))
         checkRequest("/device/push-token", "put", com.satark.app.net.PushTokenRequest("fcm-token"))
     }
 
@@ -202,7 +203,8 @@ class ApiContractTest {
         checkResponse("/auth/refresh", "post", TokenResponse.serializer())
         checkResponse("/trusted-contact", "post", TrustedContactResponse.serializer())
         checkResponse("/trusted-contact", "get", com.satark.app.net.TrustedContactsResponse.serializer())
-        checkResponse("/trusted-contact/by-phone", "post", com.satark.app.net.TrustedByPhoneResponse.serializer())
+        checkResponse("/trusted-contact/invite", "post", com.satark.app.net.TrustedInviteResponse.serializer())
+        checkResponse("/trusted-contact/join", "post", com.satark.app.net.TrustedJoinResponse.serializer())
         checkResponse("/risk-check", "post", RiskCheckResponse.serializer())
         checkResponse("/payments/{id}", "get", PaymentResponse.serializer())
         checkResponse("/payments/{id}/result", "post", PaymentResponse.serializer())

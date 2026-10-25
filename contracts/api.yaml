@@ -129,23 +129,44 @@ components:
                 type: string
                 description: The name the contact signed in with. Absent when they did not give one.
 
-    TrustedByPhoneRequest:
+    TrustedInviteRequest:
       type: object
       additionalProperties: false
-      required: [phone]
+      required: [fcm_token]
       properties:
-        phone:
+        fcm_token:
           type: string
-          pattern: '^\+[1-9]\d{7,14}$'
-          description: The contact's number in E.164. It is hashed and forgotten; it is never stored.
+          minLength: 1
+          maxLength: 4096
+          description: The contact's own push address, sent by the contact's own phone.
 
-    TrustedByPhoneResponse:
+    TrustedInviteResponse:
+      type: object
+      required: [code, expires_in]
+      properties:
+        code:
+          type: string
+          description: Eight characters shown as XXXX-XXXX. Valid for ten minutes, works once, stored only as a keyed hash.
+        expires_in:
+          type: integer
+          description: Seconds the code stays valid.
+
+    TrustedJoinRequest:
+      type: object
+      additionalProperties: false
+      required: [code]
+      properties:
+        code:
+          type: string
+          minLength: 4
+          maxLength: 24
+
+    TrustedJoinResponse:
       type: object
       required: [requested]
       properties:
         requested:
           type: boolean
-          description: Always true for a well-formed request, whether or not that number has Satark.
 
     PushTokenRequest:
       type: object
@@ -498,14 +519,13 @@ paths:
               schema:
                 $ref: '#/components/schemas/TrustedContactResponse'
 
-  /trusted-contact/by-phone:
+  /trusted-contact/invite:
     post:
-      summary: Ask the person with this phone number to be a trusted contact
+      summary: The would-be contact asks for a short code to give to the person they will protect
       description: >
-        The server hashes the number, finds the account, and asks that person's newest phone that has registered a push address
-        (PUT /device/push-token). The reply is the same whether or not the number has Satark, so this cannot be used to find out who
-        does. Limited to 10 tries per hour per phone.
-      operationId: postTrustedContactByPhone
+        The code lives ten minutes and works once; asking again cancels the earlier one. The push address in the body replaces this
+        device's stored address, so it is always the contact's own. Limited to 10 per hour per phone.
+      operationId: postTrustedInvite
       security:
         - bearerAuth: []
       requestBody:
@@ -513,14 +533,54 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/TrustedByPhoneRequest'
+              $ref: '#/components/schemas/TrustedInviteRequest'
       responses:
         '200':
-          description: Requested (or nobody to ask; indistinguishable)
+          description: The code
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/TrustedByPhoneResponse'
+                $ref: '#/components/schemas/TrustedInviteResponse'
+        '429':
+          description: Too many tries
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /trusted-contact/join:
+    post:
+      summary: The person being protected enters the contact's code; the contact is asked to accept
+      description: >
+        A wrong, used or expired code all get the same 404. Nothing reaches the contact until they accept. Limited to 10 tries per hour per phone.
+      operationId: postTrustedJoin
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TrustedJoinRequest'
+      responses:
+        '200':
+          description: The contact was asked
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TrustedJoinResponse'
+        '404':
+          description: Code not valid or expired
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '422':
+          description: Your own code
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
         '429':
           description: Too many tries
           content:

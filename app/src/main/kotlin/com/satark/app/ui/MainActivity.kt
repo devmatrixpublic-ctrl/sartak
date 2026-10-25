@@ -47,7 +47,7 @@ class MainActivity : FragmentActivity(), PaymentResultListener { // FragmentActi
     private val graph get() = (application as SatarkApp).graph
     private var pending: PendingPay? = null
     private var status by mutableStateOf<String?>(null)
-    /** The "Protection and trusted contact" screen (also opened by the "pairing code changed" notification). */
+    /** The "Protection and trusted contact" screen (also opened by the link-request notification). */
     private var showProtection by mutableStateOf(false)
     private var consentAsked by mutableStateOf(false)
     private var decidePaymentId by mutableStateOf<String?>(null) // trusted contact opened a held-payment alert

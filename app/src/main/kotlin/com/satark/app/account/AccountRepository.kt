@@ -51,7 +51,7 @@ class AccountRepository(
 
     /** Lets people who know this phone's number reach it as a trusted contact. Best effort; harmless to repeat. */
     suspend fun refreshPush(token: String? = null) {
-        if (!store.signedIn) return
+        if (!store.signedIn && store.sharedPushTokenHash == null) return // never registered for alerts: nothing to keep fresh
         runCatching {
             val t = token ?: pushToken() ?: return
             api().putPushToken(com.satark.app.net.PushTokenRequest(t))

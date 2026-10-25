@@ -1,18 +1,23 @@
+import hashlib
+import hmac
 import logging
+import re
+import secrets
+from datetime import datetime, timedelta, timezone
 from typing import Literal, Optional
 
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
-from app.accounts.identity import E164, display_name, phone_hash
+from app.accounts.identity import display_name
 from app.alerts.fcm_client import FcmClient, FcmTokenInvalid
 from app.auth.dependencies import require_device
 from app.auth.ratelimit import get_rate_limiter
 from app.core.errors import ApiError
 from app.core.schemas import StrictInput
 from app.core.settings import Settings, get_settings
-from app.db.models import Account, Device, TrustedLink
+from app.db.models import Device, TrustedInvite, TrustedLink
 from app.db.session import get_db
 from app.routers.alerts import fcm_client_dependency
 
@@ -23,8 +28,11 @@ logger = logging.getLogger("satark.trusted_contact")
 REQUEST_PUSH_TITLE = "Satark"
 REQUEST_PUSH_BODY = "Someone asked you to be their trusted contact."
 NAMED_REQUEST_PUSH_BODY = "{name} asked you to be their trusted contact."
-# Looking a number up must not become a way to ask "who uses Satark?": a limited number of tries, and the same answer either way.
-PHONE_LOOKUPS_PER_HOUR = 10
+# An invite code is guessable only by trying: a short life, one use, and a limit on tries per phone.
+INVITE_TTL_SECONDS = 600
+INVITE_TRIES_PER_HOUR = 10
+CODE_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"  # no 0/O, 1/I/L: easy to read out loud
+CODE_LENGTH = 8
 
 
 class TrustedContactIn(StrictInput):
@@ -51,12 +59,21 @@ class MyContactsOut(BaseModel):
     contacts: list[MyContactOut]
 
 
-class ByPhoneIn(StrictInput):
-    phone: str = Field(pattern=E164.pattern)
+class InviteIn(StrictInput):
+    # The contact's own push address, sent by the contact's own phone (never by the person asking).
+    fcm_token: str = Field(min_length=1, max_length=4096)
 
 
-class ByPhoneOut(BaseModel):
-    # Always true when the request was well formed, whether or not that number has Satark.
+class InviteOut(BaseModel):
+    code: str
+    expires_in: int
+
+
+class JoinIn(StrictInput):
+    code: str = Field(min_length=4, max_length=24)
+
+
+class JoinOut(BaseModel):
     requested: bool
 
 
@@ -125,32 +142,69 @@ async def get_my_trusted_contacts(device_id: str = Depends(require_device), db: 
     return MyContactsOut(contacts=[MyContactOut(trusted_device_id=r.trusted_device_id, name=display_name(db, r.trusted_device_id)) for r in rows])
 
 
-@router.post("/trusted-contact/by-phone", response_model=ByPhoneOut)
-async def post_trusted_contact_by_phone(
-    body: ByPhoneIn,
+def _normalize(code: str) -> str:
+    return re.sub(r"[^A-Z0-9]", "", code.upper())
+
+
+def _code_hash(code: str, settings: Settings) -> str:
+    pepper = (settings.phone_pepper or settings.jwt_secret).encode()
+    return hmac.new(pepper, b"invite:" + code.encode(), hashlib.sha256).hexdigest()
+
+
+def _aware(dt: datetime) -> datetime:
+    return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
+
+
+def _limit(settings: Settings, key: str) -> None:
+    allowed, _ = get_rate_limiter(settings).hit(key, INVITE_TRIES_PER_HOUR, 3600)
+    if not allowed:
+        raise ApiError(429, "rate_limited", "Too many tries. Wait a while and try again.")
+
+
+@router.post("/trusted-contact/invite", response_model=InviteOut)
+async def post_invite(
+    body: InviteIn,
+    device_id: str = Depends(require_device),
+    db: Session = Depends(get_db),
+    settings: Settings = Depends(get_settings),
+) -> InviteOut:
+    """The would-be contact asks for a short code to give the person they will protect. The code lives ten minutes and works once;
+    asking again cancels the earlier one. The contact's push address is stored from this call, so it is always their own."""
+    _limit(settings, f"rl:invite:{device_id}")
+    device = db.get(Device, device_id)
+    if device is None:
+        raise ApiError(404, "device_not_found", "This phone is not registered.")
+    device.fcm_token = body.fcm_token
+    db.query(TrustedInvite).filter(TrustedInvite.contact_device_id == device_id, TrustedInvite.used.is_(False)).update({"used": True})
+    code = "".join(secrets.choice(CODE_ALPHABET) for _ in range(CODE_LENGTH))
+    db.add(TrustedInvite(
+        contact_device_id=device_id, code_hash=_code_hash(code, settings),
+        expires_at=datetime.now(timezone.utc) + timedelta(seconds=INVITE_TTL_SECONDS),
+    ))
+    db.commit()
+    return InviteOut(code=f"{code[:4]}-{code[4:]}", expires_in=INVITE_TTL_SECONDS)
+
+
+@router.post("/trusted-contact/join", response_model=JoinOut)
+async def post_join(
+    body: JoinIn,
     device_id: str = Depends(require_device),
     db: Session = Depends(get_db),
     fcm_client: FcmClient = Depends(fcm_client_dependency),
     settings: Settings = Depends(get_settings),
-) -> ByPhoneOut:
-    """Ask the person with this phone number to be this device's trusted contact. The number is hashed and forgotten; the request goes
-    to the newest phone that person signed in on, using the push address that phone registered itself. The answer never says whether
-    the number has Satark."""
-    allowed, _retry_after = get_rate_limiter(settings).hit(f"rl:phonelink:{device_id}", PHONE_LOOKUPS_PER_HOUR, 3600)
-    if not allowed:
-        raise ApiError(429, "rate_limited", "Too many tries. Wait a while and try again.")
-
-    account = db.query(Account).filter(Account.phone_hash == phone_hash(body.phone, settings)).one_or_none()
-    contact = None
-    if account is not None:
-        contact = (
-            db.query(Device)
-            .filter(Device.account_id == account.id, Device.revoked.is_(False), Device.fcm_token.is_not(None), Device.id != device_id)
-            .order_by(Device.created_at.desc())
-            .first()
-        )
-    if contact is None:
-        return ByPhoneOut(requested=True)
+) -> JoinOut:
+    """The person being protected types the code the contact showed. The contact is asked to accept; nothing reaches them until they do.
+    A wrong, used or expired code all get the same answer."""
+    _limit(settings, f"rl:join:{device_id}")
+    invite = db.query(TrustedInvite).filter(
+        TrustedInvite.code_hash == _code_hash(_normalize(body.code), settings), TrustedInvite.used.is_(False)
+    ).one_or_none()
+    contact = db.get(Device, invite.contact_device_id) if invite is not None else None
+    if invite is None or _aware(invite.expires_at) <= datetime.now(timezone.utc) or contact is None or contact.revoked or not contact.fcm_token:
+        raise ApiError(404, "invalid_code", "That code is not valid or has expired. Ask them for a new one.")
+    if contact.id == device_id:
+        raise ApiError(422, "invalid_contact", "You cannot be your own trusted contact.")
+    invite.used = True
 
     link = (
         db.query(TrustedLink)
@@ -170,7 +224,7 @@ async def post_trusted_contact_by_phone(
             _send_request_push(db, device_id, contact.fcm_token, fcm_client)
         except FcmTokenInvalid:
             logger.warning("link_request_stale_fcm_token", extra={"trusted_device_id": contact.id})
-    return ByPhoneOut(requested=True)
+    return JoinOut(requested=True)
 
 
 @router.get("/trusted-contact/requests", response_model=TrustedRequestsOut, response_model_exclude_none=True)

@@ -36,8 +36,10 @@ import retrofit2.http.Path
 )
 @Serializable data class TrustedContactResponse(val linked: Boolean, val status: String? = null) // pending | accepted | revoked
 @Serializable data class TrustedRequest(@SerialName("owner_device_id") val ownerDeviceId: String, @SerialName("owner_name") val ownerName: String? = null)
-@Serializable data class TrustedByPhoneRequest(val phone: String)
-@Serializable data class TrustedByPhoneResponse(val requested: Boolean)
+@Serializable data class TrustedInviteRequest(@SerialName("fcm_token") val fcmToken: String)
+@Serializable data class TrustedInviteResponse(val code: String, @SerialName("expires_in") val expiresIn: Int)
+@Serializable data class TrustedJoinRequest(val code: String)
+@Serializable data class TrustedJoinResponse(val requested: Boolean)
 @Serializable data class MyContact(@SerialName("trusted_device_id") val trustedDeviceId: String, val name: String? = null)
 @Serializable data class TrustedContactsResponse(val contacts: List<MyContact>)
 @Serializable data class PushTokenRequest(@SerialName("fcm_token") val fcmToken: String)
@@ -101,7 +103,8 @@ interface SatarkApi {
     @POST("auth/dev-token") suspend fun devToken(@Body b: DevTokenRequest): TokenResponse
     @POST("trusted-contact") suspend fun trustedContact(@Body b: TrustedContactRequest): TrustedContactResponse
     @GET("trusted-contact") suspend fun myTrustedContacts(): TrustedContactsResponse
-    @POST("trusted-contact/by-phone") suspend fun trustedContactByPhone(@Body b: TrustedByPhoneRequest): TrustedByPhoneResponse
+    @POST("trusted-contact/invite") suspend fun trustedInvite(@Body b: TrustedInviteRequest): TrustedInviteResponse
+    @POST("trusted-contact/join") suspend fun trustedJoin(@Body b: TrustedJoinRequest): TrustedJoinResponse
     @PUT("device/push-token") suspend fun putPushToken(@Body b: PushTokenRequest): retrofit2.Response<Unit>
     @retrofit2.http.GET("trusted-contact/requests") suspend fun trustedRequests(): TrustedRequestsResponse
     @POST("trusted-contact/respond") suspend fun trustedRespond(@Body b: TrustedRespondRequest): TrustedContactResponse

@@ -114,6 +114,7 @@ fun PayHome(
     var held by rememberSaveable { mutableStateOf<List<String>?>(null) }
     var heldAmountInr by remember { mutableStateOf<Double?>(null) } // only to pick the coarse amount band for the fraud summary
     var holdStatus by remember { mutableStateOf<String?>(null) } // what the trusted contact has done about a hold
+    var holdJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) } // waiting on the contact; closing the card ends it
     var busy by remember { mutableStateOf(false) }
     var nudge by remember { mutableStateOf<PendingNudge?>(null) }
     val scope = rememberCoroutineScope()
@@ -146,7 +147,8 @@ fun PayHome(
                                 o.paymentId?.let { id ->
                                     // The trusted contact can approve or block this payment; the person can also choose "Continue anyway".
                                     holdStatus = "Asking your trusted contact to approve or block this payment…"
-                                    scope.launch {
+                                    holdJob?.cancel()
+                                    holdJob = scope.launch {
                                         withContext(Dispatchers.IO) { runCatching { graph.alerts.requestApproval(id, o.reasons) } }
                                         when (val r = withContext(Dispatchers.IO) {
                                             graph.payments.waitForDecision(id, onOverride = {
@@ -287,6 +289,11 @@ fun PayHome(
                     Reasons(reasons, on)
                     ReportFraudButton(reasons, heldAmountInr, on)
                     PlaybookCard(reasons)
+                    // Closing stops waiting for the contact here. The payment stays unsent, and "Continue anyway" on the Stop screen is gone with it.
+                    OutlinedButton(
+                        onClick = { holdJob?.cancel(); holdJob = null; held = null; holdStatus = null; graph.payments.pendingHold = null },
+                        modifier = Modifier.fillMaxWidth(),
+                    ) { Text("Close this and start over", color = on) }
                 }
             }
         }

@@ -54,7 +54,7 @@ app, text bursts from strangers, how long a video session runs, and the person's
 | **Hold** | A full-screen red **Stop. This looks like a scam.** The payment is not sent. |
 
 **Brings a human in.** A held payment can be approved or blocked by a **trusted contact** who gets a push notification naming the person
-("*Priya may be in danger. Please call them.*"). Linking is by phone number or pairing code, and the contact must accept. An unanswered hold
+("*Priya may be in danger. Please call them.*"). Linking uses a short invite code the contact reads out (valid 10 minutes, one use), and the contact must accept. An unanswered hold
 stays held.
 
 **Resists the scammer.** "Continue anyway", turning protection off, changing the contact or age, and deleting data all need the person's fingerprint (or the phone's
@@ -100,7 +100,7 @@ A scam victim is being steered by another person, sometimes with remote access t
 | "Turn Satark off" | A 30-minute wait, and the trusted contact is told immediately that it was requested. |
 | "Uninstall it" | A device-admin guard blocks removal; switching the guard off alerts the contact. |
 | "Change your trusted contact" | Fingerprint or PIN needed; the new contact has to accept. |
-| Redirecting the contact's alerts | The contact's own phone registers its push address; the by-phone link never accepts one from the owner. |
+| Redirecting the contact's alerts | The contact's own phone registers its push address with the invite; the person being protected never supplies one. |
 
 ## Privacy
 
@@ -269,7 +269,7 @@ render.yaml   Render blueprint for the backend
 
 ## Roadmap
 
-Near term (days): pin the Google attestation roots, move the server to production mode, enable real SMS sign-in, a short invite code to replace the long pairing code,
+Near term (days): pin the Google attestation roots, move the server to production mode, enable real SMS sign-in,
 the sealed held-out run on two phones, and an on-device timing measurement.
 
 Next (weeks): WhatsApp message flags (read-only, strangers only, no effect on payment decisions), a native-speaker review of the Hindi strings, certificate pinning, a load test, and a shadow-mode pilot with real users.

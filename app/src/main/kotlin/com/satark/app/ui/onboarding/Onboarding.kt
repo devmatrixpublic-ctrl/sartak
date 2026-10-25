@@ -57,14 +57,14 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
 import com.satark.app.AppGraph
 import com.satark.app.events.AgeProfile
-import com.satark.app.net.TrustedContactRequest
 import com.satark.app.protection.SatarkAdminReceiver
-import com.satark.app.push.PairingCode
-import com.satark.app.account.PhoneNumber
-import com.satark.app.net.TrustedByPhoneRequest
+import com.satark.app.net.TrustedInviteRequest
+import com.satark.app.net.TrustedJoinRequest
+import com.satark.app.push.InviteCode
 import com.satark.app.push.Push
 import com.satark.app.signals.SignalStatus
 import com.satark.app.signals.SourceName
@@ -415,36 +415,49 @@ fun TrustedContactSetup(graph: AppGraph) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Text("Trusted contact", style = MaterialTheme.typography.titleMedium)
             Text("A person who gets an alert on their phone if Satark thinks you may be being scammed. They need Satark too.")
-            ContactsByPhone(graph)
+            WhoToCall(graph)
             HorizontalDivider(Modifier.padding(vertical = 4.dp))
-            LinkTrustedContact(graph)
+            YourTrustedContact(graph)
             HorizontalDivider(Modifier.padding(vertical = 4.dp))
-            MyPairingCode(graph)
+            MyInviteCode(graph)
         }
     }
 }
 
+/** Which contact "Call trusted contact" dials. Only the choice is kept, not the number. */
+@Composable
+private fun WhoToCall(graph: AppGraph) {
+    val lock = rememberLockGate()
+    var dialChosen by remember { mutableStateOf(graph.store.dialContactUri != null) }
+    val pickContact = rememberLauncherForActivityResult(ActivityResultContracts.PickContact()) { uri ->
+        if (uri != null) { graph.store.dialContactUri = uri.toString(); dialChosen = true }
+    }
+    Text("Who to call", style = MaterialTheme.typography.titleSmall)
+    Text("Pick the person from your contacts that “Call trusted contact” should dial. Satark keeps only which contact you picked, not their number.")
+    OutlinedButton(onClick = { lock.require("Change who to call") { pickContact.launch(null) } }) { Text(if (dialChosen) "Change the person to call" else "Choose the person to call") }
+}
+
 /**
- * Add a trusted contact by their mobile number, and see who has said yes (by name). The server answers the same whether or not the number
- * has Satark, so "waiting" is only what this phone remembers asking; a contact appears once they have accepted.
+ * The people who have said yes, by name, and how to add one: they open Satark, get an invite code, and read it out. The server lists a
+ * contact only once they have accepted, so "waiting" is only what this phone remembers asking.
  */
 @Composable
-private fun ContactsByPhone(graph: AppGraph) {
-    var digits by rememberSaveable { mutableStateOf("") }
+private fun YourTrustedContact(graph: AppGraph) {
+    var code by rememberSaveable { mutableStateOf("") }
     var msg by rememberSaveable { mutableStateOf<String?>(null) }
     var busy by remember { mutableStateOf(false) }
     var contacts by remember { mutableStateOf<List<com.satark.app.net.MyContact>>(emptyList()) }
-    var waiting by remember { mutableStateOf(graph.store.waitingContactMasked) }
+    var waiting by remember { mutableStateOf(graph.store.waitingForContact) }
     val scope = rememberCoroutineScope()
     val lock = rememberLockGate()
-    val national = PhoneNumber.normalize(digits)
+    val tidy = InviteCode.normalize(code)
 
     suspend fun load() {
-        val list = withContext(Dispatchers.IO) { runCatching { graph.api.myTrustedContacts().contacts }.getOrNull() }
-        if (list != null) {
-            contacts = list
-            if (list.isNotEmpty() && waiting != null) { graph.store.waitingContactMasked = null; waiting = null }
-        }
+        val list = withContext(Dispatchers.IO) { runCatching { graph.api.myTrustedContacts().contacts }.getOrNull() } ?: return
+        contacts = list
+        // What the server lists is the truth about who will be told. Keeping it here means a switch-off or removal tells the contact.
+        graph.store.linkedContactId = list.firstOrNull()?.trustedDeviceId
+        if (list.isNotEmpty() && waiting) { graph.store.waitingForContact = false; waiting = false }
     }
     LaunchedEffect(Unit) { load() }
 
@@ -456,39 +469,43 @@ private fun ContactsByPhone(graph: AppGraph) {
                 busy = true
                 scope.launch {
                     val ok = withContext(Dispatchers.IO) { runCatching { graph.api.removeTrustedContact(c.trustedDeviceId) }.isSuccess }
-                    if (ok) { if (graph.store.linkedContactId == c.trustedDeviceId) graph.store.linkedContactId = null; msg = "Removed. They will not get any more alerts."; load() }
-                    else msg = "Could not remove them. Check your connection and try again."
+                    msg = if (ok) "Removed. They will not get any more alerts." else "Could not remove them. Check your connection and try again."
+                    if (ok) load()
                     busy = false
                 }
             } }) { Text("Remove") }
         }
     }
     if (contacts.isEmpty()) Text(
-        waiting?.let { "Waiting for $it to accept. They need to open Satark and tap Accept." } ?: "Nobody yet.",
+        if (waiting) "Waiting for them to accept. They need to open Satark and tap Accept." else "Nobody yet.",
         style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
     )
-    Text("Type their mobile number. If they have Satark and have signed in, they are asked to accept. Satark does not keep the number.")
+    Text("To add someone: ask them to open Satark, go to Protection and trusted contact, tap “Get an invite code”, and read the code out to you.")
     OutlinedTextField(
-        digits, { v -> digits = v.filter { it.isDigit() || it == ' ' }.take(15); msg = null },
-        label = { Text("Their 10-digit number") }, singleLine = true, modifier = Modifier.fillMaxWidth(),
-        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
+        code, { code = it.take(12); msg = null }, label = { Text("Their invite code") }, placeholder = { Text("K7M4-Q2XH") },
+        singleLine = true, modifier = Modifier.fillMaxWidth(),
+        keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Characters, keyboardType = KeyboardType.Ascii),
     )
-    OutlinedButton(enabled = national != null && !busy, onClick = {
-        val n = national ?: return@OutlinedButton
-        lock.require("Ask a trusted contact") {
+    OutlinedButton(enabled = tidy != null && !busy, onClick = {
+        val c = tidy ?: return@OutlinedButton
+        lock.require("Link a trusted contact") {
             busy = true
             scope.launch {
                 msg = withContext(Dispatchers.IO) {
                     try {
                         graph.session.ensureRegistered()
-                        graph.api.trustedContactByPhone(TrustedByPhoneRequest(PhoneNumber.e164(n)))
-                        val masked = PhoneNumber.masked(PhoneNumber.e164(n))
-                        graph.store.waitingContactMasked = masked; waiting = masked; digits = ""
-                        "Request sent. If that number has Satark and is signed in, they will be asked. Ask them to open Satark and tap Accept."
+                        graph.api.trustedJoin(TrustedJoinRequest(c))
+                        graph.store.waitingForContact = true; waiting = true; code = ""
+                        "Request sent. They must open Satark and tap Accept before any alert can reach them."
                     } catch (e: CancellationException) {
                         throw e
                     } catch (e: retrofit2.HttpException) {
-                        if (e.code() == 429) "Too many tries. Wait a while and try again." else "Could not send the request (error ${e.code()}). Try again later."
+                        when (e.code()) {
+                            404 -> "That code is not valid or has expired. Ask them for a new one."
+                            422 -> "That is your own code. Enter the code from the other person's phone."
+                            429 -> "Too many tries. Wait a while and try again."
+                            else -> "Could not link (error ${e.code()}). Try again later."
+                        }
                     } catch (e: Exception) {
                         "Could not reach Satark. Check your internet connection and try again."
                     }
@@ -497,84 +514,9 @@ private fun ContactsByPhone(graph: AppGraph) {
                 load()
             }
         }
-    }) { Text(if (busy) "Sending…" else "Ask them") }
-    msg?.let { Text(it) }
-    if (graph.accounts.signedIn.not()) Text(
-        "Tip: sign in (the Account card) so they see your name on the request and on any alert.",
-        style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
-    )
-}
-
-/** The protected person pastes the contact's code: POST /trusted-contact {trusted_device_id, fcm_token}. */
-@Composable
-private fun LinkTrustedContact(graph: AppGraph) {
-    var code by rememberSaveable { mutableStateOf("") }
-    var msg by rememberSaveable { mutableStateOf<String?>(null) }
-    var busy by remember { mutableStateOf(false) }
-    val scope = rememberCoroutineScope()
-    val lock = rememberLockGate()
-    var dialChosen by remember { mutableStateOf(graph.store.dialContactUri != null) }
-    val pickContact = rememberLauncherForActivityResult(ActivityResultContracts.PickContact()) { uri ->
-        if (uri != null) { graph.store.dialContactUri = uri.toString(); dialChosen = true }
-    }
-    Text("Who to call", style = MaterialTheme.typography.titleSmall)
-    Text("Pick the person from your contacts that “Call trusted contact” should dial. Satark keeps only which contact you picked, not their number.")
-    OutlinedButton(onClick = { lock.require("Change who to call") { pickContact.launch(null) } }) { Text(if (dialChosen) "Change the person to call" else "Choose the person to call") }
-    Text("Get alerts sent to someone you trust", style = MaterialTheme.typography.titleSmall)
-    Text("Ask them to open Satark, tap “Show my pairing code” and send you the code. Paste it here.")
-    OutlinedTextField(code, { code = it; msg = null }, label = { Text("Their pairing code") }, modifier = Modifier.fillMaxWidth(), maxLines = 3)
-    OutlinedButton(enabled = !busy, onClick = {
-        val p = PairingCode.parse(code)
-        when {
-            p == null -> msg = "That code does not look right. Copy the whole code from their Satark."
-            p.deviceId == graph.store.deviceId -> msg = "That is your own code. Paste the code from the other person's phone."
-            else -> lock.require("Link a trusted contact") {
-                busy = true
-                scope.launch {
-                    msg = withContext(Dispatchers.IO) { linkContact(graph, p) }
-                    busy = false
-                }
-            }
-        }
     }) { Text(if (busy) "Linking…" else "Link") }
+    if (code.isNotBlank() && tidy == null) Text("A code is 8 letters and numbers, like K7M4-Q2XH.", style = MaterialTheme.typography.bodySmall)
     msg?.let { Text(it) }
-    var removable by remember { mutableStateOf(graph.store.linkedContactId) }
-    removable?.let { id ->
-        OutlinedButton(enabled = !busy, onClick = { lock.require("Remove your trusted contact") {
-            busy = true
-            scope.launch {
-                msg = withContext(Dispatchers.IO) {
-                    runCatching { graph.api.removeTrustedContact(id) }.fold(
-                        { graph.store.linkedContactId = null; "Removed. They will not get any more alerts." },
-                        { e -> if ((e as? retrofit2.HttpException)?.code() == 404) { graph.store.linkedContactId = null; "Already removed." } else "Could not remove them. Check your connection and try again." },
-                    )
-                }
-                removable = graph.store.linkedContactId
-                busy = false
-            }
-        } }) { Text("Remove this trusted contact") }
-    }
-}
-
-private suspend fun linkContact(graph: AppGraph, p: PairingCode.Parsed): String = try {
-    graph.session.ensureRegistered()
-    val r = graph.api.trustedContact(TrustedContactRequest(p.deviceId, p.pushToken))
-    graph.store.linkedContactId = p.deviceId
-    when (r.status) {
-        "accepted" -> "Linked. They will get an alert if Satark thinks you are being scammed."
-        "pending" -> "Request sent. They must open Satark and tap Accept before any alert can reach them."
-        else -> "Could not link. Try again."
-    }
-} catch (e: CancellationException) {
-    throw e
-} catch (e: retrofit2.HttpException) {
-    when (e.code()) {
-        404 -> "Their Satark is not registered yet. Ask them to open Satark once with internet on, then try again."
-        422 -> "That code does not look right. Copy the whole code from their Satark."
-        else -> "Could not link (error ${e.code()}). Try again later."
-    }
-} catch (e: Exception) {
-    "Could not reach Satark. Check your internet connection and try again."
 }
 
 private sealed interface CodeUi {
@@ -584,9 +526,9 @@ private sealed interface CodeUi {
     data class Failed(val message: String) : CodeUi
 }
 
-/** The contact's side: registers for push only now, then shows "<device id>:<push token>" to copy or share. */
+/** The contact's side: registers for push only now, then shows a short code to read out. It works once and lasts ten minutes. */
 @Composable
-private fun MyPairingCode(graph: AppGraph) {
+private fun MyInviteCode(graph: AppGraph) {
     val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
     var ui by remember { mutableStateOf<CodeUi>(CodeUi.Hidden) }
@@ -594,23 +536,25 @@ private fun MyPairingCode(graph: AppGraph) {
     val askNotifications = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { notifTick++ }
     fun load() {
         ui = CodeUi.Loading
-        scope.launch { ui = withContext(Dispatchers.IO) { loadPairingCode(ctx, graph) } }
+        scope.launch { ui = withContext(Dispatchers.IO) { loadInviteCode(ctx, graph) } }
     }
     LinkRequestsPanel(graph)
     Text("Be someone's trusted contact", style = MaterialTheme.typography.titleSmall)
-    Text("Show your pairing code and send it to the person you protect. This phone is registered for alerts only when you tap the button.")
+    Text("Get a code and read it out to the person you protect. It works once and lasts 10 minutes. This phone is registered for alerts only when you tap the button.")
     when (val s = ui) {
-        CodeUi.Hidden -> OutlinedButton(onClick = { load() }) { Text("Show my pairing code") }
+        CodeUi.Hidden -> OutlinedButton(onClick = { load() }) { Text("Get an invite code") }
         CodeUi.Loading -> Text("Getting your code…")
         is CodeUi.Failed -> {
             Text(s.message)
             OutlinedButton(onClick = { load() }) { Text("Try again") }
         }
         is CodeUi.Ready -> {
-            SelectionContainer { Text(s.code, fontFamily = FontFamily.Monospace, style = MaterialTheme.typography.bodySmall) }
+            SelectionContainer { Text(s.code, fontFamily = FontFamily.Monospace, style = MaterialTheme.typography.headlineMedium) }
+            Text("Valid for 10 minutes, one use. Then they will ask you to accept.", style = MaterialTheme.typography.bodySmall)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedButton(onClick = { copyPairingCode(ctx, s.code) }) { Text("Copy") }
-                OutlinedButton(onClick = { sharePairingCode(ctx, s.code) }) { Text("Share") }
+                OutlinedButton(onClick = { copyInviteCode(ctx, s.code) }) { Text("Copy") }
+                OutlinedButton(onClick = { shareInviteCode(ctx, s.code) }) { Text("Share") }
+                OutlinedButton(onClick = { load() }) { Text("New code") }
             }
             val canNotify = remember(notifTick) {
                 Build.VERSION.SDK_INT < 33 ||
@@ -624,26 +568,33 @@ private fun MyPairingCode(graph: AppGraph) {
     }
 }
 
-private suspend fun loadPairingCode(ctx: Context, graph: AppGraph): CodeUi {
+private suspend fun loadInviteCode(ctx: Context, graph: AppGraph): CodeUi {
     if (!Push.isConfigured(ctx)) {
         return CodeUi.Failed("Alerts to a trusted contact are not set up in this build of Satark (Firebase is not configured).")
     }
     runCatching { graph.session.ensureRegistered() }
-    val id = graph.store.deviceId
-        ?: return CodeUi.Failed("Satark could not register this phone yet. Check your internet connection and try again.")
     val token = Push.token(ctx)
         ?: return CodeUi.Failed("Could not set up alerts on this phone. Check your internet connection and that Google Play services is up to date, then try again.")
-    graph.store.sharedPushTokenHash = Push.hash(token)
-    return CodeUi.Ready(PairingCode.format(id, token))
+    return try {
+        val r = graph.api.trustedInvite(TrustedInviteRequest(token))
+        graph.store.sharedPushTokenHash = Push.hash(token)
+        CodeUi.Ready(r.code)
+    } catch (e: CancellationException) {
+        throw e
+    } catch (e: retrofit2.HttpException) {
+        CodeUi.Failed(if (e.code() == 429) "Too many codes. Wait a while and try again." else "Could not get a code (error ${e.code()}). Try again later.")
+    } catch (e: Exception) {
+        CodeUi.Failed("Could not reach Satark. Check your internet connection and try again.")
+    }
 }
 
-private fun copyPairingCode(ctx: Context, code: String) {
-    val clip = ClipData.newPlainText("Satark pairing code", code)
+private fun copyInviteCode(ctx: Context, code: String) {
+    val clip = ClipData.newPlainText("Satark invite code", code)
     if (Build.VERSION.SDK_INT >= 33) clip.description.extras = PersistableBundle().apply { putBoolean(ClipDescription.EXTRA_IS_SENSITIVE, true) }
     runCatching { ctx.getSystemService(ClipboardManager::class.java).setPrimaryClip(clip) }
 }
 
-private fun sharePairingCode(ctx: Context, code: String) {
-    val send = Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, code)
-    runCatching { ctx.startActivity(Intent.createChooser(send, "Send my Satark pairing code")) }
+private fun shareInviteCode(ctx: Context, code: String) {
+    val send = Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, "My Satark invite code: $code (valid for 10 minutes)")
+    runCatching { ctx.startActivity(Intent.createChooser(send, "Send my Satark invite code")) }
 }

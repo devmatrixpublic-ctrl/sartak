@@ -100,7 +100,7 @@
                 <action android:name="com.google.firebase.MESSAGING_EVENT" />
             </intent-filter>
         </service>
-        <!-- Privacy: no Firebase registration until the user taps "Show my pairing code"; no analytics. -->
+        <!-- Privacy: no Firebase registration until the user taps "Get an invite code" or signs in; no analytics. -->
         <meta-data android:name="firebase_messaging_auto_init_enabled" android:value="false" />
         <meta-data android:name="firebase_analytics_collection_deactivated" android:value="true" />
         <!-- Pushes Android shows by itself (app in the background) use Satark's high-priority channel. -->

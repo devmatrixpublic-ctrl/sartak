@@ -13,9 +13,11 @@ production-mode server on the laptop; judges' Q&A PDF (`~/Downloads/JUDGES_QNA.p
       in a browser; then they go into `server/certs/google_attestation_roots.pem`. Today only a scratch copy was used for the local test.
 - [ ] **Deploy.** Render (blueprint exists, never run) or a public tunnel to the laptop. Needs the release signing digest, `SATARK_TRUSTED_PROXY_HOPS`,
       the DB role script, and `ops/e2e/smoke_deployed.py`. Decision wanted.
-- [ ] **Push to a second physical phone.** Service key and app config are ready; the contact phone must show "Show my pairing code" with a real code.
+- [ ] **Push to a second physical phone.** Service key and app config are ready; done once (a real push reached the iQOO); repeat it against the live server with the invite code.
 - [ ] **Razorpay test checkout.** Needs the key id (public), key secret and webhook secret in a file outside the repo, and a public webhook URL.
-- [~] **Accounts (C).** Built and tested (server 286 tests, app 190): phone-number sign-in, link a trusted contact by number (`POST /trusted-contact/by-phone`, same answer whether or not the number has Satark, 10 tries an hour), a phone registers its own push address at sign-in (`PUT /device/push-token`), the asker sees accepted contacts by name (`GET /trusted-contact`), alerts and requests name the person. Phone sign-in itself was seen working on the Realme against the dev server. Not yet seen on a device: the by-phone screen. Not live: Firebase Phone provider (console steps), real push.
+- [x] **Accounts (C).** Phone sign-in (hash only), names in alerts, `PUT /device/push-token`, and linking by a short invite code (`POST /trusted-contact/invite` then `/join`: 8 characters, 10 minutes, one use, 10 tries an hour; the contact's own phone supplies its push address; the contact still taps Accept). It replaces the long pairing code and the by-phone call. Server 293 tests, app 187. Seen on phones: sign-in, a real push to a second phone. Not yet seen on phones: the invite flow.
+      The legacy `POST /trusted-contact` (owner supplies the contact's push address) is still on the server and still lets an owner overwrite a contact's push address; the app no longer calls it. Remove or guard it.
+      Fixed with it: protection-off and removal-guard alerts were skipped for a contact linked without the old pairing code (the phone's own record of a contact was never set); and the hold card on the Pay screen had no way to close.
 
 **2. Features not built:** WhatsApp message flags (approved design below); Razorpay checkout wiring.
 

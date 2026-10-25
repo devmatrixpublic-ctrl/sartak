@@ -80,6 +80,19 @@ class TrustedLink(Base):
     __table_args__ = (UniqueConstraint("owner_device_id", "trusted_device_id", name="uq_trusted_link_pair"),)
 
 
+class TrustedInvite(Base):
+    """A short-lived code a would-be trusted contact shows to the person they will protect. Stored only as a keyed hash; one use."""
+
+    __tablename__ = "trusted_invites"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    contact_device_id: Mapped[str] = mapped_column(ForeignKey("devices.id"), nullable=False, index=True)
+    code_hash: Mapped[str] = mapped_column(String(64), nullable=False, unique=True, index=True)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    used: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default=sa.false())
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+
+
 class Payment(Base):
     __tablename__ = "payments"
 

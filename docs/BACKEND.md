@@ -147,7 +147,12 @@ Full contract: [`contracts/api.yaml`](contracts/api.yaml). Summary:
 | --- | --- | --- |
 | `GET /health` | none | liveness check |
 | `POST /auth/challenge`, `/auth/device`, `/auth/refresh` | none | **M4-owned**, mounted; Key Attestation → JWT, see `contracts/auth.md` |
-| `POST /trusted-contact` | bearer | link a trusted contact's device + FCM token |
+| `POST /trusted-contact/invite` | bearer | the would-be contact gets a short code (10 minutes, one use) and registers their own push address |
+| `POST /trusted-contact/join` | bearer | the person being protected enters the code; the contact is asked to accept (10 tries an hour) |
+| `GET /trusted-contact` | bearer | contacts who have accepted, by name (a pending request is never shown) |
+| `PUT /device/push-token` | bearer | a phone registers its own push address |
+| `POST /account`, `GET`, `PATCH`, `DELETE /account` | bearer | optional phone sign-in (the number is kept only as a keyed hash) and a display name |
+| `POST /trusted-contact` | bearer | legacy: link a device by id and push address (the app no longer uses it) |
 | `POST /risk-check` | bearer | evaluate a `Decision` from the on-device detector, create a payment as `held` or `allowed`; with `override` + `payment_id` ("Continue anyway") releases the caller's own detector hold (`allowed_by_user`) |
 | `GET /payments/{id}` | bearer | read a payment's current state (owner-scoped) |
 | `POST /payments/{id}/result` | bearer | report a UPI app's returned result (never for a `held` payment) |

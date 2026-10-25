@@ -30,7 +30,7 @@ import kotlin.coroutines.resume
  * app/google-services.json; without it [isConfigured] is false and nothing here touches Firebase.
  *
  * Privacy: auto-init is off in the manifest, so this phone is registered with Firebase only after the user taps
- * "Show my pairing code" (they chose to be someone's trusted contact). From then on the token is kept fresh.
+ * "Get an invite code" (they chose to be someone's trusted contact) or signs in. From then on the token is kept fresh.
  */
 object Push {
     fun isConfigured(ctx: Context): Boolean = runCatching { FirebaseApp.getApps(ctx).isNotEmpty() }.getOrDefault(false)
@@ -59,7 +59,6 @@ object ContactAlertNotifier {
     const val CHANNEL = "satark_contact_alert"
     private const val ID_ALARM = 3
     private const val ID_LONG_SESSION = 4
-    private const val ID_CODE_CHANGED = 5
     private const val ID_LINK_REQUEST = 6
     private const val ID_PROTECTION = 7
 
@@ -75,12 +74,6 @@ object ContactAlertNotifier {
     fun show(ctx: Context, alert: ContactAlert) =
         post(ctx, if (alert.isLinkRequest) ID_LINK_REQUEST else if (alert.isProtectionChange) ID_PROTECTION else if (alert.isLongSession) ID_LONG_SESSION else ID_ALARM, alert.title(), alert.text(), openProtection = alert.isLinkRequest,
             decidePaymentId = alert.paymentId.takeIf { alert.canDecide })
-
-    fun showCodeChanged(ctx: Context) = post(
-        ctx, ID_CODE_CHANGED, "Your Satark pairing code changed",
-        "Send your new pairing code to the people you protect, or their alerts will not reach you. Tap to see it.",
-        openProtection = true,
-    )
 
     private fun post(ctx: Context, id: Int, title: String, text: String, openProtection: Boolean, decidePaymentId: String? = null) {
         if (Build.VERSION.SDK_INT >= 33 &&
@@ -118,14 +111,9 @@ class SatarkMessagingService : FirebaseMessagingService() {
         ContactAlertNotifier.show(this, ContactAlert.from(message.data))
     }
 
-    /**
-     * The token reaches the server only through the protected person's app (they paste our pairing code), so a new
-     * token means they must link again. Say so, but only if a code was already shown on this phone.
-     */
+    /** Google changed this phone's push address: tell the server, so alerts keep reaching it. Nothing for the person to do. */
     override fun onNewToken(token: String) {
         val graph = runCatching { (application as SatarkApp).graph }.getOrNull() ?: return
-        if (graph.store.signedIn) CoroutineScope(Dispatchers.IO).launch { graph.accounts.refreshPush(token) }
-        val shown = graph.store.sharedPushTokenHash ?: return
-        if (shown != Push.hash(token)) ContactAlertNotifier.showCodeChanged(this)
+        CoroutineScope(Dispatchers.IO).launch { graph.accounts.refreshPush(token) }
     }
 }
